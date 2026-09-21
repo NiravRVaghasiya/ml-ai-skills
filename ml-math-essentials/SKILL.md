@@ -12,10 +12,25 @@ description: >
 type: reference
 domain: foundations
 level: beginner
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - gradient-descent-math
+  - backpropagation-chain-rule
+  - eigendecomposition-svd
+  - l1-l2-regularization-math
+  - bayes-rule-expectation-variance
+  - shape-mismatch-debugging
+requires:
+conflicts:
 related:
   - statistics-for-ml
   - python-for-ml
   - neural-net-fundamentals
+inputs: A specific ML concept, algorithm, or paper term the user wants explained mathematically (e.g. a gradient, eigenvector, or formula).
+outputs: A concise mathematical explanation of the relevant linear algebra/calculus/probability concept, with notation and a pointer to where it shows up in ML.
 ---
 
 ## Overview

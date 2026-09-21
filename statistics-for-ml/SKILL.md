@@ -12,10 +12,25 @@ description: >
 type: reference
 domain: foundations
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - hypothesis-testing
+  - p-value-interpretation
+  - confidence-interval-construction
+  - mle-map-estimation
+  - ab-test-design
+  - multiple-comparison-correction
+requires:
+conflicts:
 related:
   - ml-math-essentials
   - model-evaluation
   - supervised-learning
+inputs: A question about which distribution/test/estimator applies to a dataset or experiment result, or a p-value/confidence interval to interpret.
+outputs: Guidance on which distribution, statistical test, or estimator (MLE/MAP) fits the situation, plus correct interpretation of resulting p-values/CIs and pitfalls to check for.
 ---
 
 ## Overview

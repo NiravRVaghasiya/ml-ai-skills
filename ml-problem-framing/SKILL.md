@@ -12,10 +12,25 @@ description: >
 type: workflow
 domain: foundations
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - problem-spec-definition
+  - label-leakage-audit
+  - ml-task-formulation
+  - baseline-establishment
+  - offline-vs-business-metric-alignment
+  - class-imbalance-check
+requires:
+conflicts:
 related:
   - feature-engineering
   - supervised-learning
   - model-evaluation
+inputs: A vague business ask or request to apply ML, before any data exploration or modeling has begun.
+outputs: A structured problem spec (unit, horizon, label, metric, baseline), a leakage-audited label definition, and a non-ML baseline score to beat.
 ---
 
 ## Overview
@@ -165,7 +180,9 @@ building the wrong thing or leaking the answer into the features.
   (e.g. PR-AUC, recall@k) to match the real decision cost structure.
 - **Skipping the non-ML baseline.** Without a baseline, there is no way to
   tell whether a complex model is actually earning its complexity, or whether
-  a one-line heuristic would have gotten 90% of the value.
+  a one-line heuristic would already have captured most of the value — the
+  actual gap depends on the problem, so measure it rather than assuming a
+  model will beat the baseline by any particular margin.
 - **Ignoring the asymmetry between error types.** A false negative (missed
   churner) and a false positive (wasted retention offer) rarely cost the same
   — that asymmetry should drive the metric and decision threshold, not be

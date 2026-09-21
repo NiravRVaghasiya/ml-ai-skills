@@ -12,10 +12,27 @@ description: >
 type: reference
 domain: foundations
 level: beginner
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - numpy-broadcasting-rules
+  - vectorization-vs-loops
+  - view-vs-copy-semantics
+  - pandas-chained-indexing-fixes
+  - dtype-overflow-debugging
+  - pandas-vectorized-groupby
+requires:
+conflicts:
 related:
   - data-preprocessing
   - feature-engineering
   - ml-math-essentials
+inputs: A numpy/pandas code snippet or performance problem (slow loop, unexpected shape, chained-indexing warning) to vectorize or debug.
+outputs: An idiomatic vectorized numpy/pandas rewrite, or an explanation of the broadcasting/view/dtype mechanism causing the observed bug.
+version_constraints:
+  - "numpy: np.random.default_rng() Generator API estimated available since 1.17 (model-knowledge estimate, not live-verified this session)"
 ---
 
 ## Overview
