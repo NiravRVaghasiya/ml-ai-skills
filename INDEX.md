@@ -5,10 +5,10 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 ---
 
 ## 1. Foundations
-- ⬜ [R] `ml-math-essentials` — linear algebra, calculus, probability cheat-refs
-- ⬜ [R] `statistics-for-ml` — distributions, hypothesis testing, MLE/MAP
-- ⬜ [R] `python-for-ml` — numpy/pandas idioms, vectorization
-- ⬜ [W] `ml-problem-framing` — turning a business ask into an ML problem
+- ✅ [R] `ml-math-essentials` — linear algebra, calculus, probability cheat-refs
+- ✅ [R] `statistics-for-ml` — distributions, hypothesis testing, MLE/MAP
+- ✅ [R] `python-for-ml` — numpy/pandas idioms, vectorization
+- ✅ [W] `ml-problem-framing` — turning a business ask into an ML problem
 
 ## 2. Classical ML
 - ✅ [W] `data-preprocessing` — cleaning, encoding, scaling, imputation *(example written)*
@@ -19,12 +19,12 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [W] `hyperparameter-tuning` — grid/random/Bayesian, Optuna
 
 ## 3. Deep Learning
-- ⬜ [R] `neural-net-fundamentals` — backprop, optimizers, initialization
-- ⬜ [R] `cnn-vision` — convolutions, pooling, architectures
-- ⬜ [R] `rnn-sequence` — RNN/LSTM/GRU, sequence modeling
+- ✅ [R] `neural-net-fundamentals` — backprop, optimizers, initialization
+- ✅ [R] `cnn-vision` — convolutions, pooling, architectures
+- ✅ [R] `rnn-sequence` — RNN/LSTM/GRU, sequence modeling
 - ✅ [R] `attention-mechanisms` — self-attention, multi-head, transformers *(example written)*
-- ⬜ [W] `training-deep-models` — mixed precision, schedulers, regularization
-- ⬜ [W] `pytorch-patterns` — idiomatic training loops, datasets, hooks
+- ✅ [W] `training-deep-models` — mixed precision, schedulers, regularization
+- ✅ [W] `pytorch-patterns` — idiomatic training loops, datasets, hooks
 
 ## 4. LLMs & Generative AI
 - ⬜ [R] `prompt-engineering` — patterns, few-shot, structured output
@@ -34,11 +34,11 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ⬜ [W] `llm-evaluation` — eval harnesses, hallucination checks
 
 ## 5. Specialized Domains
-- ⬜ [W] `nlp-tasks` — tokenization, NER, classification, summarization
-- ⬜ [W] `computer-vision` — detection, segmentation, augmentation
-- ⬜ [W] `time-series` — forecasting, seasonality, ARIMA/Prophet
-- ⬜ [W] `recommender-systems` — collaborative/content filtering
-- ⬜ [R] `reinforcement-learning` — MDPs, Q-learning, policy gradients
+- ✅ [W] `nlp-tasks` — tokenization, NER, classification, summarization
+- ✅ [W] `computer-vision` — detection, segmentation, augmentation
+- ✅ [W] `time-series` — forecasting, seasonality, ARIMA/Prophet
+- ✅ [W] `recommender-systems` — collaborative/content filtering
+- ✅ [R] `reinforcement-learning` — MDPs, Q-learning, policy gradients
 
 ## 6. MLOps & Production  ← high value, usually under-served
 - ⬜ [W] `experiment-tracking` — MLflow / W&B
@@ -55,4 +55,4 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 
 ---
 
-**Progress:** 10 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
+**Progress:** 24 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
