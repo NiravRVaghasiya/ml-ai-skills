@@ -13,10 +13,26 @@ description: >
 type: reference
 domain: llm
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - agent-loop-design
+  - tool-calling-schema-design
+  - multi-agent-orchestration
+  - agent-termination-guardrails
+  - planning-vs-reactive-control
+requires:
+conflicts:
 related:
   - prompt-engineering
   - rag-pipeline
   - llm-evaluation
+  - agent-evaluation
+  - ai-ml-security
+inputs: A task an LLM-driven agent should accomplish, plus the set of tools/functions it may call.
+outputs: A designed agent loop — tool schema, planning/reactive control choice, termination guardrails, and (if multi-agent) an orchestration pattern.
 ---
 
 ## Overview
@@ -37,9 +53,11 @@ any specific agent framework.
   name, a natural-language description, and a typed parameter schema (JSON
   Schema in most APIs, including Anthropic's tool use and OpenAI's function
   calling). The model selects a tool and emits arguments matching that schema;
-  the *description* is the single biggest lever over whether the model picks
+  the *description* is one of the biggest levers over whether the model picks
   the right tool — treat it like an API doc aimed at the model, not a comment
-  for humans.
+  for humans. (Tool naming and how mutually-exclusive the tool set's scopes
+  are also matter — see the Gotchas below — so a bad description is a strong
+  suspect for tool-misselection but not the only possible cause.)
 - **Planning vs. reactive control.** Reactive agents decide the next single
   step from current context only (classic ReAct). Planning agents first draft a
   multi-step plan (e.g. plan-and-execute), then execute steps against it,
@@ -78,11 +96,14 @@ any specific agent framework.
   returns malformed data, an error string, or attacker-controlled content (e.g.
   scraped web text) becomes part of the model's context and can hijack
   subsequent reasoning (prompt injection via tool results) — validate/sanitize
-  before feeding observations back in.
+  before feeding observations back in; see [[ai-ml-security]] "indirect prompt
+  injection" for the full threat model, which this card only summarizes.
 - **No sandboxing for code-execution or shell tools.** Giving an agent a
   code-execution or file-system tool without a sandboxed, permission-scoped
   environment is a security risk regardless of how well the prompt is written —
-  the sandbox is the actual safety boundary, not the instructions.
+  the sandbox is the actual safety boundary, not the instructions; see
+  [[ai-ml-security]] "excessive agent permissions" and use [[agent-evaluation]]
+  to check whether a given trajectory actually respected that boundary.
 - **Over-provisioning tools "just in case."** Every additional tool increases
   the chance of wrong selection and inflates the prompt with schema text on
   every turn; include only what the task genuinely needs, and split large tool

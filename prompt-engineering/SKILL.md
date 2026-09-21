@@ -14,11 +14,25 @@ description: >
 type: reference
 domain: llm
 level: beginner
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - zero-shot-prompting
+  - few-shot-prompting
+  - chain-of-thought-prompting
+  - structured-output-prompting
+  - prompt-template-design
+requires:
+conflicts:
 related:
   - rag-pipeline
   - agents-and-tools
   - fine-tuning-llms
   - attention-mechanisms
+inputs: A task description and/or a draft prompt (with or without examples) intended for a single LLM call.
+outputs: A restructured prompt (zero/few-shot framing, CoT scaffolding, or output-format constraints) plus a diagnosis of why an existing prompt is unreliable.
 ---
 
 ## Overview

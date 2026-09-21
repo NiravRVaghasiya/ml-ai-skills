@@ -14,11 +14,30 @@ description: >
 type: workflow
 domain: llm
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - llm-as-judge
+  - eval-harness-design
+  - hallucination-faithfulness-check
+  - rouge-bleu-scoring
+  - regression-eval-tracking
+requires:
+conflicts:
 related:
   - rag-pipeline
   - prompt-engineering
   - agents-and-tools
   - model-evaluation
+  - agent-evaluation
+  - rag-evaluation
+inputs: A frozen eval set (prompts with reference answers, grounding context, and/or a rubric) and the LLM system under test.
+outputs: A regression report — overlap metrics, LLM-as-judge scores, and hallucination/faithfulness rate — tracked per model/prompt/retrieval version.
+version_constraints:
+  - "anthropic (Python SDK): messages.create() Messages API shape stable since general availability (model-knowledge estimate, not live-verified this session)"
+  - "evaluate (Hugging Face): load('rouge').compute() API stable since early releases (model-knowledge estimate, not live-verified this session)"
 ---
 
 ## Overview
@@ -27,7 +46,11 @@ against a rubric or reference — a fundamentally different problem from scoring
 classifier's labels (that's `model-evaluation`). This skill builds a practical
 eval harness: an eval set, automatic overlap metrics where they're meaningful,
 LLM-as-judge scoring for quality/instruction-following, and a faithfulness check
-to catch hallucination against source context. The output is a repeatable
+to catch hallucination against source context. It covers generic single-output
+text quality; scoring an *agent's* multi-step tool-use trajectory is
+[[agent-evaluation]]'s job, and RAG-specific retrieval/citation metrics are
+[[rag-evaluation]]'s — both build on the faithfulness/judge techniques here but
+apply them to a different unit of evaluation. The output is a repeatable
 regression suite you rerun every time the prompt, model, or retrieval changes.
 
 ## Workflow

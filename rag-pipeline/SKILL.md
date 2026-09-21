@@ -14,11 +14,30 @@ description: >
 type: workflow
 domain: llm
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - chunking-strategy
+  - embedding-retrieval
+  - vector-indexing
+  - cross-encoder-reranking
+  - retrieval-context-assembly
+requires:
+conflicts:
 related:
   - prompt-engineering
   - fine-tuning-llms
   - llm-evaluation
   - attention-mechanisms
+  - rag-evaluation
+  - ai-ml-security
+inputs: A source document corpus and a target query (or query set) to retrieve grounding context for.
+outputs: An assembled, source-delimited context block of the top reranked chunks, ready to hand to a generation prompt.
+version_constraints:
+  - "sentence-transformers: SentenceTransformer.encode(normalize_embeddings=...) and CrossEncoder.predict() APIs stable across 2.x releases (model-knowledge estimate, not live-verified this session)"
+  - "faiss: IndexFlatIP construction/add/search API is a long-stable part of the faiss-cpu/faiss-gpu surface (model-knowledge estimate, not live-verified this session)"
 ---
 
 ## Overview
@@ -110,6 +129,13 @@ how you phrase the final generation prompt is `prompt-engineering`'s job.
    ```
 
 ## Gotchas
+- **Retrieved documents are untrusted content, not just topically-relevant text.**
+  A chunk that gets embedded into the generation context can carry
+  instruction-like text planted by whoever authored/edited the source
+  document — see [[ai-ml-security]] "RAG document injection" for the threat
+  model and mitigations; this skill only owns the retrieval plumbing, not the
+  security review of what that plumbing feeds into the model. Measuring
+  whether it actually happened in your outputs is [[rag-evaluation]]'s job.
 - **Query-time/index-time embedding mismatch.** Re-embedding with a different
   model version (or a different pooling/normalization setting) than was used to
   build the index silently degrades retrieval — recall the exact model+version

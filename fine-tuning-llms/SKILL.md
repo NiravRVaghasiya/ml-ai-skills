@@ -13,12 +13,28 @@ description: >
 type: workflow
 domain: llm
 level: advanced
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - lora-adapter-training
+  - qlora-quantization
+  - instruction-dataset-prep
+  - peft-configuration
+  - adapter-merging
+requires:
+conflicts:
 related:
   - attention-mechanisms
   - prompt-engineering
   - rag-pipeline
   - llm-evaluation
   - training-deep-models
+inputs: An instruction dataset (prompt/response pairs) and a pretrained base model to adapt.
+outputs: A saved LoRA adapter (and optionally a merged standalone model) trained toward the target task/domain/format.
+version_constraints:
+  - "peft: LoraConfig / get_peft_model / prepare_model_for_kbit_training API stable since the 0.4+ line (model-knowledge estimate, not live-verified this session)"
 ---
 
 ## Overview
