@@ -11,6 +11,7 @@ obvious instead of hiding behind a general-purpose YAML library.
 from __future__ import annotations
 
 import re
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -54,8 +55,16 @@ class Skill:
         return re.findall(r"^-\s+.+$", section, flags=re.MULTILINE)
 
     def code_blocks(self, lang: str | None = "python") -> list[tuple[str, str]]:
-        """Return (lang, code) for every fenced code block in the body."""
+        """Return (lang, code) for every fenced code block in the body.
+
+        Code fences nested under a numbered-list step are themselves indented
+        in the raw Markdown (e.g. 3 spaces to align with "1. "). That
+        indentation is part of the Markdown, not the Python — dedent it here
+        so downstream consumers (e.g. validate_skills.py's ast.parse check)
+        see the code as it's meant to run, not as it's laid out on the page.
+        """
         blocks = re.findall(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", self.body, flags=re.DOTALL)
+        blocks = [(l, textwrap.dedent(c)) for l, c in blocks]
         if lang is None:
             return blocks
         return [(l, c) for l, c in blocks if l.lower() == lang]

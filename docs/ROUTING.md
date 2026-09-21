@@ -53,13 +53,23 @@ consumer would get the wrong skill first.
 **Mitigation applied:** none automated — this is a real, demonstrated limitation
 of a pure keyword matcher, not a bug to "fix" by special-casing "detection".
 Recorded here per the "make uncertainty explicit" principle instead of hiding
-it. The `capabilities` tags added during the Phase-15 audit pass are more
-specific than bare description-word overlap (e.g. `fraud-detection` and
-`imbalanced-classification` as distinct tags rather than relying on the word
-"detection" alone), which reduces but does not eliminate this class of
-collision — verify current top-5 output for this exact query before trusting it
-blindly (`python scripts/router.py "Build a fraud detection model and evaluate
-it under severe class imbalance"`).
+it. The Phase-15 audit pass gave every skill specific `capabilities` tags
+(e.g. `class-imbalance-handling` on `supervised-learning`, `data-drift-
+detection`/`concept-drift-detection`/`prediction-drift-detection` on
+`ml-monitoring`), and **re-running the exact query after that pass changes the
+#1 result**: `supervised-learning` now ranks first (score 18, driven by a
+direct `class-imbalance-handling` capability match), ahead of `model-
+deployment` and `ml-monitoring`, with `computer-vision` pushed down to #4 (it
+still shows up via the "detection"/"model" word collision, just no longer
+wins). So specific capability tags measurably help. It is **not** fully fixed,
+though: `model-evaluation` — arguably the most relevant skill for the
+"evaluate it" half of the query — does not appear in the top 5 at all in this
+run, because its `evidence_level`/description text doesn't happen to share
+enough tokens with this specific phrasing, and description-word overlap is a
+weak, generic signal compared to a capability hit. Re-verify current output
+before trusting it blindly (`python scripts/router.py "Build a fraud detection
+model and evaluate it under severe class imbalance"`) — don't assume this
+paragraph stays accurate as skills/capabilities change.
 
 **What would actually fix this:** an embedding-based (semantic) similarity layer
 as a second ranking pass over the keyword-matched candidate set, so "fraud
