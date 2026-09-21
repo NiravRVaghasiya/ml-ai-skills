@@ -13,10 +13,24 @@ description: >
 type: reference
 domain: deep-learning
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: primary
+last_verified: 2026-09-21
+capabilities:
+  - convolution-arithmetic
+  - receptive-field-calculation
+  - pooling-strategies
+  - resnet-skip-connections
+  - cnn-architecture-lineage
+requires:
+conflicts:
 related:
   - neural-net-fundamentals
   - training-deep-models
   - pytorch-patterns
+inputs: A question about convolution, pooling, receptive fields, or classic CNN architectures (LeNet/AlexNet/VGG/ResNet).
+outputs: A conceptual explanation of CNN mechanics and the architectural reasoning behind VGG/ResNet-style designs.
 ---
 
 ## Overview

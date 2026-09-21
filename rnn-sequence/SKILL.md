@@ -12,10 +12,24 @@ description: >
 type: reference
 domain: deep-learning
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - rnn-recurrence
+  - backpropagation-through-time
+  - lstm-gating
+  - gru-gating
+  - rnn-vs-attention-tradeoffs
+requires:
+conflicts:
 related:
   - neural-net-fundamentals
   - attention-mechanisms
   - time-series
+inputs: A question about how RNNs/LSTMs/GRUs process sequences or why vanilla RNNs struggle with long-range dependencies.
+outputs: A conceptual explanation of recurrent architectures and their gating mechanisms, contrasted with attention.
 ---
 
 ## Overview

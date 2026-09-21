@@ -13,9 +13,23 @@ description: >
 type: workflow
 domain: deep-learning
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - custom-dataset-dataloader
+  - train-eval-mode-switching
+  - forward-hook-instrumentation
+  - model-checkpointing
+  - gradient-zeroing
+requires:
+conflicts:
 related:
   - training-deep-models
   - neural-net-fundamentals
+inputs: A request to structure PyTorch code — a Dataset/DataLoader, a training loop, hooks, or checkpointing.
+outputs: Idiomatic PyTorch Dataset/DataLoader, train/eval loop, hook, and checkpoint code ready to adapt.
 ---
 
 ## Overview

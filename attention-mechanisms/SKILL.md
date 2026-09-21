@@ -10,10 +10,24 @@ description: >
 type: reference
 domain: deep-learning
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: primary
+last_verified: 2026-09-21
+capabilities:
+  - scaled-dot-product-attention
+  - multi-head-attention
+  - self-attention-mechanics
+  - positional-encoding-necessity
+  - attention-complexity-scaling
+requires:
+conflicts:
 related:
   - neural-net-fundamentals
   - rnn-sequence
   - prompt-engineering
+inputs: A question about how attention, self-attention, or multi-head attention works.
+outputs: A conceptual explanation of the attention mechanism grounded in the scaled dot-product formula.
 ---
 
 ## Overview

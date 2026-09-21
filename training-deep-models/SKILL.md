@@ -13,10 +13,26 @@ description: >
 type: workflow
 domain: deep-learning
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - mixed-precision-training
+  - learning-rate-scheduling
+  - gradient-clipping
+  - weight-decay-decoupling
+  - early-stopping-checkpointing
+requires:
+conflicts:
 related:
   - neural-net-fundamentals
   - pytorch-patterns
   - hyperparameter-tuning
+inputs: An existing PyTorch training loop and a goal (faster training, less overfitting, more stability).
+outputs: A hardened training loop with AMP, LR scheduling, gradient clipping, decoupled weight decay, and early stopping wired in.
+version_constraints:
+  - "PyTorch: torch.cuda.amp.autocast/GradScaler (and the newer torch.autocast(device_type=...) entrypoint used here) stable since 1.6+ — model-knowledge estimate, not live-verified this session."
 ---
 
 ## Overview

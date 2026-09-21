@@ -14,11 +14,26 @@ description: >
 type: reference
 domain: deep-learning
 level: beginner
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - backpropagation
+  - gradient-descent-variants
+  - adam-optimizer-mechanics
+  - weight-initialization-schemes
+  - activation-function-selection
+  - vanishing-exploding-gradients
+requires:
+conflicts:
 related:
   - attention-mechanisms
   - cnn-vision
   - rnn-sequence
   - training-deep-models
+inputs: A question about how neural networks learn — backprop, optimizers, initialization, or activations — needing conceptual grounding.
+outputs: A conceptual explanation of the forward/backward/optimizer learning loop to ground further discussion or code.
 ---
 
 ## Overview
