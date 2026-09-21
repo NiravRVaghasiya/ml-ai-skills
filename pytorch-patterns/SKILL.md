@@ -2,7 +2,7 @@
 name: pytorch-patterns
 display_name: Idiomatic PyTorch Patterns
 description: >
-  Use when the user wants idiomatic PyTorch code structure — a custom Dataset
+  Use when the user wants to structure idiomatic PyTorch code — a custom Dataset
   and DataLoader, a clean training/validation loop, forward/backward hooks for
   debugging or feature extraction, or correct model checkpointing. Trigger
   phrases: "write a PyTorch training loop", "create a custom Dataset class",

@@ -2,8 +2,8 @@
 name: python-for-ml
 display_name: Python for ML (NumPy & Pandas)
 description: >
-  Use when the user wants idiomatic numpy/pandas code, needs to vectorize a
-  slow Python loop, or is debugging unexpected array/DataFrame behavior.
+  Use when the user wants to write idiomatic numpy/pandas code, vectorize a
+  slow Python loop, or debug unexpected array/DataFrame behavior.
   Trigger phrases: "vectorize this loop", "numpy broadcasting rules", "speed
   up my pandas code", "why is my pandas apply so slow", "how do I reshape
   this array". NOT for statistical analysis of the resulting data (see

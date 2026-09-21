@@ -2,7 +2,7 @@
 name: ml-math-essentials
 display_name: ML Math Essentials
 description: >
-  Use when the user wants a refresher on the linear algebra, calculus, or
+  Use when the user wants to refresh the linear algebra, calculus, or
   probability that underpins an ML method or paper. Trigger phrases: "explain
   the math behind this", "what is a gradient", "linear algebra for ML",
   "refresh my calculus for backprop", "why do we divide by sqrt(d_k)". NOT for
