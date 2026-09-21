@@ -13,11 +13,25 @@ description: >
 type: workflow
 domain: specialized
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - word-subword-tokenization-comparison
+  - named-entity-recognition-pipeline
+  - transformer-text-classification-finetuning
+  - long-document-summarization-chunking
+  - nlp-task-metric-selection
+requires:
+conflicts:
 related:
   - attention-mechanisms
   - rnn-sequence
   - prompt-engineering
   - rag-pipeline
+inputs: Raw text documents (single strings or a corpus) needing tokenization, entity extraction, classification labels, or summarization.
+outputs: A configured tokenizer/pipeline plus task-appropriate evaluation metrics (seqeval F1, macro-F1, ROUGE) for the chosen NLP task.
 ---
 
 ## Overview

@@ -13,10 +13,24 @@ description: >
 type: reference
 domain: specialized
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - mdp-formalization
+  - bellman-value-functions
+  - exploration-exploitation-tradeoff
+  - q-learning-td-updates
+  - policy-gradient-actor-critic
+requires:
+conflicts:
 related:
   - neural-net-fundamentals
   - training-deep-models
   - supervised-learning
+inputs: A conceptual question about RL formalism, algorithms, or terminology (no code or dataset expected).
+outputs: An explanation of the relevant RL concept (MDP, value function, Q-learning, policy gradient) and the tradeoffs it involves.
 ---
 
 ## Overview

@@ -12,11 +12,28 @@ description: >
 type: workflow
 domain: specialized
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - bbox-mask-aware-augmentation
+  - object-detector-finetuning
+  - segmentation-model-finetuning
+  - map-iou-evaluation
+  - non-max-suppression-tuning
+requires:
+conflicts:
 related:
   - cnn-vision
   - data-preprocessing
   - model-evaluation
   - training-deep-models
+inputs: An image dataset with bounding-box or segmentation-mask annotations plus a target class list.
+outputs: A fine-tuned torchvision detector or segmentation model, an augmentation pipeline, and mAP/IoU evaluation results.
+version_constraints:
+  - "torchvision: enum-based `weights=` API (e.g. `weights=\"DEFAULT\"`), replacing the older `pretrained=True` boolean, available since torchvision 0.13 (2022) — model-knowledge estimate, not live-verified this session."
+  - "torchvision: `fasterrcnn_resnet50_fpn_v2` / `_v2` detection model variants added in torchvision 0.13 (2022) — model-knowledge estimate, not live-verified this session."
 ---
 
 ## Overview

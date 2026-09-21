@@ -13,10 +13,26 @@ description: >
 type: workflow
 domain: specialized
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - seasonality-trend-decomposition
+  - stationarity-testing-adf
+  - sarima-order-selection
+  - prophet-seasonality-holiday-modeling
+  - walk-forward-backtesting
+requires:
+conflicts:
 related:
   - supervised-learning
   - feature-engineering
   - model-evaluation
+inputs: A timestamped numeric series (e.g. a pandas DataFrame with a date column) to be forecast.
+outputs: A fitted SARIMA and/or Prophet forecaster, decomposition components, and walk-forward backtest error metrics.
+version_constraints:
+  - "statsmodels: `statsmodels.tsa.seasonal.STL` (robust STL decomposition) added around statsmodels 0.11 (2019); earlier versions only had the classical additive/multiplicative `seasonal_decompose` — model-knowledge estimate, not live-verified this session."
 ---
 
 ## Overview
@@ -49,13 +65,18 @@ data.
    trend, seasonal, resid = res.trend, res.seasonal, res.resid
    ```
 3. **Test stationarity before fitting ARIMA.** ARIMA assumes stationarity;
-   fitting on a trending series without differencing biases forecasts.
+   fitting on a trending series without differencing biases forecasts. The
+   ADF test's `p < 0.05` cutoff is a convention, not a proof — treat the
+   resulting `d` as a starting point, not a final answer: some series need
+   `d=2`, and a single ADF read can disagree with a KPSS test, so let
+   `auto_arima`'s own order search (step 4) confirm or override it rather
+   than hard-coding `d` from this test alone.
    ```python
    from statsmodels.tsa.stattools import adfuller
 
    stat, pvalue, *_ = adfuller(df["sales"].dropna())
    print(f"ADF stat={stat:.3f}, p-value={pvalue:.4f}")
-   d = 0 if pvalue < 0.05 else 1   # difference once if non-stationary
+   d = 0 if pvalue < 0.05 else 1   # starting guess; let auto_arima confirm/override d
    ```
 4. **Fit SARIMA with an auto-selected order.** Use `pmdarima` to search
    (p,d,q)(P,D,Q,s) rather than hand-tuning by ACF/PACF plots alone.
@@ -107,9 +128,13 @@ data.
 - **Fitting ARIMA on a non-stationary series.** Skipping the ADF test and
   fitting on a trending/seasonal-non-differenced series produces confident
   but biased forecasts; always check stationarity and set `d`/`D` deliberately.
-- **Prophet needs enough history for the seasonalities you enable.** Yearly
-  seasonality with under ~2 years of data is mostly fitting noise — disable
-  seasonal components you don't have enough cycles to estimate.
+- **Prophet needs enough history for the seasonalities you enable.**
+  Estimating a seasonal component reliably requires multiple full cycles of
+  it in the training data, not a fixed calendar length — as a rough guide,
+  yearly seasonality with under roughly 2 years of daily/weekly data is
+  often mostly fitting noise, but the actual amount needed depends on data
+  frequency and noise level. Disable seasonal components you don't have
+  enough cycles to estimate.
 - **Lookahead in engineered lag/rolling features.** A rolling mean or lag
   feature computed with `center=True` or using the full series (rather than
   only past values) leaks future information into the "past" feature.

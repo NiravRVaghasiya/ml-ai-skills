@@ -13,10 +13,25 @@ description: >
 type: workflow
 domain: specialized
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - user-item-interaction-matrix-construction
+  - content-based-tfidf-similarity
+  - implicit-feedback-als-collaborative-filtering
+  - explicit-rating-svd-collaborative-filtering
+  - ranking-metric-evaluation
+  - cold-start-hybrid-fallback
+requires:
+conflicts:
 related:
   - supervised-learning
   - feature-engineering
   - model-evaluation
+inputs: User-item interaction data (implicit events or explicit ratings) and optional item content metadata.
+outputs: A trained content-based, collaborative-filtering, or hybrid recommender plus ranking-metric evaluation (Precision@K, NDCG).
 ---
 
 ## Overview
@@ -59,14 +74,17 @@ not just prediction accuracy.
    ```
 3. **Collaborative filtering on implicit feedback.** Use ALS with
    confidence weighting — treat raw counts as confidence, not preference
-   strength.
+   strength. `alpha` and `factors` are dataset-dependent hyperparameters,
+   not universal constants — the value below is a Hu/Koren/Volinsky-style
+   starting point for confidence scaling; tune it against a held-out
+   ranking metric (step 5) rather than trusting a fixed number.
    ```python
    import implicit
    from implicit.evaluation import train_test_split as implicit_split
 
    train, test = implicit_split(user_item, train_percentage=0.8)
    model = implicit.als.AlternatingLeastSquares(
-       factors=64, regularization=0.05, iterations=20, alpha=15  # confidence scaling
+       factors=64, regularization=0.05, iterations=20, alpha=15  # confidence-scaling starting point — tune per dataset
    )
    model.fit(train)
 
