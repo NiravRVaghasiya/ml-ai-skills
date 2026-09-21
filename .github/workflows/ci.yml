@@ -36,6 +36,9 @@ jobs:
       - name: Validate eval case files
         run: python scripts/validate_evals.py
 
+      - name: Check README.md PROJECT-STATS block is up to date
+        run: python scripts/generate_readme_stats.py --check
+
   freshness:
     name: Freshness scan (known-stale patterns only, non-blocking for REVIEW_DUE)
     runs-on: ubuntu-latest
