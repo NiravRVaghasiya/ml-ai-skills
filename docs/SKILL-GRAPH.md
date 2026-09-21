@@ -21,12 +21,12 @@ graph LR
 
 ### `agents-and-tools` (reference, llm)
 - requires: _none_
-- related: `prompt-engineering`, `rag-pipeline`, `llm-evaluation`
+- related: `prompt-engineering`, `rag-pipeline`, `llm-evaluation`, `agent-evaluation`, `ai-ml-security`
 - conflicts: _none_
 
 ### `ai-ethics-fairness` (reference, responsible-ai)
 - requires: _none_
-- related: `explainability`, `data-privacy`, `model-evaluation`
+- related: `explainability`, `data-privacy`, `model-evaluation`, `ai-ml-security`
 - conflicts: _none_
 
 ### `ai-ml-security` (reference, security)
@@ -66,7 +66,7 @@ graph LR
 
 ### `data-privacy` (reference, responsible-ai)
 - requires: _none_
-- related: `ai-ethics-fairness`, `explainability`, `data-preprocessing`
+- related: `ai-ethics-fairness`, `explainability`, `data-preprocessing`, `ai-ml-security`
 - conflicts: _none_
 
 ### `experiment-tracking` (workflow, mlops)
@@ -96,7 +96,7 @@ graph LR
 
 ### `llm-evaluation` (workflow, llm)
 - requires: _none_
-- related: `rag-pipeline`, `prompt-engineering`, `agents-and-tools`, `model-evaluation`
+- related: `rag-pipeline`, `prompt-engineering`, `agents-and-tools`, `model-evaluation`, `agent-evaluation`, `rag-evaluation`
 - conflicts: _none_
 
 ### `ml-math-essentials` (reference, foundations)
@@ -161,7 +161,7 @@ graph LR
 
 ### `rag-pipeline` (workflow, llm)
 - requires: _none_
-- related: `prompt-engineering`, `fine-tuning-llms`, `llm-evaluation`, `attention-mechanisms`
+- related: `prompt-engineering`, `fine-tuning-llms`, `llm-evaluation`, `attention-mechanisms`, `rag-evaluation`, `ai-ml-security`
 - conflicts: _none_
 
 ### `recommender-systems` (workflow, specialized)
