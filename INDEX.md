@@ -27,11 +27,11 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [W] `pytorch-patterns` — idiomatic training loops, datasets, hooks
 
 ## 4. LLMs & Generative AI
-- ⬜ [R] `prompt-engineering` — patterns, few-shot, structured output
-- ⬜ [W] `rag-pipeline` — chunking, embeddings, retrieval, reranking
-- ⬜ [W] `fine-tuning-llms` — LoRA/QLoRA, PEFT, dataset prep
-- ⬜ [R] `agents-and-tools` — agentic loops, tool use, orchestration
-- ⬜ [W] `llm-evaluation` — eval harnesses, hallucination checks
+- ✅ [R] `prompt-engineering` — patterns, few-shot, structured output
+- ✅ [W] `rag-pipeline` — chunking, embeddings, retrieval, reranking
+- ✅ [W] `fine-tuning-llms` — LoRA/QLoRA, PEFT, dataset prep
+- ✅ [R] `agents-and-tools` — agentic loops, tool use, orchestration
+- ✅ [W] `llm-evaluation` — eval harnesses, hallucination checks
 
 ## 5. Specialized Domains
 - ✅ [W] `nlp-tasks` — tokenization, NER, classification, summarization
@@ -55,4 +55,4 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 
 ---
 
-**Progress:** 24 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
+**Progress:** 29 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
