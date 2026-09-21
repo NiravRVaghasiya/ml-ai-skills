@@ -90,8 +90,11 @@ production data. The golden rule: **fit on train only, transform everywhere.**
   scale-invariant. Scaling only matters for distance/gradient-based models
   (SVM, kNN, linear, neural nets).
 - **Imputing the target** — never impute or scale `y`. Handle target issues separately.
-- **High-cardinality categoricals** blow up with one-hot; consider target/ordinal
-  encoding (see feature-engineering) above ~50 unique values.
+- **High-cardinality categoricals** blow up with one-hot. As a rule of thumb —
+  not a hard threshold — once a column has on the order of dozens of unique
+  values, start evaluating target/ordinal encoding (see feature-engineering)
+  instead; the right cutoff depends on row count and downstream model, so treat
+  ~50 as a prompt to check, not a rule to apply blindly.
 
 ## References
 - [scikit-learn: Preprocessing data](https://scikit-learn.org/stable/modules/preprocessing.html) — canonical transformer reference.

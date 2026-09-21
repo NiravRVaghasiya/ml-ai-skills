@@ -59,8 +59,10 @@ prompt that works today may silently break on a slightly different input.
   wall of reference text.
 - **Decoding parameters as part of the prompt contract.** Temperature, top-p, and
   max tokens are not "prompt engineering" per se, but they interact with it:
-  low temperature (near 0) for deterministic/structured tasks, higher for
-  creative generation. A great prompt at temperature 1.0 can still look flaky.
+  low temperature (near 0) for near-deterministic, structured tasks, higher for
+  creative generation — "near", because temperature 0 makes sampling close to
+  deterministic but does not guarantee bit-for-bit identical output across runs
+  (see docs/REPRODUCIBILITY.md). A great prompt at temperature 1.0 can still look flaky.
 
 ## Gotchas
 - **Few-shot examples that don't match the real input distribution** actively

@@ -59,7 +59,9 @@ regression suite you rerun every time the prompt, model, or retrieval changes.
    llm_client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
 
    def generate(prompt: str, context: str) -> str:
-       # Call your model/pipeline here with temperature=0 for reproducibility.
+       # temperature=0 selects the top-probability token at each step, which makes
+       # output *close to* deterministic — it is not a full reproducibility
+       # guarantee (see Gotchas below and docs/REPRODUCIBILITY.md).
        response = llm_client.messages.create(
            model="claude-sonnet-4-5",
            max_tokens=300,
@@ -156,9 +158,15 @@ regression suite you rerun every time the prompt, model, or retrieval changes.
 - **Eval set contamination.** If eval prompts (or close paraphrases) leaked into
   fine-tuning or few-shot examples, scores are inflated and don't predict
   production behavior — keep the eval set held out and periodically refresh it.
-- **Non-zero temperature makes eval runs flaky and non-reproducible.** Always
-  pin `temperature=0` (or a fixed seed) for both the system under test and the
-  judge when the goal is a comparable regression score, not diversity.
+- **Non-zero temperature makes eval runs flakier and harder to compare.** Pin
+  `temperature=0` (or a fixed seed) for both the system under test and the judge
+  when the goal is a comparable regression score, not diversity — but
+  `temperature=0` makes output *close to* deterministic, not a bit-for-bit
+  reproducibility guarantee: floating-point non-associativity across different
+  batch compositions/hardware/kernels, backend routing, and provider-side model
+  updates behind a fixed model string can all still change output. Treat
+  `temperature=0` evals as approximately, not exactly, reproducible — see
+  docs/REPRODUCIBILITY.md.
 
 ## References
 - [Zheng et al., 2023 — Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685) — establishes LLM-as-judge methodology and documents its position/bias failure modes referenced above.
