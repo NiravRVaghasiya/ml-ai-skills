@@ -1,36 +1,25 @@
-# Python
+# --- Local tooling / agent state ---
+.claude/
+.cursor/
+.vscode/
+.idea/
+
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
-*.egg-info/
-.eggs/
-build/
-dist/
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.ipynb_checkpoints/
-
-# Virtual environments
 .venv/
 venv/
 env/
-ENV/
+*.egg-info/
+.ipynb_checkpoints/
 
-# OS cruft
+# --- OS cruft ---
 .DS_Store
 Thumbs.db
 desktop.ini
 
-# Editor / IDE
-.vscode/
-.idea/
-*.swp
-*~
-
-# Env / secrets
-.env
-.env.local
-
-# Claude Code local state (keep settings.json tracked; ignore local overrides)
-.claude/settings.local.json
+# --- Logs & temp ---
+*.log
+*.tmp
+*.bak
