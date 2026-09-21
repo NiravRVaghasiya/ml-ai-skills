@@ -11,10 +11,26 @@ description: >
 type: reference
 domain: responsible-ai
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - k-anonymity
+  - l-diversity
+  - t-closeness
+  - differential-privacy-budgeting
+  - dp-sgd-training
+  - quasi-identifier-detection
+requires:
+conflicts:
 related:
   - ai-ethics-fairness
   - explainability
   - data-preprocessing
+  - ai-ml-security
+inputs: A dataset or training pipeline containing personal data, plus the intended release or deployment context.
+outputs: An inventory of direct/quasi-identifiers and a recommended anonymization or differential-privacy technique matched to the threat model.
 ---
 
 ## Overview
@@ -37,9 +53,14 @@ threat model, and why "we removed the names" is rarely sufficient.
   *Pseudonymization* replaces identifiers with a reversible token/key — the
   mapping still exists somewhere, so under GDPR the data is still "personal
   data." *Anonymization* aims to be **irreversible**: no reasonable means
-  exist to re-link records to individuals. *De-identification* (the NIST/US
-  HIPAA term) sits between the two depending on the technique used — always
-  check which guarantee a "de-identification" step actually provides.
+  exist to re-link records to individuals — this "reasonable means" bar is
+  the EU/GDPR framing (Recital 26); other jurisdictions define the legal
+  anonymization/de-identification line differently (e.g. US HIPAA's Safe
+  Harbor and Expert Determination methods), so confirm which jurisdiction's
+  specific standard actually applies before treating data as anonymized.
+  *De-identification* (the NIST/US HIPAA term) sits between the two
+  depending on the technique used — always check which guarantee a
+  "de-identification" step actually provides.
 - **k-anonymity, l-diversity, t-closeness.** *k-anonymity*: every combination
   of quasi-identifiers must be shared by at least \(k\) records (generalize
   zip codes, bucket ages, etc., until this holds). It doesn't protect against

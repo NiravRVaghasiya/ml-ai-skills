@@ -12,10 +12,27 @@ description: >
 type: workflow
 domain: responsible-ai
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - shap-value-computation
+  - lime-local-explanation
+  - permutation-importance
+  - global-feature-importance
+  - explanation-cross-checking
+requires:
+conflicts:
 related:
   - ai-ethics-fairness
   - data-privacy
   - model-evaluation
+inputs: A fitted, sklearn-compatible model plus held-out feature data (and optionally training data as a background sample) to explain.
+outputs: Global feature-importance rankings and per-instance attributions (SHAP/LIME) with a cross-method agreement check.
+version_constraints:
+  - "scikit-learn: sklearn.inspection.permutation_importance available since 0.22 (model-knowledge estimate, not live-verified this session)"
+  - "shap: the Explanation-object plotting API (shap.plots.bar, shap.plots.waterfall) was introduced in the 0.3x release series, superseding older shap.summary_plot-style calls (model-knowledge estimate, not live-verified this session)"
 ---
 
 ## Overview

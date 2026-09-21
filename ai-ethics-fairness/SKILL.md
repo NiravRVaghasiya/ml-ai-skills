@@ -11,10 +11,25 @@ description: >
 type: reference
 domain: responsible-ai
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: primary
+last_verified: 2026-09-21
+capabilities:
+  - demographic-parity
+  - equalized-odds
+  - disparate-impact-ratio
+  - fairness-metric-tradeoffs
+  - bias-mitigation-strategies
+requires:
+conflicts:
 related:
   - explainability
   - data-privacy
   - model-evaluation
+  - ai-ml-security
+inputs: A trained model's predictions plus group/protected-attribute labels for the population being evaluated.
+outputs: A set of group-fairness metric values, an explanation of their mutual tradeoffs, and a recommended mitigation approach.
 ---
 
 ## Overview
