@@ -25,6 +25,11 @@ Each "skill" is a self-contained folder with a single `SKILL.md`. There are **tw
 - **Catalog:** `INDEX.md` — the authoritative list of skills, their type, and status.
 
 ## Required front-matter (YAML) — every SKILL.md
+The full formal contract — every field, its meaning, and allowed enum values —
+lives in **`docs/SKILL-SPEC.md`**, which is binding; this is a quick reference.
+Enum values are centralized in `schema/allowed_values.py` — never hardcode a
+competing list elsewhere.
+
 ```yaml
 name: kebab-case-name          # MUST equal the folder name
 display_name: Human Readable Name
@@ -32,10 +37,25 @@ description: >                  # discovery-critical: "Use when the user wants t
   Use when the user wants to <X>. Trigger phrases: "<p1>", "<p2>", "<p3>".
   NOT for <adjacent thing owned by another skill>.
 type: workflow                 # workflow | reference — MUST match the [W]/[R] tag in INDEX.md
-domain: classical-ml           # foundations|classical-ml|deep-learning|llm|specialized|mlops|responsible-ai
+domain: classical-ml           # foundations|classical-ml|deep-learning|llm|specialized|mlops|responsible-ai|security
 level: beginner                # beginner | intermediate | advanced
+lifecycle: stable              # stable | draft | deprecated
+risk_level: low                # low|medium|high|critical — harm if followed without review, not a quality score
+evidence_level: established-practice   # primary|official-documentation|established-practice|heuristic|opinion
+last_verified: 2026-09-21      # YYYY-MM-DD — last review date, NOT a live-verification claim
+capabilities: [specific-tag-one, specific-tag-two]   # feeds scripts/router.py — be specific, not generic
+requires:                      # rare hard prerequisites; leave empty (key, no value) if none
+conflicts:                     # rare contradicting siblings; leave empty (key, no value) if none
 related: [sibling-a, sibling-b]
+inputs: One-line description of what this skill expects.
+outputs: One-line description of what this skill produces.
 ```
+
+Any heuristic (a rule with real exceptions) MUST be phrased conditionally in
+the body — "as a rule of thumb, above roughly N..., consider..." — never as an
+unqualified universal law. See `docs/EVIDENCE.md` for the test and three
+worked before/after examples. After editing a skill, run
+`python scripts/validate_skills.py` and fix everything it reports.
 
 ## Section contract
 - **Every skill:** `## Overview` (2–4 sentences: what it covers, when it fires, what the
@@ -53,7 +73,11 @@ related: [sibling-a, sibling-b]
 - [ ] `## Gotchas` has ≥3 real, specific pitfalls (not generic advice).
 - [ ] `## References` has ≥2 real, resolvable links.
 - [ ] `related` lists real sibling slugs that exist (or are planned) in `INDEX.md`.
-- [ ] Flip the item's `⬜` to `✅` in `INDEX.md` and update the progress counter.
+- [ ] `lifecycle`/`risk_level`/`evidence_level`/`last_verified`/`capabilities`/`requires`/`conflicts`/`inputs`/`outputs` are all present and justified (see `docs/SKILL-SPEC.md`, `docs/EVIDENCE.md`).
+- [ ] No claim with real exceptions is phrased as a universal law — heuristics are conditional in the body.
+- [ ] `python scripts/validate_skills.py` reports zero errors for this skill.
+- [ ] At least one case in `evals/<slug>/` for non-trivial workflow/security-relevant skills (see `evals/SCHEMA.md`).
+- [ ] Run `python scripts/generate_index.py --fix` (updates `INDEX.md`'s checkbox and progress counter for you — don't hand-edit it).
 
 ## Workflow (how to work)
 1. Open `INDEX.md`. Work top-to-bottom through unchecked (`⬜`) items.
