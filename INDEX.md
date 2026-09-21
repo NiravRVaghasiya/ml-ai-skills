@@ -41,12 +41,12 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [R] `reinforcement-learning` — MDPs, Q-learning, policy gradients
 
 ## 6. MLOps & Production  ← high value, usually under-served
-- ⬜ [W] `experiment-tracking` — MLflow / W&B
-- ⬜ [W] `model-deployment` — serving, containers, endpoints
-- ⬜ [W] `ml-monitoring` — drift, decay, alerting
-- ⬜ [W] `data-pipelines` — orchestration, feature stores
-- ⬜ [W] `ci-cd-for-ml` — testing, reproducibility, automation
-- ⬜ [W] `model-optimization` — quantization, distillation, ONNX
+- ✅ [W] `experiment-tracking` — MLflow / W&B
+- ✅ [W] `model-deployment` — serving, containers, endpoints
+- ✅ [W] `ml-monitoring` — drift, decay, alerting
+- ✅ [W] `data-pipelines` — orchestration, feature stores
+- ✅ [W] `ci-cd-for-ml` — testing, reproducibility, automation
+- ✅ [W] `model-optimization` — quantization, distillation, ONNX
 
 ## 7. Responsible AI
 - ✅ [R] `ai-ethics-fairness` — bias metrics, fairness constraints
@@ -55,4 +55,4 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 
 ---
 
-**Progress:** 29 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
+**Progress:** 35 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
