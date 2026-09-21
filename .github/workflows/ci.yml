@@ -1,0 +1,65 @@
+name: skill-library-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate skills, index, graph, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # No `pip install` step on purpose: scripts/ and tests/ are stdlib-only
+      # by design (see scripts/skills_lib.py docstring). If a future change
+      # needs a real dependency, add a requirements-dev.txt and a `pip
+      # install -r` step here rather than assuming it's implicitly available.
+
+      - name: Validate skill frontmatter/sections/relationships
+        run: python scripts/validate_skills.py --warnings
+
+      - name: Check INDEX.md matches skill folders
+        run: python scripts/generate_index.py --check
+
+      - name: Check dependency graph doc is up to date and acyclic
+        run: python scripts/build_dependency_graph.py --check
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Validate eval case files
+        run: python scripts/validate_evals.py
+
+  freshness:
+    name: Freshness scan (known-stale patterns only, non-blocking for REVIEW_DUE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Scan for known-stale APIs / pinned model snapshots
+        run: python scripts/check_freshness.py
+        # Exits 1 only on STALE findings (known-removed APIs). REVIEW_DUE
+        # findings (missing last_verified, missing version_constraints) are
+        # printed but do not fail CI — they are a maintenance backlog, not a
+        # correctness regression. See docs/FRESHNESS.md.
+
+  link-check:
+    name: Live reference-link check (optional, network-dependent)
+    runs-on: ubuntu-latest
+    # Manual trigger only — external sites rate-limit / flake, and CI must
+    # not depend on third-party availability to gate merges (Phase 19).
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python scripts/validate_skills.py --check-links --warnings
