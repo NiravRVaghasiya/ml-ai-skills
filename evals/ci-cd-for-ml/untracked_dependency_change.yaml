@@ -1,0 +1,14 @@
+skill: ci-cd-for-ml
+category: failure_recovery
+input: |
+  My model CI pipeline just started failing after passing for months, and I didn't change any code. What now?
+expected_behavior:
+  - does not assume the pipeline itself is broken without checking what actually changed (dependency versions, data source, upstream schema, test data snapshot, infra/runner image)
+  - recommends checking CI logs for the specific failing step/assertion before hypothesizing a cause
+  - treats "no code change" as compatible with a real regression (e.g. an unpinned dependency updated, or the data changed) rather than dismissing the failure as a fluke and re-running until green
+must_not:
+  - recommend simply re-running the pipeline until it passes without investigating
+notes: >
+  Tests failure-recovery behavior: diagnosing root cause instead of retry-until-green,
+  which directly echoes this repo's own operating principle against bypassing
+  failures.

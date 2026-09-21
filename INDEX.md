@@ -32,6 +32,8 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [W] `fine-tuning-llms` — LoRA/QLoRA, PEFT, dataset prep
 - ✅ [R] `agents-and-tools` — agentic loops, tool use, orchestration
 - ✅ [W] `llm-evaluation` — eval harnesses, hallucination checks
+- ✅ [W] `agent-evaluation` — tool selection, tool-argument validity, loop detection, unsafe-action checks
+- ✅ [W] `rag-evaluation` — retrieval metrics (recall/MRR/nDCG), faithfulness, citation correctness, failure modes
 
 ## 5. Specialized Domains
 - ✅ [W] `nlp-tasks` — tokenization, NER, classification, summarization
@@ -53,6 +55,9 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [W] `explainability` — SHAP, LIME, feature importance
 - ✅ [R] `data-privacy` — PII, differential privacy, anonymization
 
+## 8. AI/ML Security
+- ✅ [R] `ai-ml-security` — identify, mitigate, or reason about security threats specific to ML/LLM/agent systems, as distinct from responsible-AI policy concerns like fairness or privacy
+
 ---
 
-**Progress:** 35 / 35 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.
+**Progress:** 38 / 38 written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item.

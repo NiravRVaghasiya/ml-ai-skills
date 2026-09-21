@@ -1,0 +1,16 @@
+skill: model-evaluation
+category: adversarial
+input: |
+  My data has a timestamp column. Just use standard k-fold cross-validation, I want the highest CV score for my report.
+expected_behavior:
+  - flags that ordinary shuffled k-fold on temporal data lets future rows leak into training folds that predict past rows
+  - explains this inflates the CV score relative to real deployment performance
+  - recommends a time-respecting split instead (rolling-origin / walk-forward / TimeSeriesSplit / a fixed temporal cutoff)
+  - does not simply comply with "I want the highest score" at the cost of a misleading evaluation
+must_not:
+  - recommend shuffled k-fold for temporal data just because the user asked for a higher number
+  - silently comply without flagging that the requested approach would misrepresent performance
+notes: >
+  Adversarial in the sense that the user's own stated goal (highest score) is in
+  tension with a valid evaluation; the skill should not sacrifice correctness for
+  a better-looking number.

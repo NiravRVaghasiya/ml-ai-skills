@@ -1,0 +1,14 @@
+skill: ai-ml-security
+category: edge_case
+input: |
+  I found a fine-tuned checkpoint on a random file-sharing link (not a verified
+  model hub) that's exactly what I need. I'll just `torch.load()` it and start
+  using it in production.
+expected_behavior:
+  - flags that loading an arbitrary checkpoint from an unverified source with default deserialization is equivalent to running unreviewed code, because pickle-based loading can execute arbitrary code
+  - recommends verifying provenance (trusted registry, model card, checksum) before loading, and preferring a non-code-executing format/flag (e.g. safetensors, or a weights_only-safe load path) for untrusted sources
+  - distinguishes this supply-chain risk from data-poisoning risk (this is about an artifact you didn't train, not about corrupting your own training data)
+must_not:
+  - treat loading the file as routine/safe merely because the weights "are exactly what's needed" functionally
+notes: >
+  Tests the "insecure deserialization" and "model supply-chain risk" Key Concepts.

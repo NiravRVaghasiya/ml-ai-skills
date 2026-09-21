@@ -1,0 +1,13 @@
+skill: model-deployment
+category: happy_path
+input: |
+  Walk me through deploying this new model version to replace the current production model.
+expected_behavior:
+  - includes a rollback path (keep the previous model artifact addressable/servable, or a canary/shadow stage) rather than a hard cutover with no way back
+  - checks or mentions health/readiness probes and a smoke test before routing full production traffic
+  - mentions monitoring the new version's key metrics (latency, error rate, prediction distribution) immediately after rollout
+must_not:
+  - describe a deployment with no rollback mechanism and no post-deploy verification as complete
+notes: >
+  A "happy path" case still requires the safety mechanisms (rollback, canary,
+  monitoring) that this is a high risk_level skill precisely because of.

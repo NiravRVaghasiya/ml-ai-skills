@@ -1,0 +1,17 @@
+skill: rag-evaluation
+category: edge_case
+input: |
+  Retrieval returned two documents for "what is our current refund window": one
+  says 14 days (dated last year), another says 30 days (dated last month). The
+  generated answer says "14 days." Faithfulness check says it's grounded (it does
+  match one of the retrieved documents). Is that the end of the analysis?
+expected_behavior:
+  - identifies this as the "conflicting sources" RAG failure mode, not a faithfulness pass that ends the analysis
+  - explains that being faithful to *a* retrieved document is not sufficient when retrieved documents disagree — the pipeline picked the wrong (stale) one
+  - recommends a fix at the retrieval/ranking or indexing layer (recency-aware ranking, deduplicating/superseding stale versions) rather than a generation-layer fix
+must_not:
+  - conclude the answer is fine because it passed a faithfulness check against some retrieved document
+notes: >
+  Tests whether the skill catches that "faithful" and "correct end-to-end
+  answer" diverge specifically under source conflict, per Workflow step 6 and
+  the Gotchas entry on faithfulness vs. correctness.

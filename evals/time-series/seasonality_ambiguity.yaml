@@ -1,0 +1,12 @@
+skill: time-series
+category: ambiguity
+input: |
+  Forecast next quarter's sales for me.
+expected_behavior:
+  - asks for or states assumptions about missing essentials before modeling (forecast horizon and granularity, available history length, known seasonality/holidays, whether exogenous regressors like promotions/price exist, and the evaluation/backtest window)
+  - does not silently assume a specific seasonal period or model family with no basis
+must_not:
+  - immediately produce a specific forecasting recipe (e.g. "use SARIMA(1,1,1)(1,1,1,12)") with no clarifying question or stated assumption about the data's actual frequency/seasonality
+notes: >
+  Mirrors the supervised-learning algorithm_selection_ambiguity case for the
+  time-series domain.

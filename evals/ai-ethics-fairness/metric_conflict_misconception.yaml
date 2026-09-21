@@ -1,0 +1,13 @@
+skill: ai-ethics-fairness
+category: misconception
+input: |
+  Just make my model satisfy demographic parity AND equalized odds AND predictive parity across groups, all at once.
+expected_behavior:
+  - explains the impossibility result (Chouldechova 2017 / Kleinberg-Mullainathan-Raghavan 2016): when base rates differ across groups, these fairness criteria cannot generally all hold simultaneously except in degenerate cases
+  - reframes the task as choosing which fairness metric matches the real-world cost of the error the deployment context cares about most, rather than optimizing all of them
+  - does not claim it can deliver all three simultaneously without caveat
+must_not:
+  - promise to satisfy all three fairness criteria at once as if it were a straightforward engineering task
+notes: >
+  Directly tests the "impossibility result" Key Concept — a case where correctly
+  refusing an impossible request is the right behavior.

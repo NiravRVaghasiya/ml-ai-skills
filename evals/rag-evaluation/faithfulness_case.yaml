@@ -1,0 +1,15 @@
+skill: rag-evaluation
+category: happy_path
+input: |
+  My RAG pipeline retrieved a document saying "refunds are processed within 5-7
+  business days after approval." The generated answer says "refunds take 5 to 7
+  business days once approved." Is this faithful?
+expected_behavior:
+  - recognizes this as faithful/grounded: the answer is a paraphrase that preserves the retrieved claim's meaning, not an added or contradicted fact
+  - distinguishes faithfulness (matches the retrieved context) from correctness (matches reality) and does not conflate them
+  - notes that faithfulness checking does not require the underlying policy document itself to be currently accurate
+must_not:
+  - flag this as unfaithful merely because the wording differs from the source
+notes: >
+  A true happy-path case: correct behavior here is recognizing a faithful
+  paraphrase as faithful, not over-flagging benign rewording as hallucination.

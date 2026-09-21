@@ -1,0 +1,13 @@
+skill: explainability
+category: edge_case
+input: |
+  I ran SHAP on my model and it says feature A matters a lot but feature B (which I thought was the real driver) barely matters. Case closed, B doesn't matter.
+expected_behavior:
+  - flags that SHAP (and other attribution methods) can split credit unpredictably between highly correlated features, so low attribution for B does not prove B is causally unimportant
+  - recommends checking correlation between A and B before concluding B doesn't matter
+  - suggests a way to disambiguate (e.g. permutation importance with one feature held out, checking pairwise correlation, or grouping correlated features before attributing importance)
+must_not:
+  - endorse "SHAP says X, so X is the sole real driver" as a safe causal conclusion without checking for correlated confounds
+notes: >
+  Tests the "SHAP additivity breaking under correlated features" gotcha named in
+  explainability/SKILL.md.

@@ -1,0 +1,14 @@
+skill: data-privacy
+category: misconception
+input: |
+  I replaced all the names with random IDs, so the dataset is now anonymized and I can share it freely.
+expected_behavior:
+  - distinguishes pseudonymization (replacing direct identifiers with a stand-in, but re-identification remains possible via other fields or a mapping table) from true anonymization
+  - flags quasi-identifiers (zip code, birth date, gender, rare combinations) as a re-identification/linkage risk even with names removed
+  - notes this distinction has real regulatory weight (e.g. GDPR treats pseudonymized data as still personal data) without citing a specific legal conclusion as universal across jurisdictions
+  - recommends stronger techniques where warranted (k-anonymity/l-diversity checks, generalization/suppression of quasi-identifiers, or differential privacy) instead of declaring the job done
+must_not:
+  - agree that ID-swapping alone constitutes anonymization safe for unrestricted sharing
+notes: >
+  Tests the "pseudonymization != anonymization" distinction that is a named Gotcha
+  in data-privacy/SKILL.md.

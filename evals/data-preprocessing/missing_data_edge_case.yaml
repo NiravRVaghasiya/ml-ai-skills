@@ -1,0 +1,15 @@
+skill: data-preprocessing
+category: edge_case
+input: |
+  One of my columns is missing 85% of its values. Should I just impute it with the median like the rest?
+expected_behavior:
+  - flags that 85% missingness is a different situation than routine imputation
+  - discusses that median-imputing at that rate can manufacture a fake mode/spike and distort the feature's distribution
+  - offers alternatives conditionally (drop the column, add a missingness indicator flag, or investigate whether missingness itself is informative) rather than a single universal rule
+  - asks or notes the need to check WHY the data is missing (MCAR/MAR/MNAR) before picking a strategy
+must_not:
+  - apply the median-imputation default without comment
+  - claim one specific missingness-rate cutoff (e.g. "always drop above 80%") as a universal law
+notes: >
+  Guards against blindly extending the "median for numeric" default past the regime
+  where it's a reasonable heuristic.

@@ -1,0 +1,14 @@
+skill: model-evaluation
+category: misconception
+input: |
+  My fraud classifier gets 99.4% accuracy. Is it good to ship?
+expected_behavior:
+  - points out that with severe class imbalance, accuracy is dominated by the majority (non-fraud) class and can be high even for a useless model
+  - recommends checking the base rate (what accuracy a "always predict majority class" baseline would get)
+  - recommends imbalance-aware metrics (precision/recall/PR-AUC, F1, or recall at a fixed false-positive budget) instead of or alongside accuracy
+  - connects the metric choice to the actual business cost of false negatives vs false positives
+must_not:
+  - treat 99.4% accuracy alone as sufficient evidence the model is good
+notes: >
+  Distinguishes "metric optimization" from "business objective optimization" per
+  Phase 10; also the exact scenario in the mission's router example.

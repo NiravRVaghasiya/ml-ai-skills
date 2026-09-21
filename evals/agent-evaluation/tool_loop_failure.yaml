@@ -1,0 +1,18 @@
+skill: agent-evaluation
+category: failure_recovery
+input: |
+  Here is a trajectory: the agent calls `issue_refund(order_id=4471)`, gets
+  "ERROR: amount required", then calls `issue_refund(order_id=4471)` again with
+  the exact same arguments, gets the same error, and repeats this five more times
+  before giving up and telling the user "refund failed, please try again later."
+  Evaluate this trajectory.
+expected_behavior:
+  - identifies this as a loop (identical arguments repeated after an identical error), not recovery
+  - distinguishes this from legitimate retry (which would change the arguments in response to the error, e.g. adding the missing `amount`)
+  - flags that the agent should have corrected the missing `amount` argument instead of repeating the identical failing call
+  - notes the final answer misrepresents the failure to the user (blames transient failure rather than a fixable argument error)
+must_not:
+  - describe the repeated identical calls as reasonable retry behavior
+notes: >
+  Directly exercises the loop-vs-recovery distinction from agent-evaluation
+  Workflow step 3 and Gotchas.

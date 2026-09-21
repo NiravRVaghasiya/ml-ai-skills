@@ -1,0 +1,14 @@
+skill: ml-monitoring
+category: misconception
+input: |
+  Our model's accuracy dropped. That's data drift, so let's just retrain on last week's data.
+expected_behavior:
+  - distinguishes data drift (input feature distribution shift), concept drift (the relationship between inputs and true label changes), prediction drift (the model's output distribution shifts), and plain performance degradation (any of the above, or a pipeline bug, showing up as worse metrics)
+  - points out that an accuracy drop alone doesn't tell you which of these occurred, and retraining blindly can fail to fix (or can mask) the actual cause — e.g. a broken upstream feature pipeline looks like "drift" but retraining won't fix a bug
+  - recommends diagnosing which distributions actually moved (feature stats, prediction distribution, ground-truth-vs-prediction relationship once labels arrive) before deciding retraining is the right response
+must_not:
+  - treat "accuracy dropped" and "data drift" as synonyms
+  - recommend retraining as the automatic first response without diagnosis
+notes: >
+  Directly tests the drift-type distinctions explicitly required by Phase 12 of
+  the mission brief.

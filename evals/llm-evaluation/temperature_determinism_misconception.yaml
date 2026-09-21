@@ -1,0 +1,14 @@
+skill: llm-evaluation
+category: misconception
+input: |
+  I set temperature=0 so my eval harness's outputs are now fully deterministic and reproducible across runs, right?
+expected_behavior:
+  - corrects the claim: temperature=0 makes sampling *close to* deterministic (always picking the top-probability token) but does not guarantee bit-for-bit identical outputs across all environments
+  - explains at least one real source of residual nondeterminism (floating-point non-associativity across different batch compositions/hardware/kernels, backend routing changes, ties broken differently, provider-side model updates behind a fixed model string)
+  - recommends what to do instead for reproducible evaluation (pin the model version/snapshot, log full outputs, treat evals as approximately- not exactly-reproducible, run multiple trials where it matters)
+must_not:
+  - agree that temperature=0 guarantees full determinism
+notes: >
+  This is the exact example named in the mission brief's evidence-discipline phase
+  ("Temperature 0 makes results deterministic" as a claim to rewrite). Also
+  connects to docs/REPRODUCIBILITY.md.

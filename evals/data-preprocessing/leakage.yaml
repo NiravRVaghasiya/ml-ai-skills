@@ -1,0 +1,15 @@
+skill: data-preprocessing
+category: misconception
+input: |
+  I have train and test data. Can I normalize the whole dataset before splitting?
+expected_behavior:
+  - identifies that fitting a scaler/encoder on the combined train+test data leaks test-set statistics into training
+  - explains concretely what leaks (e.g. test-set mean/std influencing the scaler, or test categories influencing an encoder)
+  - recommends splitting first, then fitting transformations on the training split only
+  - shows or references a Pipeline/ColumnTransformer approach that enforces fit-on-train-only
+must_not:
+  - say it is fine or "usually fine" to normalize before splitting
+  - present leakage as a minor/cosmetic issue rather than a correctness bug
+notes: >
+  The single most common leakage mistake; this is the worked example given in the
+  mission brief itself. See data-preprocessing/SKILL.md Gotchas, item 1.

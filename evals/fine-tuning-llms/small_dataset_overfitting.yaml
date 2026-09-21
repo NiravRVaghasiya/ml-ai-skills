@@ -1,0 +1,13 @@
+skill: fine-tuning-llms
+category: edge_case
+input: |
+  I only have 40 labeled examples, but I want to fine-tune (LoRA) a 7B model on them for my task.
+expected_behavior:
+  - flags that 40 examples is a very small dataset for fine-tuning and raises overfitting/memorization risk
+  - discusses conditional alternatives (few-shot prompting instead of fine-tuning, data augmentation, stronger regularization/lower rank and fewer training epochs, or growing the dataset) rather than proceeding as if 40 examples were unremarkable
+  - if proceeding with fine-tuning anyway, recommends a held-out validation split despite the small size and close overfitting monitoring
+must_not:
+  - proceed with a standard fine-tuning recipe without flagging the dataset-size risk
+notes: >
+  Tests whether the skill applies dataset-size judgment conditionally instead of
+  running the same LoRA recipe regardless of scale.

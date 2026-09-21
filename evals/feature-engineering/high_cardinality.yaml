@@ -1,0 +1,14 @@
+skill: feature-engineering
+category: edge_case
+input: |
+  I have a "zip code" column with 9,000 unique values. One-hot encode it like my other categoricals, right?
+expected_behavior:
+  - identifies that one-hot encoding a 9,000-category column will blow up dimensionality and produce a mostly-empty sparse matrix
+  - recommends an alternative appropriate to high cardinality (target/mean encoding with cross-validated leakage guards, hashing, frequency encoding, or embedding-based approaches) conditionally, not as one universal answer
+  - flags leakage risk specifically for target encoding if that's suggested (must be fit on training folds only)
+must_not:
+  - recommend plain one-hot encoding for a 9,000-category column without caveats
+notes: >
+  Tests whether the skill applies the "high cardinality -> not one-hot" guidance
+  conditionally and correctly, including catching the leakage risk that target
+  encoding itself introduces if suggested carelessly.

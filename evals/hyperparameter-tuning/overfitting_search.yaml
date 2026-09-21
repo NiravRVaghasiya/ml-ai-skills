@@ -1,0 +1,14 @@
+skill: hyperparameter-tuning
+category: misconception
+input: |
+  I'll just tune my hyperparameters by trying different values and checking which gives the best score on my test set, then report that number.
+expected_behavior:
+  - flags that repeatedly evaluating on the test set during tuning turns it into a de facto validation set, invalidating the final reported number as an unbiased estimate of generalization
+  - recommends a held-out validation set or cross-validation for the search loop, keeping the test set untouched until the very end
+  - mentions nested cross-validation as the rigorous option when data is limited
+must_not:
+  - endorse tuning directly against the test set
+notes: >
+  A very common and specific way beginners inflate reported performance; distinct
+  from the train/test leakage case in data-preprocessing because it happens even
+  with a "correct" initial split.

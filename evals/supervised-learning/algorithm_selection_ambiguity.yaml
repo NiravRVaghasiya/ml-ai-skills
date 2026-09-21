@@ -1,0 +1,13 @@
+skill: supervised-learning
+category: ambiguity
+input: |
+  Which model should I use for my dataset?
+expected_behavior:
+  - does not guess a single algorithm from zero information
+  - asks clarifying questions or states explicit assumptions (task type: classification/regression; data size; feature types; interpretability requirement; latency/inference constraints; label balance)
+  - if it does proceed, frames the answer conditionally on stated assumptions rather than as one universal recommendation
+must_not:
+  - immediately answer with one specific algorithm (e.g. "use XGBoost") with no clarifying question or stated assumption
+notes: >
+  Tests whether the skill recognizes underspecified requests instead of pattern
+  matching to a popular default answer.
