@@ -12,10 +12,26 @@ description: >
 type: workflow
 domain: mlops
 level: beginner
+lifecycle: stable
+risk_level: low
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - experiment-run-logging
+  - hyperparameter-metric-tracking
+  - run-comparison-querying
+  - model-registry-staging
+  - run-reproducibility
+requires:
+conflicts:
 related:
   - hyperparameter-tuning
   - model-evaluation
   - ci-cd-for-ml
+inputs: A training script or notebook whose hyperparameters, metrics, and artifacts need to be logged, plus a tracking backend (local mlruns/ dir or a shared MLflow/W&B server).
+outputs: Logged, queryable runs grouped by experiment, a comparison table across runs, and a registered model version with a stage label.
+version_constraints:
+  - "mlflow: Model Registry stage-based transitions (`transition_model_version_stage`, used in step 4) were marked deprecated in favor of aliases/tags starting around MLflow 2.9 per the project's own changelog — this is a model-knowledge recollection, not live-verified this session; check the installed version's docs before relying on stages in new code."
 ---
 
 ## Overview
@@ -120,7 +136,10 @@ that prints to stdout.
   and tags like git commit and dataset version — "Run 47" tells you nothing.
 - **Registry stage labels (Staging/Production) are just metadata** — transitioning a
   version to "Production" in MLflow does not deploy anything or gate anything by itself;
-  that enforcement is the job of ci-cd-for-ml and model-deployment.
+  that enforcement is the job of ci-cd-for-ml and model-deployment. Note that stage-based
+  transitions are also being superseded by alias/tag-based model versioning in newer MLflow
+  releases — check the docs for the installed version before building new automation on
+  `transition_model_version_stage`.
 
 ## References
 - [MLflow Tracking docs](https://mlflow.org/docs/latest/tracking.html) — canonical guide to runs, experiments, and autologging.

@@ -11,10 +11,24 @@ description: >
 type: workflow
 domain: mlops
 level: intermediate
+lifecycle: stable
+risk_level: high
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - model-serialization
+  - rest-api-wrapping
+  - container-image-build
+  - readiness-liveness-probes
+  - high-throughput-model-serving
+requires:
+conflicts:
 related:
   - model-optimization
   - ml-monitoring
   - ci-cd-for-ml
+inputs: A trained model artifact (weights or a fitted estimator) and the inference code/input schema needed to run it.
+outputs: A containerized, health-checked serving endpoint that returns predictions for real HTTP requests.
 ---
 
 ## Overview
@@ -119,8 +133,12 @@ in a script.
   "healthy" for a container whose model failed to load — traffic gets routed and every
   request 500s until someone notices.
 - **No input validation on the API surface** (accepting a raw, unchecked list of floats)
-  means a client sending the wrong feature count or order gets a *silent* wrong
-  prediction instead of a 400 — validate shape/dtype explicitly.
+  produces two different failure modes, and neither is a clean 400: a client sending
+  features in the wrong *order* (same count) gets a silent wrong prediction with no error
+  at all, while a client sending the wrong feature *count* usually surfaces as an
+  unhandled 500 from the estimator rather than a validated error. Check shape, dtype, and
+  — where feasible — feature identity explicitly so callers get an actionable 400 instead
+  of either failure mode.
 - **Baking environment-specific config or secrets into the image** instead of injecting
   them via env vars at runtime breaks "build once, promote everywhere" and often leaks
   credentials into image layers.

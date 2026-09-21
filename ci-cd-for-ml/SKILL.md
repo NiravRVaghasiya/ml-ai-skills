@@ -13,10 +13,24 @@ description: >
 type: workflow
 domain: mlops
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - ml-ci-pipeline-setup
+  - data-contract-testing
+  - model-quality-gating
+  - reproducible-environment-pinning
+  - release-promotion-automation
+requires:
+conflicts:
 related:
   - experiment-tracking
   - model-deployment
   - data-pipelines
+inputs: An ML codebase (training pipeline and model code) in a version-controlled repo with a CI runner (e.g. GitHub Actions) available.
+outputs: A CI workflow that blocks merges/releases on data-contract and model-quality test failures, plus a gated release job that promotes only passing models.
 ---
 
 ## Overview

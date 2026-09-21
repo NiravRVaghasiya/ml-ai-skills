@@ -13,10 +13,26 @@ description: >
 type: workflow
 domain: mlops
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - dag-orchestration
+  - data-quality-gating
+  - feature-store-materialization
+  - train-serve-skew-prevention
+  - pipeline-backfill-recovery
+requires:
+conflicts:
 related:
   - data-preprocessing
   - feature-engineering
   - ml-monitoring
+inputs: A recurring data source (table/feed) and a feature-computation definition that needs to run on a schedule and be served consistently offline and online.
+outputs: A scheduled, validated, idempotent pipeline plus an offline/online feature store serving identical values to training and inference.
+version_constraints:
+  - "feast: `FeatureView(schema=[Field(name=..., dtype=...)])` (used in step 3) reflects the Feast 0.2x+ API; earlier Feast versions used a `features=[Feature(name=..., dtype=...)]` argument instead — this is a model-knowledge recollection, not live-verified this session."
 ---
 
 ## Overview

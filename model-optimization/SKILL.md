@@ -12,10 +12,26 @@ description: >
 type: workflow
 domain: mlops
 level: advanced
+lifecycle: stable
+risk_level: medium
+evidence_level: official-documentation
+last_verified: 2026-09-21
+capabilities:
+  - post-training-quantization
+  - onnx-export-and-runtime-inference
+  - static-quantization-calibration
+  - knowledge-distillation
+  - latency-accuracy-benchmarking
+requires:
+conflicts:
 related:
   - model-deployment
   - training-deep-models
   - hyperparameter-tuning
+inputs: A trained model (typically PyTorch) plus a representative sample input and, for static quantization, a calibration dataset.
+outputs: A smaller/faster model artifact (quantized weights, an ONNX file, or a distilled student model) with a benchmarked latency/size/accuracy comparison against the fp32 baseline.
+version_constraints:
+  - "pytorch: `torch.quantization` (used in step 2) was reorganized under `torch.ao.quantization` starting around PyTorch 1.13/2.0, with the old import path kept as a deprecated alias for some releases — this is a model-knowledge recollection, not live-verified this session; check the installed PyTorch version's docs before relying on the old path."
 ---
 
 ## Overview
