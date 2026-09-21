@@ -10,11 +10,25 @@ description: >
 type: workflow
 domain: classical-ml
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - kmeans-clustering
+  - cluster-count-selection
+  - density-based-clustering
+  - dimensionality-reduction-pca
+  - tsne-visualization
+requires:
+conflicts:
 related:
   - feature-engineering
   - data-preprocessing
   - model-evaluation
   - supervised-learning
+inputs: A scaled numeric feature matrix with no target labels.
+outputs: Cluster assignments or a reduced-dimension embedding, plus diagnostics (silhouette score, explained variance) justifying the choice.
 ---
 
 ## Overview

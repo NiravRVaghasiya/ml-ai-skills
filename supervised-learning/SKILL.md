@@ -12,11 +12,25 @@ description: >
 type: workflow
 domain: classical-ml
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - baseline-model-comparison
+  - classifier-model-selection
+  - regression-model-selection
+  - cross-validated-model-comparison
+  - class-imbalance-handling
+requires:
+conflicts:
 related:
   - feature-engineering
   - model-evaluation
   - hyperparameter-tuning
   - data-preprocessing
+inputs: A feature-engineered train/test split (see feature-engineering) with a numeric or categorical target.
+outputs: A fitted candidate model, or a ranked shortlist of candidates with cross-validated scores, ready for tuning or rigorous evaluation.
 ---
 
 ## Overview

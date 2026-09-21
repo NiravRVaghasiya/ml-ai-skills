@@ -11,10 +11,24 @@ description: >
 type: workflow
 domain: classical-ml
 level: advanced
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - grid-search-tuning
+  - randomized-search-tuning
+  - bayesian-optimization-optuna
+  - nested-cross-validation
+  - search-overfitting-prevention
+requires:
+conflicts:
 related:
   - model-evaluation
   - supervised-learning
   - feature-engineering
+inputs: A chosen model family (see supervised-learning), a decided optimization metric (see model-evaluation), and a train set.
+outputs: A best hyperparameter configuration, an unbiased nested-CV performance estimate, and a model refit on the full training set.
 ---
 
 ## Overview

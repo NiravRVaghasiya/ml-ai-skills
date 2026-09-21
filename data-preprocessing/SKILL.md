@@ -10,10 +10,27 @@ description: >
 type: workflow
 domain: classical-ml
 level: intermediate
+lifecycle: stable
+risk_level: low
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - missing-value-imputation
+  - categorical-encoding
+  - feature-scaling
+  - column-transformer-pipelines
+  - train-test-leakage-prevention
+requires:
+conflicts:
 related:
   - feature-engineering
   - model-evaluation
   - supervised-learning
+inputs: A raw tabular dataset (pandas DataFrame) with a defined target column, not yet split or transformed.
+outputs: A fitted scikit-learn Pipeline/ColumnTransformer that turns raw rows into a clean numeric matrix, plus a persisted joblib artifact.
+version_constraints:
+  - "scikit-learn: ColumnTransformer + OneHotEncoder(handle_unknown='ignore') API stable since 0.20+ — not live-verified this pass"
+  - "scikit-learn: SimpleImputer stable since 0.20+ — not live-verified this pass"
 ---
 
 ## Overview

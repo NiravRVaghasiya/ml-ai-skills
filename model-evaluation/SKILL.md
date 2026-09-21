@@ -11,11 +11,26 @@ description: >
 type: workflow
 domain: classical-ml
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - cross-validation-strategy-selection
+  - classification-metric-selection
+  - probability-calibration
+  - imbalanced-classification-metrics
+  - overfitting-diagnosis
+  - confusion-matrix-analysis
+requires:
+conflicts:
 related:
   - supervised-learning
   - hyperparameter-tuning
   - feature-engineering
   - data-preprocessing
+inputs: A fitted model plus a held-out test set (or a train set and CV strategy) and a defined target/metric.
+outputs: A metric report with fold-to-fold spread, confusion matrix, and calibration diagnostics establishing whether the model's reported performance and probabilities can be trusted.
 ---
 
 ## Overview

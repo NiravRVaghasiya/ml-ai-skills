@@ -11,11 +11,27 @@ description: >
 type: workflow
 domain: classical-ml
 level: intermediate
+lifecycle: stable
+risk_level: medium
+evidence_level: established-practice
+last_verified: 2026-09-21
+capabilities:
+  - feature-interaction-creation
+  - target-encoding
+  - feature-selection
+  - leakage-safe-feature-pipelines
+  - recursive-feature-elimination
+requires:
+conflicts:
 related:
   - data-preprocessing
   - supervised-learning
   - unsupervised-learning
   - model-evaluation
+inputs: A cleaned, imputed/scaled train/test split (see data-preprocessing) with a defined target column.
+outputs: A ranked, leakage-checked feature set plus a reusable Pipeline step for engineering and selection.
+version_constraints:
+  - "scikit-learn: preprocessing.TargetEncoder (cross-fitted target encoding) available since 1.3 — not live-verified this pass"
 ---
 
 ## Overview
@@ -55,10 +71,13 @@ reusable `Pipeline` step plus a ranked list of the features that actually helped
    X_train["order_hour"] = X_train["order_ts"].dt.hour
    X_train["order_is_weekend"] = X_train["order_dow"].isin([5, 6]).astype(int)
    ```
-3. **Encode high-cardinality categoricals safely.** One-hot blows up past ~50
-   categories; target encoding compresses them to one leakage-aware column. Use
-   sklearn's built-in encoder — it internally cross-fits to avoid leaking the target
-   into its own encoding.
+3. **Encode high-cardinality categoricals safely.** As a rule of thumb — not a hard
+   threshold — once a categorical column's one-hot expansion starts rivaling or
+   exceeding your row count or feature budget (often somewhere in the dozens-to-
+   hundreds of unique values, depending on dataset size and downstream model),
+   target encoding compresses it to one leakage-aware column instead. Use sklearn's
+   built-in encoder — it internally cross-fits to avoid leaking the target into its
+   own encoding.
    ```python
    from sklearn.preprocessing import TargetEncoder
 
