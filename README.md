@@ -2,6 +2,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
 [![CI: GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](.github/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 A collection of self-contained ML/AI "skill" Markdown files — one `SKILL.md` per
 folder — plus the tooling that validates, routes, cross-links, and evidence-audits
@@ -300,8 +301,6 @@ ml-ai-skills/
   badge above links to the workflow file rather than a live status endpoint;
   it will resolve to real status once this repo is pushed and the badge URL
   is updated to `.../actions/workflows/ci.yml/badge.svg`.
-- **No LICENSE file exists yet** — add one before treating this as
-  distributable; no license badge is shown because none would be accurate.
 - Fuller list, with what each would take to fix: `docs/SKILL-SPEC.md` §"Known limitations", `docs/SKILL-AUDIT.md` §"Remaining limitations."
 
 ## Contributing
@@ -313,3 +312,9 @@ ml-ai-skills/
   `python scripts/validate_skills.py` and `python -m unittest discover -s tests`
   passing with zero errors before you consider it done.
 - Don't hand-edit `INDEX.md` or this README's stats block — regenerate them.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 Nirav Vaghasiya. You're free
+to use, copy, modify, and distribute these skill files, including for commercial
+purposes, provided the copyright notice and license text are retained.
