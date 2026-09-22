@@ -54,13 +54,6 @@ jobs:
       - name: Check plugins/ and .claude-plugin/marketplace.json are not stale
         run: python scripts/generate_plugins.py --check
 
-      # `claude plugin validate`/marketplace-add/install commands themselves were
-      # live-verified against a real, already-installed `claude` CLI during
-      # authoring (see PR description); this npm install step to get that same
-      # CLI onto a bare GitHub Actions runner was not — the authoring sandbox
-      # had no npm/network access to confirm the package name. If this step
-      # ever fails with "package not found", check docs.claude.com for the
-      # current install method and update this line — do not silently drop it.
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
@@ -75,6 +68,11 @@ jobs:
             claude plugin validate "$d" --strict
           done
 
+      # tests/test_generate_plugins.py asserts on `claude` returncodes only
+      # (not --json output or --yes/-y flags) — different `claude` CLI builds
+      # have different flag surfaces, confirmed the hard way when this job's
+      # public npm-installed CLI rejected flags a locally-installed build
+      # accepted.
       - name: Run plugin/marketplace unit + local-install tests
         run: python -m unittest discover -s tests -p "test_generate_plugins.py" -v
 

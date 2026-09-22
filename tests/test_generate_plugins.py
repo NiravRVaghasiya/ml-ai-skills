@@ -61,7 +61,8 @@ def run_claude(*args: str, env: dict | None = None) -> subprocess.CompletedProce
     return subprocess.run(
         [BASH, "-lc", f"claude {quoted}"], capture_output=True, env=env,
         encoding="utf-8", errors="replace",  # CLI output can include unicode glyphs (❯, ✔) that
-    )                                        # aren't representable in the Windows console codepage
+        input="", timeout=60,                # aren't representable in the Windows console codepage.
+    )  # input="": closed stdin so an unexpected confirmation prompt fails fast instead of hanging CI.
 
 
 class TestBuildPlan(unittest.TestCase):
@@ -171,20 +172,25 @@ class TestNoDuplicateContent(unittest.TestCase):
 
 @unittest.skipUnless(CLAUDE_AVAILABLE, "claude CLI not found on PATH (via bash)")
 class TestClaudeCliValidation(unittest.TestCase):
-    def _validate(self, path: Path) -> dict:
-        result = run_claude("plugin", "validate", str(path), "--json", "--strict")
-        return json.loads(result.stdout)
+    """Asserts on returncode only, not --json output: different `claude` CLI
+    builds have different flag surfaces (the ASBX Toolbox build used during
+    authoring accepted `--json` on `plugin validate`; the public
+    @anthropic-ai/claude-code build installed in CI printed nothing to
+    stdout for it, breaking JSON parsing). `--strict` alone is exactly what
+    the CI workflow's own validate steps run, so returncode==0 there is the
+    portable, version-independent signal."""
+
+    def _validate(self, path: Path) -> subprocess.CompletedProcess:
+        return run_claude("plugin", "validate", str(path), "--strict")
 
     def test_marketplace_validates_clean_under_strict(self):
-        report = self._validate(REPO_ROOT)
-        self.assertTrue(report["success"], report["manifest"])
-        self.assertEqual(report["manifest"]["errors"], [])
-        self.assertEqual(report["manifest"]["warnings"], [])
+        result = self._validate(REPO_ROOT)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_every_plugin_validates_clean_under_strict(self):
         for plugin_dir in sorted((REPO_ROOT / "plugins").iterdir()):
-            report = self._validate(plugin_dir)
-            self.assertTrue(report["success"], f"{plugin_dir.name}: {report['manifest']}")
+            result = self._validate(plugin_dir)
+            self.assertEqual(result.returncode, 0, f"{plugin_dir.name}: {result.stdout + result.stderr}")
 
 
 @unittest.skipUnless(CLAUDE_AVAILABLE, "claude CLI not found on PATH (via bash)")
@@ -203,24 +209,29 @@ class TestLocalMarketplaceInstall(unittest.TestCase):
         return run_claude("plugin", *args, env=self.env)
 
     def test_marketplace_add_install_update_reinstall_cycle(self):
+        # No `-y`/`--yes`: that flag only matters for a marketplace-declared
+        # *install command* (a script/headersHelper a plugin runs to fetch
+        # itself) needing confirmation. Our plugins are plain skills/
+        # folders with no such command, so no confirmation prompt applies —
+        # and CLI builds disagree on whether `-y` is even a recognized flag.
         add = self._run("marketplace", "add", str(REPO_ROOT))
-        self.assertEqual(add.returncode, 0, add.stderr)
+        self.assertEqual(add.returncode, 0, add.stdout + add.stderr)
 
-        install = self._run("install", f"{gp.ALL_PLUGIN_NAME}@{gp.MARKETPLACE_NAME}", "-y")
-        self.assertEqual(install.returncode, 0, install.stderr)
+        install = self._run("install", f"{gp.ALL_PLUGIN_NAME}@{gp.MARKETPLACE_NAME}")
+        self.assertEqual(install.returncode, 0, install.stdout + install.stderr)
 
-        domain_install = self._run("install", f"classical-ml@{gp.MARKETPLACE_NAME}", "-y")
-        self.assertEqual(domain_install.returncode, 0, domain_install.stderr)
+        domain_install = self._run("install", f"classical-ml@{gp.MARKETPLACE_NAME}")
+        self.assertEqual(domain_install.returncode, 0, domain_install.stdout + domain_install.stderr)
 
         listing = self._run("list")
         self.assertIn("ml-ai-skills@ml-ai-skills", listing.stdout)
         self.assertIn("classical-ml@ml-ai-skills", listing.stdout)
 
         update = self._run("update", f"{gp.ALL_PLUGIN_NAME}@{gp.MARKETPLACE_NAME}")
-        self.assertEqual(update.returncode, 0, update.stderr)
+        self.assertEqual(update.returncode, 0, update.stdout + update.stderr)
 
-        reinstall = self._run("install", f"{gp.ALL_PLUGIN_NAME}@{gp.MARKETPLACE_NAME}", "-y")
-        self.assertEqual(reinstall.returncode, 0, reinstall.stderr)
+        reinstall = self._run("install", f"{gp.ALL_PLUGIN_NAME}@{gp.MARKETPLACE_NAME}")
+        self.assertEqual(reinstall.returncode, 0, reinstall.stdout + reinstall.stderr)
 
 
 if __name__ == "__main__":

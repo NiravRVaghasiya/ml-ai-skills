@@ -259,25 +259,30 @@ ml-ai-skills/
 - `claude plugin validate . --strict` and `claude plugin validate plugins/<name> --strict` both pass
   with zero errors/warnings for `.claude-plugin/marketplace.json` and every generated `plugin.json`.
 - A full local cycle — `claude plugin marketplace add <repo>` → `claude plugin install
-  ml-ai-skills@ml-ai-skills -y` → install a domain plugin → `claude plugin list` → `claude plugin
+  ml-ai-skills@ml-ai-skills` → install a domain plugin → `claude plugin list` → `claude plugin
   update` → reinstall — completed successfully against an isolated `CLAUDE_CONFIG_DIR` (never the
-  tester's real `~/.claude` config). `claude plugin details ml-ai-skills@ml-ai-skills` reported all 38
-  skills, matching the source folders exactly. This is automated in
-  [`tests/test_generate_plugins.py`](tests/test_generate_plugins.py) (skipped if `claude` isn't on PATH).
+  tester's real `~/.claude` config), both with a local ASBX Toolbox `claude` build and with the public
+  `npm install -g @anthropic-ai/claude-code` build CI installs (confirmed via a real CI run — see
+  [`.github/workflows/ci.yml`](.github/workflows/ci.yml)'s `plugins` job). `claude plugin details
+  ml-ai-skills@ml-ai-skills` reported all 38 skills, matching the source folders exactly. This is
+  automated in [`tests/test_generate_plugins.py`](tests/test_generate_plugins.py) (skipped if `claude`
+  isn't on PATH).
 - `install.sh`/`uninstall.sh` correctly create, update, and remove `<skill>/SKILL.md` folders under
   `~/.claude/skills/` (personal) or `<project>/.claude/skills/` (project) — the two documented
   filesystem locations Claude Code reads loose skills from.
 
-**Not verified:** the exact `npm install -g @anthropic-ai/claude-code` CI install step (see
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml)) — the authoring sandbox had no npm/network
-access to confirm it end-to-end, only the plugin/marketplace *commands themselves* were live-tested
-against an already-installed CLI. No other editor (Cursor, Copilot, …) is claimed or tested. Hit a
+**Known CLI-build difference:** the ASBX Toolbox `claude` build used during authoring and the public
+`@anthropic-ai/claude-code` npm build CI installs disagree on some flags (e.g. `--json` on `plugin
+validate` prints nothing to stdout on one of them; `plugin install -y`/`--yes` is unrecognized on
+one of them). The tests and CI therefore assert on `claude` returncodes only, never on `--json`
+output or that confirmation flag — our plugins declare no install commands, so no confirmation prompt
+applies to them regardless of build. No other editor (Cursor, Copilot, …) is claimed or tested. Hit a
 discovery or install issue? Please open an issue.
 
 ## Limitations
 
-- **CI's `npm install -g @anthropic-ai/claude-code` step is unverified** (see above) — the commands it
-  runs afterward were live-tested locally, just not that exact install step on a bare CI runner.
+- **`claude` CLI builds have inconsistent flag support** (see above) — tests/CI work around this by
+  asserting on returncode only; a future CLI release could still surface a new incompatibility.
 - **No live package/API verification** — `version_constraints`/`last_verified` are authoring-time estimates.
 - **Router is keyword-based, not semantic** — capability tags reduce but don't eliminate collisions.
 - **No automated behavioral grading** — eval cases are structurally validated only.
