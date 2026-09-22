@@ -1,0 +1,68 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ml-ai-skills",
+  "owner": {
+    "name": "Nirav Vaghasiya",
+    "url": "https://github.com/NiravRVaghasiya"
+  },
+  "metadata": {
+    "description": "38 self-contained ML/AI Agent Skills, packaged as one all-in-one plugin and one plugin per domain.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "ml-ai-skills",
+      "source": "./plugins/ml-ai-skills",
+      "description": "All 38 ML/AI Agent Skills from the ml-ai-skills library, covering Foundations, Classical ML, Deep Learning, LLM, Specialized, MLOps, Responsible AI, Security.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "foundations",
+      "source": "./plugins/foundations",
+      "description": "4 Foundations Agent Skill(s) from the ml-ai-skills library: ml-math-essentials, ml-problem-framing, python-for-ml, statistics-for-ml.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "classical-ml",
+      "source": "./plugins/classical-ml",
+      "description": "6 Classical ML Agent Skill(s) from the ml-ai-skills library: data-preprocessing, feature-engineering, hyperparameter-tuning, model-evaluation, supervised-learning, unsupervised-learning.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "deep-learning",
+      "source": "./plugins/deep-learning",
+      "description": "6 Deep Learning Agent Skill(s) from the ml-ai-skills library: attention-mechanisms, cnn-vision, neural-net-fundamentals, pytorch-patterns, rnn-sequence, training-deep-models.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "llm",
+      "source": "./plugins/llm",
+      "description": "7 LLM Agent Skill(s) from the ml-ai-skills library: agent-evaluation, agents-and-tools, fine-tuning-llms, llm-evaluation, prompt-engineering, rag-evaluation, rag-pipeline.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "specialized",
+      "source": "./plugins/specialized",
+      "description": "5 Specialized Agent Skill(s) from the ml-ai-skills library: computer-vision, nlp-tasks, recommender-systems, reinforcement-learning, time-series.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "mlops",
+      "source": "./plugins/mlops",
+      "description": "6 MLOps Agent Skill(s) from the ml-ai-skills library: ci-cd-for-ml, data-pipelines, experiment-tracking, ml-monitoring, model-deployment, model-optimization.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "responsible-ai",
+      "source": "./plugins/responsible-ai",
+      "description": "3 Responsible AI Agent Skill(s) from the ml-ai-skills library: ai-ethics-fairness, data-privacy, explainability.",
+      "version": "1.0.0"
+    },
+    {
+      "name": "security",
+      "source": "./plugins/security",
+      "description": "1 Security Agent Skill(s) from the ml-ai-skills library: ai-ml-security.",
+      "version": "1.0.0"
+    }
+  ]
+}

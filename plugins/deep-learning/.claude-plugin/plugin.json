@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "deep-learning",
+  "version": "1.0.0",
+  "description": "6 Deep Learning Agent Skill(s) from the ml-ai-skills library: attention-mechanisms, cnn-vision, neural-net-fundamentals, pytorch-patterns, rnn-sequence, training-deep-models.",
+  "author": {
+    "name": "Nirav Vaghasiya",
+    "url": "https://github.com/NiravRVaghasiya"
+  },
+  "homepage": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "repository": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "license": "MIT",
+  "keywords": [
+    "machine-learning",
+    "ai",
+    "claude-code-skills",
+    "deep-learning"
+  ]
+}

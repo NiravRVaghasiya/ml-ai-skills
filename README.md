@@ -4,16 +4,45 @@
 [![CI: GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](.github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-A library of self-contained ML/AI **skills** — one `SKILL.md` per folder — that install into
-[Claude Code's Agent Skills](#claude-code-compatibility) directory, plus dependency-free Python
-tooling that validates, routes, cross-links, and audits them. Each skill is either a **⚙️ workflow**
-(a runnable procedure) or a **📖 reference** (an explainer an agent loads for context).
+A library of self-contained ML/AI **skills** — one `SKILL.md` per folder — distributed as a native
+[Claude Code plugin marketplace](#claude-code-compatibility) (one all-in-one plugin + one per domain)
+and, portably, as plain `SKILL.md` folders you can install directly. Each skill is either a
+**⚙️ workflow** (a runnable procedure) or a **📖 reference** (an explainer an agent loads for context).
 
-It's a content + tooling repo — plain Markdown, YAML frontmatter, a bash installer, and stdlib-only
-Python. Not a running service. What it deliberately does *not* claim is listed under
-[Limitations](#limitations).
+It's a content + tooling repo — plain Markdown, YAML frontmatter, generated plugin manifests, a bash
+installer, and stdlib-only Python. Not a running service. What it deliberately does *not* claim is
+listed under [Limitations](#limitations).
 
-## Quick start
+## Installation
+
+### Claude Code — recommended
+
+Native plugin/marketplace distribution (verified live against the `claude` CLI's own
+`plugin validate` / `marketplace add` / `install` / `update` commands — see
+[Claude Code compatibility](#claude-code-compatibility)):
+
+```
+/plugin marketplace add NiravRVaghasiya/ml-ai-skills
+/plugin install ml-ai-skills@ml-ai-skills
+```
+
+### Install a domain
+
+Prefer a lighter footprint? Install just one domain instead of all 38 skills (same marketplace,
+already added above):
+
+```
+/plugin install <domain>@ml-ai-skills
+```
+
+where `<domain>` is one of `foundations`, `classical-ml`, `deep-learning`, `llm`, `specialized`,
+`mlops`, `responsible-ai`, `security`. Each domain plugin ships only its own skills — see
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) for the exact set, or
+`/plugin details <domain>@ml-ai-skills` after installing.
+
+### Portable skills (no plugin system)
+
+For editors/agents without native plugin support, or a plain-file checkout:
 
 ```bash
 git clone https://github.com/NiravRVaghasiya/ml-ai-skills.git
@@ -38,6 +67,13 @@ error if run outside an `ml-ai-skills` checkout. Uninstall never touches folders
 `./bin/ml-ai-skills {install|update|uninstall|validate|list|help}` is a thin single-entry wrapper
 around the above (not auto-added to `PATH`).
 
+**Which path should I use?** The plugin/marketplace route is the primary, tested path for Claude
+Code — it's how Claude Code's own plugin ecosystem expects skills to be distributed and updated
+(`/plugin update`). `install.sh`/`uninstall.sh`/`bin/ml-ai-skills` remain as a direct-filesystem
+alternative for scripted/CI setups or editors that only read `~/.claude/skills/` directly, not
+through the plugin system — they are not a second implementation of the same thing, just a different
+delivery mechanism for the identical `SKILL.md` content.
+
 ## Available skills
 
 <!-- PROJECT-STATS:START -->
@@ -53,8 +89,8 @@ around the above (not auto-added to `PATH`).
 | Risk level | low (24) · medium (12) · high (2) |
 | Evidence level | primary (3) · official-documentation (10) · established-practice (25) |
 | Eval cases | 23 case file(s) covering 18/38 skills — structural sanity only, not automated grading (see `evals/SCHEMA.md`) |
-| Unit tests | 50 (stdlib `unittest`, no extra dependencies) |
-| Scripts / docs | 9 scripts in `scripts/`, 8 policy docs in `docs/` |
+| Unit tests | 65 (stdlib `unittest`, no extra dependencies) |
+| Scripts / docs | 10 scripts in `scripts/`, 8 policy docs in `docs/` |
 <!-- PROJECT-STATS:END -->
 
 Every skill's frontmatter declares `domain`, `level`, `lifecycle`, `risk_level`, `evidence_level`,
@@ -161,9 +197,11 @@ python scripts/build_dependency_graph.py --check     # dependency-graph doc drif
 python scripts/check_freshness.py                    # known-dead-API + staleness scan
 python scripts/validate_evals.py                     # eval case-file sanity check
 python scripts/generate_readme_stats.py --check      # this README's stats-block drift check
-python -m unittest discover -s tests -p "test_*.py"  # unit + installer tests
+python -m unittest discover -s tests -p "test_*.py"  # unit + installer + plugin/marketplace tests
 python scripts/router.py "your task description"     # preview routing
 ./install.sh --dry-run                                # installer smoke test
+python scripts/generate_plugins.py --check            # plugins/ + marketplace.json drift check
+claude plugin validate . --strict                      # native schema validation (needs `claude` CLI)
 ```
 
 - **Router** ([`docs/ROUTING.md`](docs/ROUTING.md)) — deterministic keyword/capability-tag matcher,
@@ -175,6 +213,10 @@ python scripts/router.py "your task description"     # preview routing
   `last_verified` dates but has **no network access** and cannot confirm current correctness.
 - **Eval cases** ([`evals/SCHEMA.md`](evals/SCHEMA.md)) — structured behavioral cases, validated for
   well-formedness only. **There is no automated grader** — grading is a human/agent review step.
+- **Plugin/marketplace packaging** — `scripts/generate_plugins.py` derives `.claude-plugin/marketplace.json`
+  and every `plugins/<name>/` (one all-in-one + one per domain) from the canonical `<slug>/SKILL.md`
+  folders; `--check` fails CI on any drift. Every `SKILL.md` byte under `plugins/` is copied verbatim
+  from its canonical folder — there is exactly one place to edit a skill's content.
 
 ## Development
 
@@ -196,37 +238,52 @@ ml-ai-skills/
 ├── README.md            ← you are here
 ├── INDEX.md             ← one-line-per-skill checklist (synced by scripts/generate_index.py)
 ├── CLAUDE.md            ← authoring/operating manual for skills
-├── install.sh / uninstall.sh
+├── VERSION              ← single version stamp for every plugin.json/marketplace.json
+├── .claude-plugin/marketplace.json  ← generated — native Claude Code marketplace manifest
+├── plugins/              ← generated — one all-in-one + one per-domain plugin (see below)
+│   └── <plugin-name>/.claude-plugin/plugin.json + skills/<slug>/SKILL.md (byte-copy of canonical)
+├── install.sh / uninstall.sh        ← portable, non-plugin installation path
 ├── bin/ml-ai-skills     ← thin CLI wrapper
 ├── _TEMPLATE/SKILL.md   ← clone for every new skill
 ├── docs/                ← SKILL-SPEC, EVIDENCE, FRESHNESS, ROUTING, REPRODUCIBILITY, QUALITY-GATES, SKILL-AUDIT, SKILL-GRAPH
 ├── schema/              ← allowed_values.py — single source of truth for every enum
-├── scripts/             ← validator, router, graph builder, freshness scanner, index/stats sync
-├── tests/               ← unit + installer tests (stdlib unittest)
+├── scripts/             ← validator, router, graph builder, freshness scanner, index/stats/plugin sync
+├── tests/               ← unit + installer + plugin/marketplace tests (stdlib unittest)
 ├── evals/               ← per-skill behavioral case files + SCHEMA.md
-└── <skill-slug>/SKILL.md
+└── <skill-slug>/SKILL.md            ← canonical content — edit here, never under plugins/
 ```
 
 ## Claude Code compatibility
 
-**Verified:** `install.sh`/`uninstall.sh` correctly create, update, and remove `<skill>/SKILL.md`
-folders under `~/.claude/skills/` (personal) or `<project>/.claude/skills/` (project) — the two
-documented locations Claude Code reads skills from, each needing at minimum `name` + `description`
-frontmatter. This repo's frontmatter is a superset of that.
+**Verified live**, in this session, against a real installed `claude` CLI (not just schema reading):
+- `claude plugin validate . --strict` and `claude plugin validate plugins/<name> --strict` both pass
+  with zero errors/warnings for `.claude-plugin/marketplace.json` and every generated `plugin.json`.
+- A full local cycle — `claude plugin marketplace add <repo>` → `claude plugin install
+  ml-ai-skills@ml-ai-skills -y` → install a domain plugin → `claude plugin list` → `claude plugin
+  update` → reinstall — completed successfully against an isolated `CLAUDE_CONFIG_DIR` (never the
+  tester's real `~/.claude` config). `claude plugin details ml-ai-skills@ml-ai-skills` reported all 38
+  skills, matching the source folders exactly. This is automated in
+  [`tests/test_generate_plugins.py`](tests/test_generate_plugins.py) (skipped if `claude` isn't on PATH).
+- `install.sh`/`uninstall.sh` correctly create, update, and remove `<skill>/SKILL.md` folders under
+  `~/.claude/skills/` (personal) or `<project>/.claude/skills/` (project) — the two documented
+  filesystem locations Claude Code reads loose skills from.
 
-**Not verified:** the installer and tests were built without a live Claude Code session, so the claim
-is "files land in the documented location with the documented minimum fields," not "confirmed loaded
-by a running instance." No plugin/marketplace packaging (`.claude-plugin/plugin.json`) and no other
-editor (Cursor, Copilot, …) is claimed or tested. Hit a discovery issue? Please open an issue.
+**Not verified:** the exact `npm install -g @anthropic-ai/claude-code` CI install step (see
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml)) — the authoring sandbox had no npm/network
+access to confirm it end-to-end, only the plugin/marketplace *commands themselves* were live-tested
+against an already-installed CLI. No other editor (Cursor, Copilot, …) is claimed or tested. Hit a
+discovery or install issue? Please open an issue.
 
 ## Limitations
 
-- **Claude Code discovery is not live-tested** — file placement is verified, automatic pickup is not.
-- **No plugin/marketplace packaging** — this is a plain skills folder, not a plugin.
+- **CI's `npm install -g @anthropic-ai/claude-code` step is unverified** (see above) — the commands it
+  runs afterward were live-tested locally, just not that exact install step on a bare CI runner.
 - **No live package/API verification** — `version_constraints`/`last_verified` are authoring-time estimates.
 - **Router is keyword-based, not semantic** — capability tags reduce but don't eliminate collisions.
 - **No automated behavioral grading** — eval cases are structurally validated only.
 - **Evidence classification is skill-level, not sentence-level.**
+- **No other editor's plugin system** (Cursor, Copilot, …) is targeted — this is Claude Code plugin
+  format specifically, verified against its `claude` CLI.
 
 Fuller list with fixes: [`docs/SKILL-SPEC.md`](docs/SKILL-SPEC.md) §"Known limitations",
 [`docs/SKILL-AUDIT.md`](docs/SKILL-AUDIT.md) §"Remaining limitations".

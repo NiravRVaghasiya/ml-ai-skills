@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "llm",
+  "version": "1.0.0",
+  "description": "7 LLM Agent Skill(s) from the ml-ai-skills library: agent-evaluation, agents-and-tools, fine-tuning-llms, llm-evaluation, prompt-engineering, rag-evaluation, rag-pipeline.",
+  "author": {
+    "name": "Nirav Vaghasiya",
+    "url": "https://github.com/NiravRVaghasiya"
+  },
+  "homepage": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "repository": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "license": "MIT",
+  "keywords": [
+    "machine-learning",
+    "ai",
+    "claude-code-skills",
+    "llm"
+  ]
+}

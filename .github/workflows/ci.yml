@@ -39,6 +39,45 @@ jobs:
       - name: Check README.md PROJECT-STATS block is up to date
         run: python scripts/generate_readme_stats.py --check
 
+  plugins:
+    name: Plugin/marketplace packaging (generation drift + native schema validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check plugins/ and .claude-plugin/marketplace.json are not stale
+        run: python scripts/generate_plugins.py --check
+
+      # `claude plugin validate`/marketplace-add/install commands themselves were
+      # live-verified against a real, already-installed `claude` CLI during
+      # authoring (see PR description); this npm install step to get that same
+      # CLI onto a bare GitHub Actions runner was not — the authoring sandbox
+      # had no npm/network access to confirm the package name. If this step
+      # ever fails with "package not found", check docs.claude.com for the
+      # current install method and update this line — do not silently drop it.
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate marketplace.json against the native Claude Code schema
+        run: claude plugin validate . --strict
+
+      - name: Validate every plugin manifest against the native Claude Code schema
+        run: |
+          set -euo pipefail
+          for d in plugins/*/; do
+            echo "== $d =="
+            claude plugin validate "$d" --strict
+          done
+
+      - name: Run plugin/marketplace unit + local-install tests
+        run: python -m unittest discover -s tests -p "test_generate_plugins.py" -v
+
   freshness:
     name: Freshness scan (known-stale patterns only, non-blocking for REVIEW_DUE)
     runs-on: ubuntu-latest

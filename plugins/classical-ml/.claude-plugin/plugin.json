@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "classical-ml",
+  "version": "1.0.0",
+  "description": "6 Classical ML Agent Skill(s) from the ml-ai-skills library: data-preprocessing, feature-engineering, hyperparameter-tuning, model-evaluation, supervised-learning, unsupervised-learning.",
+  "author": {
+    "name": "Nirav Vaghasiya",
+    "url": "https://github.com/NiravRVaghasiya"
+  },
+  "homepage": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "repository": "https://github.com/NiravRVaghasiya/ml-ai-skills",
+  "license": "MIT",
+  "keywords": [
+    "machine-learning",
+    "ai",
+    "claude-code-skills",
+    "classical-ml"
+  ]
+}
