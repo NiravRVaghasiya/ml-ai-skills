@@ -42,7 +42,7 @@ Legend: **[W]** = workflow skill · **[R]** = reference skill · ✅ = written �
 - ✅ [W] `recommender-systems` — collaborative/content filtering
 - ✅ [R] `reinforcement-learning` — MDPs, Q-learning, policy gradients
 
-## 6. MLOps & Production  ← high value, usually under-served
+## 6. MLOps & Production
 - ✅ [W] `experiment-tracking` — MLflow / W&B
 - ✅ [W] `model-deployment` — serving, containers, endpoints
 - ✅ [W] `ml-monitoring` — drift, decay, alerting
