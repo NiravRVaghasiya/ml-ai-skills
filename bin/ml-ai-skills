@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Small CLI wrapper around install.sh / uninstall.sh / scripts/.
+#
+# Usage:
+#   ml-ai-skills install [install.sh args...]
+#   ml-ai-skills update  [install.sh args...]     (alias for install — re-running installs is the update path)
+#   ml-ai-skills uninstall [uninstall.sh args...]
+#   ml-ai-skills validate [validate_skills.py args...]
+#   ml-ai-skills list [list_skills.py args...]
+#   ml-ai-skills help
+#
+# Not installed anywhere by default — run it from this checkout via
+# ./bin/ml-ai-skills, or put bin/ on your PATH.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+usage() {
+  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+PY_BIN=""
+if command -v python3 >/dev/null 2>&1; then PY_BIN="python3"
+elif command -v python >/dev/null 2>&1; then PY_BIN="python"
+fi
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift || true
+
+case "$cmd" in
+  install|update)
+    exec "$REPO_ROOT/install.sh" "$@"
+    ;;
+  uninstall)
+    exec "$REPO_ROOT/uninstall.sh" "$@"
+    ;;
+  validate)
+    [ -n "$PY_BIN" ] || { echo "ERROR: python3/python not found on PATH" >&2; exit 1; }
+    exec "$PY_BIN" "$REPO_ROOT/scripts/validate_skills.py" "$@"
+    ;;
+  list)
+    [ -n "$PY_BIN" ] || { echo "ERROR: python3/python not found on PATH" >&2; exit 1; }
+    exec "$PY_BIN" "$REPO_ROOT/scripts/list_skills.py" "$@"
+    ;;
+  help|-h|--help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "ERROR: unknown command '$cmd' (expected: install|update|uninstall|validate|list|help)" >&2
+    exit 1
+    ;;
+esac

@@ -4,43 +4,87 @@
 [![CI: GitHub Actions](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](.github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-A collection of self-contained ML/AI "skill" Markdown files — one `SKILL.md` per
-folder — plus the tooling that validates, routes, cross-links, and evidence-audits
-them. Each skill is either a **workflow** (a procedure to execute, with runnable
-code) or a **reference** (an explainer an agent loads for context). See
-"What this repository is NOT" below for what this deliberately does not claim.
-
 ## What this repository is
 
-A structured knowledge base for coding agents: every skill has a formally
-specified frontmatter contract (`docs/SKILL-SPEC.md`), is mechanically validated
-(`scripts/validate_skills.py`), is discoverable by a keyword-based router
-(`scripts/router.py`), declares its own risk level and evidence tier, and has at
-least a partial set of behavioral test cases (`evals/`). It is a content +
-tooling repo — plain Markdown, YAML frontmatter, and dependency-free Python — not
-a running service.
+A collection of self-contained ML/AI "skill" Markdown files — one `SKILL.md`
+per folder — installable into [Claude Code's Agent Skills](#claude-code-compatibility)
+directories, plus the tooling that validates, routes, cross-links, and
+evidence-audits them. Each skill is either a **workflow** (a procedure to
+execute, with runnable code) or a **reference** (an explainer an agent loads
+for context). It is a content + tooling repo — plain Markdown, YAML
+frontmatter, an installer written in POSIX-ish bash, and dependency-free
+Python — not a running service. See "Current limitations" below for what
+this deliberately does not claim.
 
-## Key capabilities
+## Installation
 
-- **Formal skill spec** — every `SKILL.md` frontmatter field, its meaning, and
-  allowed values are defined once in `docs/SKILL-SPEC.md` / `schema/allowed_values.py`.
-- **Automated validation** — `scripts/validate_skills.py` checks frontmatter,
-  required sections, gotcha/reference counts, and cross-skill relationships;
-  runs in CI on every push/PR.
-- **Deterministic routing** — `scripts/router.py` scores skills against a task
-  description by capability/name/description overlap; no embeddings, no
-  network call.
-- **Dependency graph** — `scripts/build_dependency_graph.py` renders
-  `requires`/`related`/`conflicts` relationships and fails on cycles.
-- **Evidence discipline** — every skill declares an `evidence_level`
-  (primary / official-documentation / established-practice / heuristic /
-  opinion); heuristics must be phrased conditionally in the body, not as
-  universal laws (`docs/EVIDENCE.md`).
-- **Freshness scanning** — `scripts/check_freshness.py` flags known-dead
-  APIs and stale review dates (`docs/FRESHNESS.md`) — see limitations below
-  for what this can't verify.
-- **Structured eval cases** — `evals/` holds behavioral test cases with a
-  validated schema (`scripts/validate_evals.py`); see "Evaluation & validation".
+```bash
+git clone https://github.com/NiravRVaghasiya/ml-ai-skills.git
+cd ml-ai-skills
+./install.sh
+```
+
+This installs every skill folder in this repo into your **personal** Claude
+Code skills directory: `~/.claude/skills/<skill-slug>/SKILL.md` (on Windows
+under Git Bash/WSL, `~` resolves to your usual `$HOME`, e.g.
+`C:\Users\<you>\.claude\skills\`). Claude Code's Agent Skills feature
+discovers skills from exactly that location (personal scope) — see
+["Claude Code compatibility"](#claude-code-compatibility) for what is and
+isn't verified about that discovery.
+
+Other install targets:
+
+```bash
+./install.sh --project              # into ./.claude/skills/ (this project only)
+./install.sh --project /path/to/app # into /path/to/app/.claude/skills/
+./install.sh --target /some/dir     # install directly into an arbitrary directory
+./install.sh --dry-run              # show exactly what would happen, change nothing
+./install.sh --help                 # full flag reference
+```
+
+The installer:
+- Only ever copies whole `<slug>/SKILL.md` folders from this repo into the
+  target directory — it never touches any file outside that directory.
+- Writes a small manifest (`<target>/.ml-ai-skills-manifest`, plain text) so
+  it knows which directories it owns.
+- Refuses to overwrite a same-named directory it didn't create unless you
+  pass `--force` — so an unrelated skill you already have with a colliding
+  name is never silently clobbered.
+- Requires only `bash` + standard coreutils (`cp`, `mkdir`, `rm`, `sort`) —
+  no Python, no network access, no package manager.
+- Fails with a clear, non-zero-exit error if run somewhere that isn't an
+  `ml-ai-skills` checkout (missing `INDEX.md`/`schema/allowed_values.py`),
+  rather than silently doing nothing or partially installing.
+
+## Updating
+
+Re-running the installer *is* the update mechanism — it's idempotent:
+
+```bash
+cd ml-ai-skills
+git pull
+./install.sh
+```
+
+Skills it previously installed are refreshed in place (`update` in the
+output, not `install`); anything else already in the target directory is
+left untouched. The small CLI wrapper (below) exposes this as
+`ml-ai-skills update`, which is a plain alias for `install.sh`.
+
+## Uninstalling
+
+```bash
+./uninstall.sh                       # remove everything install.sh put in ~/.claude/skills/
+./uninstall.sh --project             # remove from ./.claude/skills/ instead
+./uninstall.sh --skill data-preprocessing   # remove just one skill (repeatable)
+./uninstall.sh --dry-run             # preview, change nothing
+```
+
+Uninstall only removes directories the manifest says it installed, and never
+removes the parent `skills/` directory itself — other tools or your own
+skills that happen to live alongside these are left alone.
+
+## Available skills
 
 <!-- PROJECT-STATS:START -->
 <!-- Generated by `python scripts/generate_readme_stats.py --write`. Do not hand-edit
@@ -55,11 +99,9 @@ a running service.
 | Risk level | low (24) · medium (12) · high (2) |
 | Evidence level | primary (3) · official-documentation (10) · established-practice (25) |
 | Eval cases | 23 case file(s) covering 18/38 skills — structural sanity only, not automated grading (see `evals/SCHEMA.md`) |
-| Unit tests | 35 (stdlib `unittest`, no extra dependencies) |
-| Scripts / docs | 8 scripts in `scripts/`, 8 policy docs in `docs/` |
+| Unit tests | 50 (stdlib `unittest`, no extra dependencies) |
+| Scripts / docs | 9 scripts in `scripts/`, 8 policy docs in `docs/` |
 <!-- PROJECT-STATS:END -->
-
-## Skill architecture & taxonomy
 
 Two kinds of skill:
 
@@ -68,19 +110,10 @@ Two kinds of skill:
 - **📖 Reference** — `## Overview` → `## Key Concepts` → `## Gotchas` →
   `## References`. No `## Workflow`.
 
-Every skill's frontmatter additionally declares `domain` (one of 8 — see the
-stats block above), `level`, `lifecycle`, `risk_level`, `evidence_level`,
-`last_verified`, `capabilities` (routing tags), `requires`/`conflicts`/`related`,
-and `inputs`/`outputs`. Full contract: `docs/SKILL-SPEC.md`.
-
-Two naming/depth conventions worth knowing before you read further: naming is
-lowercase-kebab and folder name must equal frontmatter `name`; depth is
-progressive — a skill links to a sibling for a prerequisite topic
-(`data-preprocessing` links to `python-for-ml` rather than re-teaching pandas)
-instead of duplicating it. Skill code examples target Python 3.10+ with
-scikit-learn/PyTorch/Hugging Face idioms, runnable as-is (this is about the
-*examples inside* `SKILL.md` files — the `scripts/`/`tests/` tooling itself is
-stdlib-only, see "Validation commands" below).
+Every skill's frontmatter additionally declares `domain`, `level`,
+`lifecycle`, `risk_level`, `evidence_level`, `last_verified`, `capabilities`
+(routing tags), `requires`/`conflicts`/`related`, and `inputs`/`outputs`.
+Full contract: `docs/SKILL-SPEC.md`.
 
 ### Catalog
 
@@ -161,6 +194,68 @@ duplicated here, to avoid a second copy that can drift out of sync (`INDEX.md`
 carries a one-line-per-skill summary if you want that view instead, kept in
 sync by `scripts/generate_index.py`).
 
+## Using the skills
+
+Once installed (see above), Claude Code's own skill discovery handles the
+rest — describe what you're doing and the relevant skill(s) surface
+automatically, the same as any other Agent Skill.
+
+Without installing, you can still use this as a plain reference library:
+point an agent at a checkout of this repo and either
+
+1. Ask it to run `python scripts/router.py "<your task>"` to get a ranked
+   list of relevant `SKILL.md` files, then read those directly; or
+2. Reference a skill by path directly (e.g. "follow `data-preprocessing/SKILL.md`").
+
+### CLI
+
+A small bash wrapper is included for convenience — it doesn't add any
+capability beyond `install.sh`/`uninstall.sh`/`scripts/`, it just gives them
+one entry point:
+
+```bash
+./bin/ml-ai-skills install    # same as ./install.sh
+./bin/ml-ai-skills update     # alias for install — re-running installs is the update path
+./bin/ml-ai-skills uninstall  # same as ./uninstall.sh
+./bin/ml-ai-skills validate   # runs scripts/validate_skills.py
+./bin/ml-ai-skills list       # lists every skill in this repo, or --target DIR to see what's installed there
+./bin/ml-ai-skills help
+```
+
+It isn't installed anywhere or put on your `PATH` automatically — run it
+from the checkout, or symlink `bin/ml-ai-skills` onto your own `PATH` if
+you want the bare `ml-ai-skills` command.
+
+### `CLAUDE.md`
+
+`CLAUDE.md` is the authoring/operating manual an agent should read before
+creating or editing a *skill* in this repo — it is a project convention
+document for contributors, separate from the installer above.
+
+## Claude Code compatibility
+
+**What's verified:** `install.sh`/`uninstall.sh` correctly create, update,
+and remove `<skill>/SKILL.md` folders under `~/.claude/skills/` (personal)
+or `<project>/.claude/skills/` (project) — the two on-disk locations Claude
+Code's Agent Skills feature is documented to read `SKILL.md` files from,
+each needing at minimum a `name` and `description` frontmatter field to be
+discovered. This repo's frontmatter is a superset of that (see
+`docs/SKILL-SPEC.md`) — the additional fields (`domain`, `risk_level`,
+`capabilities`, etc.) exist for this repo's own routing/validation tooling.
+
+**What's not verified:** this repo's installer and tests were built and run
+in an environment without a live Claude Code session to test skill discovery
+against, so the claim above is "files land in the documented location with
+the documented minimum fields," not "confirmed loaded by a running Claude
+Code instance." There is also no coverage of Claude Code's separate plugin/
+marketplace mechanism (`.claude-plugin/plugin.json`, `/plugin install`) —
+this repo is a plain skills folder, not a plugin, and makes no claim about
+that path. No other agent/editor (Cursor, Copilot, etc.) is claimed to be
+compatible; none was tested.
+
+If you hit a discovery issue in a real Claude Code session, please open an
+issue with what you saw — that's the fastest way to close this gap.
+
 ## Routing & dependencies
 
 `scripts/router.py TASK_TEXT` scores every skill against your task text
@@ -189,7 +284,7 @@ list of APIs known to be removed/renamed (e.g. `sklearn.cross_validation`), and
 `version_constraints`. It has no network access and **cannot confirm current
 correctness** — see `docs/FRESHNESS.md` for exactly what it does and doesn't check.
 
-## Evaluation & validation
+## Validation
 
 `evals/<skill>/*.yaml` holds structured behavioral test cases (happy-path,
 edge-case, adversarial, misconception, failure-recovery, ambiguity — schema in
@@ -206,7 +301,110 @@ valid `related`/`requires`/`conflicts` targets, no dependency cycles, and
 `INDEX.md` consistency. It splits findings into ERROR (blocks CI) and WARNING
 (informational — see `docs/SKILL-SPEC.md` "Validation philosophy" for why).
 
-## Security & reproducibility
+```bash
+python scripts/validate_skills.py --warnings         # frontmatter/section/relationship checks
+python scripts/generate_index.py --check             # INDEX.md drift check
+python scripts/build_dependency_graph.py --check     # dependency-graph doc drift + cycle check
+python scripts/check_freshness.py                    # known-dead-API + staleness scan
+python scripts/validate_evals.py                     # eval case-file sanity check
+python scripts/generate_readme_stats.py --check      # this README's stats-block drift check
+python -m unittest discover -s tests -p "test_*.py"  # unit + installer tests (stdlib only, no pip install)
+python scripts/router.py "your task description"     # see which skills would be routed to
+./install.sh --dry-run                                # installer smoke test, changes nothing
+```
+
+All of the above except the stats-block check run in `.github/workflows/ci.yml`
+on every push/PR (the installer tests run in their own `installer` CI job); the
+live reference-link check is manual-dispatch only (see `docs/FRESHNESS.md`).
+No `pip install` step exists or is needed — everything under `scripts/`/`tests/`
+is Python 3.10+ standard library only, and the installer itself needs only bash
++ coreutils.
+
+## Development
+
+### Creating a skill
+
+1. Copy `_TEMPLATE/SKILL.md` into `<slug>/SKILL.md` (lowercase-kebab folder name).
+2. Fill every frontmatter field per `docs/SKILL-SPEC.md` — `description` needs
+   3+ quoted trigger phrases and a "NOT for…" clause; set `lifecycle`,
+   `risk_level`, `evidence_level`, `last_verified`, `capabilities`, `requires`,
+   `conflicts`, `related`, `inputs`, `outputs`.
+3. Write `## Workflow` (workflow skills: runnable code per step) or
+   `## Key Concepts` (reference skills), then `## Gotchas` (≥3, phrased
+   conditionally where they're heuristics) and `## References` (≥2 real links).
+4. Run the validator (above) until it reports zero errors for your skill.
+5. `python scripts/generate_index.py --fix` to sync `INDEX.md` — don't hand-edit it.
+6. Add at least one case to `evals/<slug>/` for a non-happy-path category.
+7. `python scripts/generate_readme_stats.py --write` if your change affects the counts above.
+
+### Contributing
+
+- Read `CLAUDE.md` before creating or editing a skill.
+- Preserve the two gold-standard examples (`data-preprocessing/`,
+  `attention-mechanisms/`) unless a change is specifically about them.
+- Every change to a skill or to `scripts/`/`schema/` should leave
+  `python scripts/validate_skills.py` and `python -m unittest discover -s tests`
+  passing with zero errors before you consider it done.
+- Don't hand-edit `INDEX.md` or this README's stats block — regenerate them.
+
+## Architecture
+
+### Repository structure
+
+```
+ml-ai-skills/
+├── README.md            ← you are here
+├── INDEX.md             ← one-line-per-skill checklist, kept in sync by scripts/generate_index.py
+├── CLAUDE.md            ← authoring/operating manual for creating or editing a skill
+├── install.sh            ← installer (copies <slug>/SKILL.md folders into a Claude Code skills dir)
+├── uninstall.sh          ← removes what install.sh installed
+├── bin/ml-ai-skills      ← thin CLI wrapper: install|update|uninstall|validate|list
+├── _TEMPLATE/SKILL.md   ← clone this for every new skill
+├── docs/                ← SKILL-SPEC, EVIDENCE, FRESHNESS, ROUTING, REPRODUCIBILITY, QUALITY-GATES, SKILL-AUDIT, generated SKILL-GRAPH
+├── schema/              ← allowed_values.py — single source of truth for every enum
+├── scripts/             ← validator, router, dependency-graph builder, freshness scanner, index/README-stats sync, list_skills.py
+├── tests/               ← unit tests for scripts/ + installer tests (stdlib unittest)
+├── evals/               ← per-skill behavioral test case files + SCHEMA.md
+├── .github/workflows/   ← CI: validation, index/graph/stats consistency, tests, installer tests, eval-file sanity
+└── <skill-slug>/SKILL.md
+```
+
+### Key capabilities
+
+- **Deterministic installer** — `install.sh`/`uninstall.sh` only ever add/
+  remove `<slug>/SKILL.md` folders they created themselves, tracked via a
+  plain-text manifest; safe to re-run (see "Updating"/"Uninstalling" above).
+- **Formal skill spec** — every `SKILL.md` frontmatter field, its meaning, and
+  allowed values are defined once in `docs/SKILL-SPEC.md` / `schema/allowed_values.py`.
+- **Automated validation** — `scripts/validate_skills.py` checks frontmatter,
+  required sections, gotcha/reference counts, and cross-skill relationships;
+  runs in CI on every push/PR.
+- **Deterministic routing** — `scripts/router.py` scores skills against a task
+  description by capability/name/description overlap; no embeddings, no
+  network call.
+- **Dependency graph** — `scripts/build_dependency_graph.py` renders
+  `requires`/`related`/`conflicts` relationships and fails on cycles.
+- **Evidence discipline** — every skill declares an `evidence_level`
+  (primary / official-documentation / established-practice / heuristic /
+  opinion); heuristics must be phrased conditionally in the body, not as
+  universal laws (`docs/EVIDENCE.md`).
+- **Freshness scanning** — `scripts/check_freshness.py` flags known-dead
+  APIs and stale review dates (`docs/FRESHNESS.md`) — see limitations below
+  for what this can't verify.
+- **Structured eval cases** — `evals/` holds behavioral test cases with a
+  validated schema (`scripts/validate_evals.py`); see "Validation" above.
+
+### Naming & depth conventions
+
+Naming is lowercase-kebab and folder name must equal frontmatter `name`;
+depth is progressive — a skill links to a sibling for a prerequisite topic
+(`data-preprocessing` links to `python-for-ml` rather than re-teaching pandas)
+instead of duplicating it. Skill code examples target Python 3.10+ with
+scikit-learn/PyTorch/Hugging Face idioms, runnable as-is (this is about the
+*examples inside* `SKILL.md` files — the `scripts/`/`tests/` tooling itself is
+stdlib-only, see "Validation" above).
+
+### Security & reproducibility
 
 - **`ai-ml-security`** is a dedicated skill for AI/ML-specific security threats
   (prompt injection, RAG document injection, model supply-chain risk, insecure
@@ -220,73 +418,14 @@ valid `related`/`requires`/`conflicts` targets, no dependency cycles, and
   distinction rather than overclaim determinism (see the `temperature=0`
   example in `docs/EVIDENCE.md`).
 
-## Usage with Claude Code
-
-This repository is a content + tooling library, not a packaged Claude Code
-plugin — skills live at `<slug>/SKILL.md` in the repo root, not under
-`.claude/skills/`, so they are **not auto-discovered** by Claude Code's native
-skill-loading mechanism. In practice, point an agent at this repo and either:
-
-1. Ask it to run `python scripts/router.py "<your task>"` to get a ranked list
-   of relevant `SKILL.md` files, then read those directly; or
-2. Reference a skill by path directly (e.g. "follow `data-preprocessing/SKILL.md`").
-
-`CLAUDE.md` is the authoring/operating manual an agent should read before
-creating or editing a skill in this repo — it is not consumed automatically
-by Claude Code either; it is a project convention document.
-
-## Creating a skill
-
-1. Copy `_TEMPLATE/SKILL.md` into `<slug>/SKILL.md` (lowercase-kebab folder name).
-2. Fill every frontmatter field per `docs/SKILL-SPEC.md` — `description` needs
-   3+ quoted trigger phrases and a "NOT for…" clause; set `lifecycle`,
-   `risk_level`, `evidence_level`, `last_verified`, `capabilities`, `requires`,
-   `conflicts`, `related`, `inputs`, `outputs`.
-3. Write `## Workflow` (workflow skills: runnable code per step) or
-   `## Key Concepts` (reference skills), then `## Gotchas` (≥3, phrased
-   conditionally where they're heuristics) and `## References` (≥2 real links).
-4. Run the validator (below) until it reports zero errors for your skill.
-5. `python scripts/generate_index.py --fix` to sync `INDEX.md` — don't hand-edit it.
-6. Add at least one case to `evals/<slug>/` for a non-happy-path category.
-7. `python scripts/generate_readme_stats.py --write` if your change affects the counts above.
-
-## Validation commands
-
-```bash
-python scripts/validate_skills.py --warnings         # frontmatter/section/relationship checks
-python scripts/generate_index.py --check             # INDEX.md drift check
-python scripts/build_dependency_graph.py --check     # dependency-graph doc drift + cycle check
-python scripts/check_freshness.py                    # known-dead-API + staleness scan
-python scripts/validate_evals.py                     # eval case-file sanity check
-python scripts/generate_readme_stats.py --check      # this README's stats-block drift check
-python -m unittest discover -s tests -p "test_*.py"  # unit tests (stdlib only, no pip install)
-python scripts/router.py "your task description"     # see which skills would be routed to
-```
-
-All of the above except the stats-block check run in `.github/workflows/ci.yml`
-on every push/PR; the live reference-link check is manual-dispatch only (see
-`docs/FRESHNESS.md`). No `pip install` step exists or is needed — everything
-under `scripts/`/`tests/` is Python 3.10+ standard library only.
-
-## Repository structure
-
-```
-ml-ai-skills/
-├── README.md            ← you are here
-├── INDEX.md             ← one-line-per-skill checklist, kept in sync by scripts/generate_index.py
-├── CLAUDE.md            ← authoring/operating manual for creating or editing a skill
-├── _TEMPLATE/SKILL.md   ← clone this for every new skill
-├── docs/                ← SKILL-SPEC, EVIDENCE, FRESHNESS, ROUTING, REPRODUCIBILITY, QUALITY-GATES, SKILL-AUDIT, generated SKILL-GRAPH
-├── schema/              ← allowed_values.py — single source of truth for every enum
-├── scripts/             ← validator, router, dependency-graph builder, freshness scanner, index/README-stats sync
-├── tests/               ← unit tests for scripts/ (stdlib unittest)
-├── evals/               ← per-skill behavioral test case files + SCHEMA.md
-├── .github/workflows/   ← CI: validation, index/graph/stats consistency, tests, eval-file sanity
-└── <skill-slug>/SKILL.md
-```
-
 ## Current limitations
 
+- **Claude Code discovery is not live-tested.** See "Claude Code compatibility"
+  above — installer file placement is verified, a running Claude Code
+  session picking the skills up automatically is not.
+- **No plugin/marketplace packaging.** This is a plain skills folder, not a
+  `.claude-plugin/plugin.json` plugin; if Claude Code's plugin mechanism is
+  what you need, this repo doesn't provide it.
 - **No live package/API verification.** `version_constraints` and
   `last_verified` are reviewer-knowledge estimates at authoring time, not live
   checks — see `docs/FRESHNESS.md`.
@@ -297,21 +436,7 @@ ml-ai-skills/
   validated only; grading requires a human or agent reader.
 - **Evidence classification is skill-level, not sentence-level** — see
   `docs/SKILL-SPEC.md` "Known limitations."
-- **No GitHub remote is configured for this local repository**, so the CI
-  badge above links to the workflow file rather than a live status endpoint;
-  it will resolve to real status once this repo is pushed and the badge URL
-  is updated to `.../actions/workflows/ci.yml/badge.svg`.
 - Fuller list, with what each would take to fix: `docs/SKILL-SPEC.md` §"Known limitations", `docs/SKILL-AUDIT.md` §"Remaining limitations."
-
-## Contributing
-
-- Read `CLAUDE.md` before creating or editing a skill.
-- Preserve the two gold-standard examples (`data-preprocessing/`,
-  `attention-mechanisms/`) unless a change is specifically about them.
-- Every change to a skill or to `scripts/`/`schema/` should leave
-  `python scripts/validate_skills.py` and `python -m unittest discover -s tests`
-  passing with zero errors before you consider it done.
-- Don't hand-edit `INDEX.md` or this README's stats block — regenerate them.
 
 ## License
 

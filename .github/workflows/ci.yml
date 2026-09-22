@@ -54,6 +54,19 @@ jobs:
         # printed but do not fail CI — they are a maintenance backlog, not a
         # correctness regression. See docs/FRESHNESS.md.
 
+  installer:
+    name: Installer tests (install.sh / uninstall.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Make installer scripts executable
+        run: chmod +x install.sh uninstall.sh
+      - name: Run installer tests
+        run: python -m unittest discover -s tests -p "test_install.py" -v
+
   link-check:
     name: Live reference-link check (optional, network-dependent)
     runs-on: ubuntu-latest
