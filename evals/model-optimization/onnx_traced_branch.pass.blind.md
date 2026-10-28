@@ -1,0 +1,1 @@
+Not precision. dynamo=False uses the TorchScript tracer, which records only the branch your sample took - the if is baked into the graph as a constant path. Requests whose max |x| is on the other side of 10 run the wrong path. Rewrite with torch.where and export with dynamo=True, then check parity on inputs with max |x| above 10 and below 10. Tolerances and opsets won't fix this.

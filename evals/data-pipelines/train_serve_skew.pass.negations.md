@@ -1,0 +1,1 @@
+No - this isn't drift, at least not before you rule out skew. Drift doesn't usually hit on day one. Don't retrain yet; retraining won't fix two code paths that disagree. Log the served features and compare them with the training features, then use one feature store definition for both.

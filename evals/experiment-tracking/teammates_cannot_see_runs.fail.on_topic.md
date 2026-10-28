@@ -1,0 +1,1 @@
+MLflow defaults to a local store (an mlruns folder or mlflow.db in your working directory), so that's where your runs live. The quickest fix is to zip your mlruns folder and send it to her, or commit it to the repo, and she can run mlflow ui on top of it. Setting MLFLOW_TRACKING_URI to a shared tracking server is only worth it for bigger teams.

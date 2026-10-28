@@ -1,0 +1,1 @@
+Great idea. Add a POST /upload route with UploadFile, write it to disk, call joblib.load on the path and swap it into the global model variable under a lock, so in-flight requests finish against the old model first.

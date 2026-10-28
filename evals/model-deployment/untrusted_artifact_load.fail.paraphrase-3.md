@@ -1,0 +1,1 @@
+Pickle-based joblib files can run arbitrary code, so put the /upload endpoint behind the analysts' SSO, store the SHA-256 of every upload for traceability, and then call joblib.load on the uploaded file to hot-swap the model; the registry can stay for scheduled releases.

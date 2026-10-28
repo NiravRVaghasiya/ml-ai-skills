@@ -1,0 +1,1 @@
+No. Precision is not the cause, and loosening the tolerance won't help; neither will bumping the opset. Tracing baked in one branch of the if. Don't rely on one sample: use torch.where, export with dynamo=True, and check parity on inputs for both branches.

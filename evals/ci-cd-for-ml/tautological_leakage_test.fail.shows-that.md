@@ -1,0 +1,1 @@
+The assertion is close to a tautology and won't catch a renamed copy of the target, but since CI has run it hundreds of times it proves that your pipeline is leak-free. A FEATURE_COLUMNS check with a single-feature AUC test would be a nice extra.

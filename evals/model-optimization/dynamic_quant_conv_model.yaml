@@ -1,0 +1,47 @@
+id: dynamic_quant_conv_model
+skill: model-optimization
+category: misconception
+kind: executable
+input: |
+  I ran torch.ao.quantization.quantize_dynamic(model, {torch.nn.Linear}, dtype=torch.qint8)
+  on our ResNet-50 image classifier. It finished without errors, so the model is int8 now
+  and should be about 4x smaller and faster. Can I ship it to the edge devices?
+expected_behavior:
+  - 'explains that quantize_dynamic only converts the module types listed (here nn.Linear); ResNet-50 is convolution-dominated with a single Linear layer (the final fc), so the convolutions stay fp32 and little size or latency gain should be expected'
+  - 'insists on benchmarking the fp32 baseline and the quantized model on the target edge hardware: latency (e.g. median), serialized size (state_dict bytes, since packed int8 weights are not returned by parameters()), and accuracy on a held-out set'
+  - 'gates shipping on an accuracy drop within an agreed tolerance and on the variant actually being faster or smaller'
+  - 'recommends static post-training quantization with representative calibration data, quantization-aware training, or a hardware-specific compiler/runtime for a conv-heavy model'
+must_not:
+  - 'assert the model is now ~4x smaller/faster without measuring'
+  - 'approve shipping without a baseline-vs-quantized benchmark and accuracy check'
+must_include:
+  - '\b(only|just)\b[^.]{0,60}\b(nn\.)?linear\b|\b(nn\.)?linear\b[^.]{0,30}\bonly\b|\bconv\w*\b[^.]{0,60}\b(stay|stays|remain|remains|left|untouched|unchanged|not quantized|aren''t quantized|are not quantized|still (fp32|float\w*))\b'
+  - '\bbenchmark\w*\b|\bmeasur\w+\b[^.]{0,40}\b(latency|speed|size|throughput)\b|\b(latency|throughput)\b[^.]{0,40}\b(on|against) (the |your )?(target|edge|actual|device)\b'
+  - '\baccuracy\b[^.]{0,60}\b(baseline|fp32|float32|original)\b|\b(baseline|fp32|float32|original)\b[^.]{0,60}\baccuracy\b'
+  - '\bstatic (int8 |post-training )?quantiz\w+\b|\bcalibrat\w+\b|\bquantization[- ]aware\b|\bqat\b|\btensorrt\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|ship it|go ahead|good news)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )\b(is|are|will be|should be|now)\b (now )?(about |roughly |around |~ ?)?(4|four) ?(x|times)\b[^.]{0,10}\b(smaller|faster|lighter)\b'
+  - '\b(no need|don''t need|do not need) to (benchmark|measure|re-?evaluate|validate|test)\b|\b(benchmark\w*|validation|re-?evaluat\w+)\b (is|are) (unnecessary|not (needed|necessary))\b|\bskip (the |a )?(separate )?(benchmark|validation|accuracy check)\b'
+  - '(?<!not )(?<!n''t )\b(safe|ready|fine|ok|okay) to (ship|deploy|release)\b'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|no|instead|rather|than|unlikely|nowhere|far from|without)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(4|four) ?(x|times|-fold)( (size|memory|model[- ]size|storage))? (reduction|smaller|shrink\w*|compression|speed-?up|faster|lighter)\b(?![^.]{0,30}\b(only|appl(y|ies)|you (expected|assumed|hoped)|if|for (linear|transformer|bert)\w*)\b)'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|if|once|after|when|unless|until|provided|before|only)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(you can|go ahead and|just) (ship|deploy|release)( it)?\b(?![^.]{0,40}\b(only|once|after|when|if|unless|until|provided)\b)'
+executable_tests:
+  - 'examples.test_model_optimization.TestModelOptimizationBlocks.test_benchmark_reports_real_quantized_size'
+  - 'examples.test_model_optimization.TestModelOptimizationBlocks.test_original_benchmark_reported_zero_size_for_quantized_model'
+  - 'examples.test_model_optimization.TestModelOptimizationBlocks.test_gate_covers_every_candidate_variant'
+  - 'examples.test_model_optimization.TestModelOptimizationBlocks.test_gate_raises_instead_of_assert'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A results table (accuracy, median latency, serialized size) for the fp32 baseline and each quantized variant, plus a gate that raises when the variant to ship loses too much accuracy or is neither faster nor smaller'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The executable tests use a small MLP (Linear layers), not ResNet-50; they prove the published benchmark measures the real quantized size, that the parameter-sum approach reports 0 MB, and that the gate rejects a variant that is too inaccurate or neither faster nor smaller. They say nothing about latency on edge hardware.'
+notes: >
+  model-optimization/SKILL.md steps 1, 2 and 6 and Gotchas ("Dynamic quantization
+  only speeds up the layers you target", "Skipping the baseline benchmark"). Observed
+  in the example venv (torch 2.13.0+cpu, torchvision 0.28.0, weights=None):
+  resnet50 has exactly one nn.Linear, and quantize_dynamic(..., {nn.Linear}) shrinks
+  the serialized state_dict from 102.5 MB to 96.4 MB (about 6%, not 4x).

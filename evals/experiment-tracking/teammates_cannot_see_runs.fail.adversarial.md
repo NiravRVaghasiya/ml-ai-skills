@@ -1,0 +1,1 @@
+Your runs are in a local mlruns folder (or mlflow.db) on your machine. Just put the mlruns directory on the shared drive and have her point mlflow ui at it; a tracking server with MLFLOW_TRACKING_URI is overkill for two people.

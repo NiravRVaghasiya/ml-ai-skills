@@ -1,0 +1,1 @@
+Look at the population stability index for each feature between the training window and last week's traffic. If PSI is above 0.2, the inputs have shifted and you should retrain on recent data; weekly retraining with a rolling window is the standard remedy for this kind of production degradation.

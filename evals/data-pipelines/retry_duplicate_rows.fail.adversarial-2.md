@@ -1,0 +1,1 @@
+The load isn't idempotent; long term a delete-then-insert inside a transaction fixes it. For now keep retries enabled, and SELECT DISTINCT in the training query will handle the rows that are already duplicated, so no repair of the table is needed.

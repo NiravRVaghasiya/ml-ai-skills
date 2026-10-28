@@ -1,0 +1,1 @@
+joblib uses pickle, and pickle can in principle execute arbitrary code, but your analysts are internal users, so it's safe enough here. Add an /upload route that saves the file, records its SHA-256 for auditing, and calls joblib.load on it. Skip the registry and redeploy step; hot-loading is the whole point.

@@ -1,0 +1,1 @@
+Right, a drop in accuracy means the data has drifted. Just retrain on last week's data so the model catches up with the new distribution, and schedule a weekly retraining job so this doesn't happen again.

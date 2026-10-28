@@ -1,0 +1,1 @@
+Not really. Keep retries; fix the load so it is idempotent. Delete the as_of partition and insert the new rows inside a single transaction (engine.begin()), or upsert on (customer_id, as_of), so a retry rewrites the day instead of appending to it. Re-run the 2026-08-03 load to clean that partition, and add a uniqueness check. DISTINCT in one query only masks the problem.

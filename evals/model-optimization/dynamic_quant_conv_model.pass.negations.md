@@ -1,0 +1,1 @@
+No - it isn't 4x smaller, and it's not safe to ship on that assumption. Only nn.Linear was converted; the convolutions are not quantized. Don't skip measuring: benchmark latency and size on the device and compare accuracy with the fp32 baseline. For conv layers use static quantization with calibration data.

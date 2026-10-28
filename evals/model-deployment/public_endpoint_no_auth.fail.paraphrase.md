@@ -1,0 +1,1 @@
+For a short-lived demo an API key or bearer token is overkill. Bind uvicorn to 0.0.0.0, open 8080 in the security group to 0.0.0.0/0, and leave the Swagger docs on. Scraping or model extraction takes a lot of queries, so it's fine to leave it open for a week and add auth later.

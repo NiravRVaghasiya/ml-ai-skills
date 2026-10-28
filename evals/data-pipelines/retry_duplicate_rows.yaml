@@ -1,0 +1,43 @@
+id: retry_duplicate_rows
+skill: data-pipelines
+category: failure_recovery
+kind: executable
+input: |
+  Our Airflow load task writes the daily features with
+  df.to_sql("customer_features", con, if_exists="append"). A worker died mid-run, Airflow
+  retried the task, and now the 2026-08-03 partition has every customer twice. My fix: set
+  retries=0 on the load task and add SELECT DISTINCT to the training query. OK?
+expected_behavior:
+  - 'identifies the root cause as a non-idempotent load (blind append), not the retry itself; retries are normal Airflow behaviour and should stay enabled'
+  - 'recommends making the load idempotent: delete-then-insert by partition (as_of) inside one transaction, or an upsert/MERGE keyed on (entity, partition), so re-running a date replaces rather than adds rows'
+  - 'explains why the delete and insert must share a transaction (a failed insert must not leave the partition deleted)'
+  - 'repairs the damaged partition by re-running the 2026-08-03 load once it is idempotent (or deleting that partition and reloading), and adds a guard such as a uniqueness constraint or a duplicate-key data-quality check'
+  - 'explains that SELECT DISTINCT in one consumer hides the duplicates without fixing the table for other consumers, and that retries=0 turns transient worker failures into missing data'
+must_not:
+  - 'endorse disabling retries as the fix'
+  - 'treat downstream de-duplication as a sufficient fix'
+must_include:
+  - '\bidempot\w*\b'
+  - '\bdelet\w*\b[^.]{0,60}\b(insert\w*|append\w*|reload\w*|re-?insert\w*|writ\w+)\b|\b(upsert\w*|merge|on conflict|insert overwrite)\b|\b(overwrit\w+|replac\w+) (the |that |each )?(date''s )?partition\b'
+  - '\b(transaction\w*|atomic\w*|engine\.begin|roll(s|ed)? ?back)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|that works|sounds good|that''s (right|correct|fine))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )\b(set|setting|turn|turning)\b (the )?(load( task)?''?s? )?retries\b[^.]{0,15}\b(to )?(0|zero|off)\b(?![^.]{0,40}\b((would|will|could|can) (just |only |simply )?(turn|trade|lose|cause|convert|mean|risk|leave|drop|hide|mask)|turns|trades|means|loses|causes|converts|risks|just)\b)|(?<!not )(?<!n''t )\bdisabl\w+ (the )?retries\b(?![^.]{0,40}\b((would|will|could|can) (just |only |simply )?(turn|trade|lose|cause|convert|mean|risk|leave|drop|hide|mask)|turns|trades|means|loses|causes|converts|risks|just)\b)'
+  - '\b(select distinct|distinct|dedup\w*|drop_duplicates)\b[^.]{0,60}(?<!n''t )(?<!not )\b(is (enough|sufficient|fine|ok|okay)|works(?! around)( fine)?|(will|would|can) (handle|fix|solve|cover|take care of|clean( up)?|remove|deal with|mask|hide) (it|this|that|them|the rest|(the |those |any )?(rows|duplicates|duplicated rows|duplicate rows|dupes|extra rows|ones)))\b(?![^.]{0,30}\b(only|but)\b)'
+  - '\b(distinct|dedup\w*|drop_duplicates|retries ?= ?0|retries (to|=) ?(0|zero|off)|disabl\w+ (the )?retries)\b(?:(?!\b(instead|rather|than|unlike|not)\b|n''t)[^.]){0,60}\b(is|as|makes) (a |an )?(perfectly |totally |entirely |quite |very )?(reasonable|fine|ok|okay|acceptable|good|sensible|valid|pragmatic) (stopgap|workaround|fix|interim fix|short[- ]term fix|band-?aid|mitigation|solution)\b(?![^.]{0,30}\b(only|until|if|unless|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )(?<!with )(?<!of )(?<!avoid )\bretries ?= ?0\b[^.]{0,60}(?<!not )(?<!n''t )\b(is|as) (a |an )?(perfectly |totally |entirely |quite )?(reasonable|fine|ok|okay|acceptable|good|sensible|valid|safe)\b|\bretries ?= ?0\b[^.]{0,30}\b(stops|prevents|fixes|solves)\b(?![^.]{0,40}\b(but|only|while|cost|though|however)\b)'
+  - '\bno (repair|cleanup|clean-up|backfill|reload|re-?run)\b[^.]{0,30}\b(needed|necessary|required)\b|\bno need to (repair|fix|clean|reload|re-?run|backfill)( (the|that) (table|partition|data))?\b'
+executable_tests:
+  - 'examples.test_data_pipelines.TestDataPipelinesSkill.test_load_is_idempotent_on_retry'
+  - 'examples.test_data_pipelines.TestDataPipelinesSkill.test_failed_insert_rolls_back_the_partition_delete'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A load task that deletes and re-inserts its as_of partition in one SQLAlchemy transaction, so a retried run leaves exactly one copy of each row'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The executable tests run the skill''s DAG callables against a stubbed Airflow (apache-airflow is not installed in the example venv) and a SQLite warehouse; they prove the load is idempotent across a repeated call and that a failed insert rolls back the delete, not behaviour on a production database or a real Airflow retry.'
+notes: >
+  data-pipelines/SKILL.md step 1 (load) and Gotchas ("Non-idempotent load tasks ...
+  retries are the default behavior, not the exception").

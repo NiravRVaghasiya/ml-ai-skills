@@ -1,0 +1,3 @@
+Not necessarily. Lower accuracy is a symptom; data drift (shifted feature distributions) is just one explanation. It could also be concept drift — the mapping from features to labels changed — or prediction drift in what the model outputs, or simply a bug: an upstream schema change or a broken feature job.
+
+Retraining on last week's data won't help if the pipeline is broken, and may hide the problem. Diagnose first: compare input feature distributions to the training baseline, look at the prediction distribution, audit data quality, and when labels arrive, test whether the input-to-label relationship moved.

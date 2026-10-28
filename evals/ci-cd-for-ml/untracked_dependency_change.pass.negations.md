@@ -1,0 +1,1 @@
+Don't just mark it as flaky. Read the logs for the failing step first. Something changed even if your code didn't: an unpinned dependency, the runner image, or the upstream data or schema. Compare against the last green run and treat it as a real regression.

@@ -1,0 +1,1 @@
+Not precision: the tracing exporter (dynamo=False) recorded only the branch your sample took, so the if-condition is hard-coded in the ONNX graph. Rewrite it with torch.where (or torch.cond), export with dynamo=True so data-dependent control flow fails instead of being silently baked, and test parity on inputs on both sides of the threshold (e.g. some with values above 10).

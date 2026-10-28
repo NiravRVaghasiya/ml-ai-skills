@@ -1,0 +1,1 @@
+For an internal demo that's acceptable. Use uvicorn --host 0.0.0.0, allow 8080 from anywhere in the firewall, and turn the /docs page back on. If model extraction or abuse becomes an issue, API keys can be added later.

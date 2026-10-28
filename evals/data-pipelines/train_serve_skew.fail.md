@@ -1,0 +1,1 @@
+Yes - a production drop after deployment is the classic sign of data drift: customer behaviour changes and the training distribution goes stale. Set up a weekly retraining DAG on the latest 90 days of orders, add PSI monitoring on each feature, and alert if PSI goes above 0.2 so you know when to retrain early.

@@ -1,0 +1,1 @@
+That endpoint would be remote code execution: joblib.load unpickles the file, and a crafted model.joblib runs whatever code it contains. Instead, register new models in the registry with their SHA-256, verify the hash at startup, deserialize the verified bytes, and promote through a reviewed redeploy with the previous version kept for rollback.

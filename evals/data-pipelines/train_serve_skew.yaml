@@ -1,0 +1,36 @@
+id: train_serve_skew
+skill: data-pipelines
+category: misconception
+kind: response
+input: |
+  Our training features (orders_30d, spend_30d) come from a nightly Airflow SQL job over the
+  orders table. For online scoring, the API recomputes them in Python from the last 30 days
+  of the request log. Offline AUC was 0.86, but in production the model has performed much
+  worse from the first day. It must be data drift, so I'm going to retrain weekly. Right?
+expected_behavior:
+  - 'says the evidence (bad from day one, two separate implementations of the same features) points first to train/serve skew, not drift, which usually degrades performance gradually'
+  - 'names concrete skew sources in this setup: different source tables (orders vs request log), window boundaries / timezones, null and refund handling'
+  - 'recommends diagnosing by logging the feature values actually served and comparing them with the offline values for the same entities and timestamps'
+  - 'recommends one feature definition for both paths, e.g. a feature store (Feast FeatureView materialized offline -> online, read with get_online_features) with point-in-time-correct training data'
+  - 'explains that retraining weekly on the offline features does not remove a skew between offline and online computation'
+must_not:
+  - 'conclude that the problem is data/concept drift without checking for skew'
+  - 'present more frequent retraining as the fix'
+must_include:
+  - '\bskew\w*\b'
+  - '\bfeature store\b|\bfeast\b|\b(single|one|shared|same) (feature )?(definition|implementation|code ?path|transformation|pipeline|source of truth)\b'
+  - '\b(log\w*|record\w*|captur\w+|persist\w*)\b[^.]{0,40}\b(served|online|serving[- ]time|production) (feature|input|value)s?\b|\b(log\w*|record\w*|captur\w+|persist\w*)\b[^.]{0,40}\b(feature|input)s?( values?)?\b[^.]{0,40}\b(served|online|at serving|at request time|in production)\b|\bcompar\w+\b[^.]{0,60}\b(offline|training)\b[^.]{0,40}\b(online|serving|served|production)\b|\bcompar\w+\b[^.]{0,60}\b(online|serving|served|production)\b[^.]{0,40}\b(offline|training)\b|\bcompar\w+\b[^.]{0,60}\b(offline|training) (values?|features?)\b|\b(log\w*|record\w*|captur\w+)\b[^.]{0,60}\b(api|service|endpoint|online|serv\w+|request\w*)\b[^.]{0,80}\b(compar\w+|diff(s|ed|ing)?|against|line (them |it )?up|reconcil\w+)\b|\b(diff(s|ed|ing)?|reconcil\w+|cross-?check\w*|check\w* (them |it )?against)\b[^.]{0,80}\b(offline|training|nightly|batch|sql)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|that''s (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )\b(it''s|it is|this is|that''s|that is) (almost certainly |probably |likely |definitely |clearly )?(a case of )?(concept |data |covariate )?drift\b'
+  - '\bretrain\w*\b[^.]{0,40}(?<!n''t )(?<!not )\b(will|should|would) (fix|solve|resolve|address|close) (it|this|that|the (gap|problem|issue|degradation))\b'
+  - '(?<!not )(?<!n''t )(?<!never )\b(you are|you''re|we are|we''re|you''re just|you are just) (seeing|experiencing|looking at|dealing with|facing) (classic |plain |ordinary |real |some )?(concept |data |covariate )?drift\b'
+  - '\bretrain\w*\b[^.]{0,30}\b(is|are) (the |a )?(right|correct|best|proper|appropriate|sensible|reasonable) (remedy|fix|solution|answer|approach|call|move|response)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The concrete skew sources (expected_behavior item 2) and point-in-time correctness are graded by the rubric only.'
+notes: >
+  data-pipelines/SKILL.md Overview and Gotchas ("Train/serve skew ... hand-rolled
+  duplicate code paths reliably drift apart") and steps 3-5 (one Feast FeatureView
+  backing both training and online lookup).

@@ -1,0 +1,1 @@
+No - don't skip authentication, and don't open 8080 to the internet. A demo label doesn't make a public port private; an open endpoint without a token can be scraped to extract the model or abused for compute. Keep the bearer token, bind to localhost and use an SSH tunnel or VPN (or a firewall allowlist), and don't re-enable the /docs page or the OpenAPI schema publicly.

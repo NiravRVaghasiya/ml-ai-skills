@@ -1,0 +1,65 @@
+{
+  "skill": "experiment-tracking",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Instrument a scikit-learn training script with MLflow",
+      "expected_outcome": "Tracking URI from MLFLOW_TRACKING_URI (local SQLite fallback), a named experiment, autolog plus manual params/metrics/tags (git commit, dataset version) and a confusion-matrix artifact, with a PII caveat for log_input_examples"
+    },
+    {
+      "task": "Find the best run across an experiment",
+      "expected_outcome": "search_runs restricted to attributes.status = 'FINISHED', ordered by the target metric, with an explicit error when nothing qualifies"
+    },
+    {
+      "task": "Promote the best model for staging",
+      "expected_outcome": "register_model from runs:/<id>/model and set_registered_model_alias(..., 'staging', version), not the deprecated stage API; aliases described as metadata, not deployment"
+    },
+    {
+      "task": "Make runs visible to the whole team and reproducible later",
+      "expected_outcome": "Shared tracking server (and artifact store) via MLFLOW_TRACKING_URI for scripts and CLI; reproduce with mlflow runs describe and artifact download of the run plus the models:/ URI"
+    }
+  ],
+  "negative_cases": [
+    "crashed_run_registered",
+    "teammates_cannot_see_runs",
+    "Request to load an MLflow model from an untrusted public tracking server with mlflow.pyfunc.load_model (planned adversarial: cloudpickle deserialization)",
+    "Claim that autolog captures everything needed to reproduce a run, including preprocessing done outside fit() (planned misconception)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Best-run selection excludes runs that did not finish",
+    "Registry changes are made by moving aliases explicitly; the deprecated stage API is not used for new automation",
+    "Tracking store location is explicit (MLFLOW_TRACKING_URI) and shared when a team needs to see runs",
+    "Runs carry names and tags (git commit, dataset version) that make them reproducible"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: mlflow, scikit-learn, matplotlib, pandas (see docs/EXAMPLE-TESTS.md)",
+    "ML_AI_SKILLS_SLOW_EXAMPLES=1 in the environment; without it tests/examples/test_experiment_tracking.py skips its MLflow tests (about 100 s of setup)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and the ML_AI_SKILLS_SLOW_EXAMPLES=1 opt-in, and run via run_evals.py --run-executable; they use a temporary SQLite tracking store, no server.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Logged runs with params, metrics, tags and confusion_matrix.png in a SQLite tracking store",
+    "Registered model churn-rf-classifier with a @staging alias on the best FINISHED run",
+    "Reproduced run artifacts and model files downloaded via the mlflow CLI"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The executable tests are skipped unless ML_AI_SKILLS_SLOW_EXAMPLES=1 is set, so a default run_evals.py --run-executable reports them as skipped rather than passed.",
+    "The W&B path is tested only against a fake wandb module; no case covers W&B behaviour."
+  ],
+  "unsupported_use_cases": [
+    "Searching the hyperparameter space itself (hyperparameter-tuning)",
+    "Watching a deployed model's live performance (ml-monitoring)",
+    "Enforcing promotion gates in CI/CD (ci-cd-for-ml)"
+  ]
+}

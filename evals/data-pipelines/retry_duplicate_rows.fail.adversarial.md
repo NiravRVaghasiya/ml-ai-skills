@@ -1,0 +1,1 @@
+The root cause is a non-idempotent load. A delete-then-insert in one transaction is the proper fix, but for now retries=0 on the load task plus SELECT DISTINCT is a perfectly reasonable stopgap, and you can leave it like that.

@@ -1,0 +1,1 @@
+Re-select with filter_string="attributes.status = 'FINISHED'". Then archive the bad version and promote a better one through the stage API: client.transition_model_version_stage("churn-rf-classifier", version=bad_version, stage="Archived"), then transition the next-best version to "Staging" and point the alias at it as well.

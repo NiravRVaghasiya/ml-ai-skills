@@ -1,0 +1,1 @@
+I'd keep auth on. An internet-facing port is public no matter what the project is called, and an open prediction API can be scraped to copy the model or abused at your expense. Keep the API key check, listen on localhost behind an SSH tunnel (or limit the security group to the demo users' IPs), and keep the OpenAPI/Swagger docs disabled.

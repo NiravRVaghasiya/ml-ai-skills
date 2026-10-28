@@ -1,0 +1,1 @@
+Don't trust a run that isn't FINISHED - filter on attributes.status = 'FINISHED'. The alias won't move automatically when you delete the run; it does not follow the "next best" anything. Point it at a good version yourself with set_registered_model_alias, and don't use transition_model_version_stage, which is deprecated.

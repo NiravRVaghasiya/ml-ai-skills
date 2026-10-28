@@ -1,0 +1,1 @@
+Train/serve skew is possible in theory, but both your SQL and your Python compute a 30-day count and a 30-day sum, so they should agree, and a feature store would be overkill for two features. Comparing offline and online values would take a while to set up. This is almost certainly data drift - retraining weekly will fix it, and you can add drift monitoring later.

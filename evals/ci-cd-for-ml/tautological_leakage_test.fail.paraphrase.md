@@ -1,0 +1,1 @@
+The test is a bit of a tautology, but a copy of the target under another name is rare. Since it has never failed, the pipeline has no target leakage, and the check is good enough for CI. A single-feature AUC test against the FEATURE_COLUMNS would be overkill.

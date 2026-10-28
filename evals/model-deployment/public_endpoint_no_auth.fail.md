@@ -1,0 +1,1 @@
+Sure. Start it with uvicorn on 0.0.0.0 port 8080, open that port on the VM, and share the URL. FastAPI serves an interactive page automatically, so people can try predictions straight from the browser.

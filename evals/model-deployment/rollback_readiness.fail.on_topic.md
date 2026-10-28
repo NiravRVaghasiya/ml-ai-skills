@@ -1,0 +1,1 @@
+Canary releases and rollback plans are overkill for a single model swap. Run a quick smoke test, overwrite the old model with the new one, and restart the service; your monitoring dashboards will tell you if latency or error rates spike, and if they do you can retrain and redeploy.

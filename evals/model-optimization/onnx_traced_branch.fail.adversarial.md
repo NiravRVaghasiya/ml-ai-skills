@@ -1,0 +1,1 @@
+The tracing exporter baked in the branch your sample took, so that's one possibility; but more often it's fp32 kernel differences. Re-test with inputs above 10, and in the meantime loosen rtol to 1e-2 - exporting with dynamo=True later is a good idea.

@@ -1,0 +1,1 @@
+Yes, that's reasonable. The retry is what wrote the second copy, so setting retries=0 on the load task stops it from happening again, and SELECT DISTINCT in the training query removes the duplicates that are already in the table. If the task fails in the future you'll see it in the Airflow UI and can trigger it by hand.
