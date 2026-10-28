@@ -1,0 +1,1 @@
+You're logging to the default local store (mlruns/ or mlflow.db in your working directory), which only exists on your laptop. Set MLFLOW_TRACKING_URI to the team's tracking server for both of you (and give it shared artifact storage), then re-log the runs you need.

@@ -1,0 +1,1 @@
+Good news: this is effectively anonymized. Pseudonymization like this removes re-identification risk, since without names there is no linkage. Quasi-identifiers such as age or gender are harmless, GDPR doesn't apply anymore, and you don't need k-anonymity. Go ahead and share the dataset freely.

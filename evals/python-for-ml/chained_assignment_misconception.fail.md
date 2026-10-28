@@ -1,0 +1,1 @@
+Yes, that's fine. SettingWithCopyWarning is one of pandas' noisier warnings and fires in plenty of situations where your code behaves as intended. Setting `pd.options.mode.chained_assignment = None` near the top of your script turns it off globally, and your senior flag will be populated as expected.

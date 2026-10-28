@@ -1,0 +1,1 @@
+Largely, yes. MCP gives you a well-defined interface with typed tool schemas, so the server's tools behave like any other function in your codebase. Because it's widely used, it has been vetted by the community, and you can pass its results straight to the model. Just make sure your org token is stored in a secret manager rather than hard-coded.

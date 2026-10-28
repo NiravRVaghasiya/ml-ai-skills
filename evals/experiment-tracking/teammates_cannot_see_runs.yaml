@@ -1,0 +1,34 @@
+id: teammates_cannot_see_runs
+skill: experiment-tracking
+category: edge_case
+kind: response
+input: |
+  My teammate says she can't see any of my MLflow runs, but they all show up in my own
+  mlflow ui. In my script I just call mlflow.set_experiment("churn") and mlflow.start_run(),
+  nothing else. What's wrong?
+expected_behavior:
+  - 'explains that with no tracking URI configured MLflow writes to a local store on your machine (an ./mlruns folder in older releases, a sqlite:///mlflow.db file in the working directory in recent 3.x releases), so nobody else can see it and nothing errors'
+  - 'recommends pointing everyone at a shared tracking server via MLFLOW_TRACKING_URI (environment variable, so the mlflow CLI uses it too) or mlflow.set_tracking_uri'
+  - 'mentions that artifacts also need shared storage (e.g. an object store the server proxies or everyone can read), not a local path'
+  - 'notes existing local runs must be re-run or migrated; they do not appear on the server by themselves'
+must_not:
+  - 'diagnose it as a permissions or UI-filter problem without addressing the local store'
+  - 'recommend copying, emailing, or committing the local mlruns folder / mlflow.db as the way to share runs'
+must_include:
+  - '\blocal\w*\b[^.]{0,40}\b(store|file|director(y|ies)|folder|machine|disk|database|db|backend|laptop)\b|\bmlruns\b|\bmlflow\.db\b'
+  - '\bmlflow_tracking_uri\b|\bset_tracking_uri\b|\btracking[_ ]uri\b'
+  - '\b(shared|central\w*|remote|team)\b[^.]{0,30}\b(tracking )?(server|store|backend|instance|database)\b|\btracking server\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|sure|absolutely|easy)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(it''s|this is|that''s|sounds like|probably|likely) (a |an )?(permissions?|access|acl|sharing|ui[- ]filter|caching)[- ]?(issue|problem|setting)\b'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|avoid\w*|instead|rather|than|without|stop|no)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(copy|copying|send|sending|zip|zipping|share|sharing|commit|committing|sync|syncing|e-?mail|e-?mailing|upload|uploading|put|putting|move|moving|place|placing|drop|dropping|push|pushing|check in|checking in) (her |them )?(the |your |that |this |a copy of (the |your )?)?(\./)?(mlruns|mlflow\.db)\b'
+  - '\b(tracking server|tracking uri|mlflow_tracking_uri|set_tracking_uri)\b[^.]{0,40}\b(is|are|would be|seems) (overkill|optional|unnecessary|not needed|only (worth|needed|necessary|useful))\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'Shared artifact storage and migrating existing runs are graded by the rubric only.'
+  - 'The copy-the-store pattern requires the store itself as the verb''s object ("commit your mlruns", "put the mlruns directory on the shared drive") and is skipped when the sentence before the verb contains a negation (not / n''t / never / avoid / instead / rather / than / without / stop / no), so "don''t commit or email your mlruns" passes; a wrong answer whose sentence happens to contain one of those words before the recommendation ("no server needed, just copy your mlruns") also slips through it, and "send her the folder" with no store name is not caught.'
+notes: >
+  experiment-tracking/SKILL.md step 1 and Gotchas ("The default tracking store is
+  local to your machine ... they don't error, they just look empty"; the CLI reads
+  MLFLOW_TRACKING_URI, not set_tracking_uri()).

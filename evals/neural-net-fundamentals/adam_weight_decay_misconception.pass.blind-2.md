@@ -1,0 +1,1 @@
+Unfortunately not. With Adam, weight_decay is added to the loss gradient as an L2 term, which is then rescaled by the adaptive per-parameter denominator. AdamW implements decoupled decay. Replace torch.optim.Adam with torch.optim.AdamW and keep lr=3e-4, weight_decay=0.01.

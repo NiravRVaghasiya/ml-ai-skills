@@ -1,0 +1,1 @@
+That sounds like a permissions issue. Ask whoever administers MLflow to give her read access to the "churn" experiment, and have her hard-refresh the UI - the experiment list is cached, so new experiments sometimes take a while to show up for other users.

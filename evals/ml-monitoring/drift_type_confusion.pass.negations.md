@@ -1,0 +1,1 @@
+Not so fast - it's not always data drift. The drop could be concept drift, prediction drift, covariate shift, or a pipeline bug like an upstream schema change. Diagnose before you retrain: check input and prediction distributions and data quality.

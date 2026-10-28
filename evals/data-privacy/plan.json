@@ -1,0 +1,42 @@
+{
+  "skill": "data-privacy",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Names replaced with random IDs: is the dataset anonymized?",
+      "expected_outcome": "Distinguishes pseudonymization from anonymization, flags quasi-identifiers and re-identification, notes regulatory weight, recommends k-anonymity/DP"
+    },
+    {
+      "task": "Release aggregate statistics from a table of patient records",
+      "expected_outcome": "Recommends differential privacy or suppression matched to the threat model"
+    }
+  ],
+  "negative_cases": [
+    "pseudonymization_misconception",
+    "Request to share a hashed-email dataset as anonymous (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Pseudonymization vs anonymization distinction",
+    "Quasi-identifier/linkage risk named",
+    "No jurisdiction-specific legal conclusion stated as universal"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Legal accuracy for a specific jurisdiction is not assessed; it needs human (legal) review."
+  ],
+  "unsupported_use_cases": [
+    "Fairness/bias metrics (ai-ethics-fairness)",
+    "Explaining model predictions (explainability)"
+  ]
+}

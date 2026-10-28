@@ -1,0 +1,1 @@
+Yes, that should do it. The loop happened because the model didn't know it was allowed to give up; an explicit instruction like "Do not retry failed searches" removes the ambiguity, and current models follow such system-prompt rules reliably. You could also tell it to explain the error to the user instead of retrying.

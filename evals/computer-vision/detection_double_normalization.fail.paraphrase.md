@@ -1,0 +1,1 @@
+The ImageNet statistics are the right ones to use with a COCO-pretrained backbone, so the transform pipeline isn't your problem. Focus on the training recipe instead: freeze the backbone for the first few epochs, lower the learning rate, and train for at least 20-30 epochs before judging mAP. Also check whether your objects are small relative to the default anchor sizes.

@@ -1,0 +1,1 @@
+Pickle deserialization can execute arbitrary code, but PyTorch 2.6+ defaults to weights_only=True, so on a recent version torch.load won't run code from the file. Check the checksum if one exists, keep data poisoning in mind for your own training data, and you can use it in production.

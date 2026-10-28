@@ -1,0 +1,1 @@
+Pickle can run arbitrary code, but the PyTorch 2.6+ weights_only=True default blocks that, so on your version the file can't execute code. Check a checksum if one is available, keep poisoning in mind for your own data, and put it in production.

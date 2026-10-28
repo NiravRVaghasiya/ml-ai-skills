@@ -1,0 +1,1 @@
+This is the classic cold-start case. Appending a row and giving each new user an all-zero factor vector works fine as a neutral starting point: their scores will tie at first, but implicit breaks ties by item popularity, so they effectively get a popularity list without you maintaining a separate fallback path.

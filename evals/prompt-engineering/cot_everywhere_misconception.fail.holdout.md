@@ -1,0 +1,1 @@
+Generally yes. Chain-of-thought prompting is one of the most robust techniques around: even small models benefit from laying out intermediate steps, and for the reasoning model it simply reinforces what it already does. The cost is a few extra tokens, so applying it to every prompt is a safe default.

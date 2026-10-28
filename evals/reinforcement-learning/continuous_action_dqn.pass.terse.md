@@ -1,0 +1,1 @@
+I'd avoid DQN here. It relies on taking an argmax over a finite action set, which doesn't exist for continuous torques; discretizing 7 joints into k levels each gives k^7 actions, an exponential blow-up. Pick a continuous-control method: SAC or TD3 (off-policy, replay, sample-efficient) or PPO (on-policy, stable, needs more simulator steps).

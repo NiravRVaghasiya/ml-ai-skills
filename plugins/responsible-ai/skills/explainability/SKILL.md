@@ -15,7 +15,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: official-documentation
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - shap-value-computation
   - lime-local-explanation
@@ -31,8 +31,9 @@ related:
 inputs: A fitted, sklearn-compatible model plus held-out feature data (and optionally training data as a background sample) to explain.
 outputs: Global feature-importance rankings and per-instance attributions (SHAP/LIME) with a cross-method agreement check.
 version_constraints:
-  - "scikit-learn: sklearn.inspection.permutation_importance available since 0.22 (model-knowledge estimate, not live-verified this session)"
-  - "shap: the Explanation-object plotting API (shap.plots.bar, shap.plots.waterfall) was introduced in the 0.3x release series, superseding older shap.summary_plot-style calls (model-knowledge estimate, not live-verified this session)"
+  - "scikit-learn>=0.22: sklearn.inspection.permutation_importance(scoring='roc_auc', n_repeats=, n_jobs=) (lower bound is a model-knowledge estimate; executed against scikit-learn 1.9.0 on 2026-10-27)"
+  - "shap>=0.45: TreeExplainer(model)(X) Explanation with (n, features, classes) values for sklearn forests, Explanation slicing [:, :, 1], shap.plots.bar/waterfall(show=False), KernelExplainer.shap_values(nsamples=), shap.sample(X, n, random_state=) (lower bound is a model-knowledge estimate of when multi-output values became one ndarray instead of a list; executed against shap 0.54.1 on 2026-10-27)"
+  - "lime>=0.2: lime.lime_tabular.LimeTabularExplainer(random_state=), explain_instance(...).as_list() (executed against lime 0.2.0.1 on 2026-10-27)"
 ---
 
 ## Overview
@@ -57,9 +58,12 @@ them. Output is a reusable explanation pipeline, not a one-off plot.
    uses only predict/score, and directly measures the metric drop the model
    actually cares about.
    ```python
-   from sklearn.inspection import permutation_importance
    import numpy as np
+   import pandas as pd
+   from sklearn.inspection import permutation_importance
 
+   # scoring="roc_auc" assumes a binary classifier; use e.g. "roc_auc_ovr" or
+   # "neg_log_loss" for multiclass and an error metric for regression.
    result = permutation_importance(
        model, X_test, y_test,
        n_repeats=30, random_state=42, scoring="roc_auc", n_jobs=-1
@@ -74,28 +78,65 @@ them. Output is a reusable explanation pipeline, not a one-off plot.
    tree ensembles, `TreeExplainer` is exact and fast; for anything else, fall
    back to `KernelExplainer` on a background sample.
    ```python
+   import matplotlib.pyplot as plt
    import shap
 
    # Tree models (XGBoost, LightGBM, RandomForest, ...): exact and fast.
+   # TreeExplainer rejects a Pipeline. Pass the tree step and its transformed input:
+   #   explainer = shap.TreeExplainer(pipe[-1])
+   #   X_explain = pd.DataFrame(pipe[:-1].transform(X_test),
+   #                            columns=pipe[:-1].get_feature_names_out())
+   # (the attributions are then for the transformed features), or use KernelExplainer below.
    explainer = shap.TreeExplainer(model)
    shap_values = explainer(X_test)
+   # Some classifiers (e.g. sklearn RandomForestClassifier) return one attribution
+   # set per class: values shape (n_samples, n_features, n_classes). The plots
+   # and step 5 need 2-D values, so pick the class being explained.
+   class_index = 1   # binary: the positive class; for multiclass, set the class you explain
+   if shap_values.values.ndim == 3:
+       shap_values = shap_values[:, :, class_index]
+   shap_matrix = shap_values.values   # (n_samples, n_features), used in step 5
 
-   # Global view: mean |SHAP value| per feature
+   # Global view: mean |SHAP value| per feature. Save and close each figure:
+   # with show=False the next plot would otherwise draw onto the same one.
    shap.plots.bar(shap_values, show=False)
+   plt.savefig("shap_global_bar.png", bbox_inches="tight")
+   plt.close()
 
    # Local view: explain one prediction
    shap.plots.waterfall(shap_values[0], show=False)
+   plt.savefig("shap_local_waterfall_0.png", bbox_inches="tight")
+   plt.close()
    ```
    ```python
+   import pandas as pd
+   import shap
+
    # Non-tree / black-box models: model-agnostic but much slower.
+   # Pass a plain function: shap hands the model NumPy arrays (which breaks
+   # pipelines that select columns by name), and in shap 0.54.1 a Pipeline's
+   # bound predict_proba fails with "property 'feature_names_in_' of 'Pipeline'
+   # object has no setter". Explaining P(positive) gives 2-D (n, features) output.
+   def predict_positive(data):
+       return model.predict_proba(pd.DataFrame(data, columns=X_train.columns))[:, 1]
+
    background = shap.sample(X_train, 100, random_state=42)
-   explainer = shap.KernelExplainer(model.predict_proba, background)
-   shap_values = explainer.shap_values(X_test.iloc[:50], nsamples=200)
+   kernel_explainer = shap.KernelExplainer(predict_positive, background)
+   kernel_shap_values = kernel_explainer.shap_values(X_test.iloc[:50], nsamples=200)
+   # Distinct names keep the TreeExplainer `shap_values` Explanation intact; step 5
+   # reads `shap_matrix`, which is set by whichever SHAP block ran last.
+   shap_matrix = kernel_shap_values   # (50, n_features)
    ```
 4. **Explain a single prediction with LIME when you need a lightweight,
    surrogate-model explanation instead of SHAP's game-theoretic one.**
    ```python
+   import pandas as pd
    from lime.lime_tabular import LimeTabularExplainer
+
+   # LIME perturbs NumPy rows; rebuild the DataFrame so models/pipelines that
+   # rely on column names still work.
+   def predict_proba_df(data):
+       return model.predict_proba(pd.DataFrame(data, columns=X_train.columns))
 
    lime_explainer = LimeTabularExplainer(
        X_train.values,
@@ -107,23 +148,31 @@ them. Output is a reusable explanation pipeline, not a one-off plot.
    )
    instance = X_test.iloc[0].values
    explanation = lime_explainer.explain_instance(
-       instance, model.predict_proba, num_features=8
+       instance, predict_proba_df, num_features=8
    )
-   explanation.show_in_notebook(show_table=True)   # or .as_list() for raw output
+   print(explanation.as_list())   # (condition, weight) pairs for the "positive" class
+   # In Jupyter: from IPython.display import HTML, display; display(HTML(explanation.as_html()))
+   # (lime 0.2.0.1's show_in_notebook imports `display` from IPython.core.display,
+   # which IPython 9 no longer provides, so it raises ImportError even inside Jupyter.)
    ```
 5. **Cross-check explanations before trusting them.** Different methods
    should broadly agree on the top drivers; large disagreement is a signal to
    dig deeper (correlated features, unstable local surrogate, or a
    mis-specified background dataset), not to average blindly.
    ```python
+   # shap_matrix: 2-D attributions from step 3 (Tree or Kernel path), raw-feature columns.
    shap_rank = (
-       pd.Series(np.abs(shap_values.values).mean(axis=0), index=X_test.columns)
+       pd.Series(np.abs(shap_matrix).mean(axis=0), index=X_test.columns)
        .sort_values(ascending=False)
    )
    agreement = pd.concat(
        [importances.rename("permutation"), shap_rank.rename("shap")], axis=1
    ).dropna()
-   print(agreement.head(10))   # eyeball rank agreement on the top features
+   # The columns are in different units (metric drop vs. model-output units),
+   # so compare ranks, not magnitudes.
+   rank_corr = agreement["permutation"].corr(agreement["shap"], method="spearman")
+   print(agreement.head(10))
+   print(f"Spearman rank agreement: {rank_corr:.2f}")
    ```
 
 ## Gotchas
@@ -131,14 +180,22 @@ them. Output is a reusable explanation pipeline, not a one-off plot.
   samples feature coalitions, so results are noisy and expensive at scale —
   always prefer `TreeExplainer` (tree models) or `DeepExplainer`/`GradientExplainer`
   (neural nets) when applicable.
-- **Correlated features break SHAP's additivity assumption.** SHAP assumes
-  features can be independently "turned off"; with strongly correlated
-  features (e.g. `height_cm` and `height_in`), importance gets arbitrarily
-  split between them rather than attributed to the underlying signal.
+- **Correlated features distort SHAP attributions.** The attributions still sum
+  to the prediction, but `KernelExplainer` (and interventional Tree SHAP)
+  "turn off" a feature by sampling it independently of the others, which
+  evaluates the model on unrealistic feature combinations; with strongly
+  correlated features (e.g. `height_cm` and `height_in`), credit can be split
+  between them somewhat arbitrarily rather than attributed to the underlying
+  signal.
 - **LIME explanations are unstable.** Because it fits a local linear surrogate
   on randomly perturbed samples, re-running `explain_instance` on the same row
-  can produce visibly different top features — always set a `random_state`
-  and consider averaging over multiple runs before reporting a result.
+  can produce visibly different top features. `random_state` makes a *fresh*
+  explainer reproducible, but repeated calls on one explainer still draw new
+  samples — consider averaging over multiple runs before reporting a result.
+- **Multi-output SHAP values.** For classifiers, SHAP may return one attribution
+  set per class (an extra trailing axis); feeding that 3-D array to
+  `shap.plots.bar`/`waterfall` or a per-feature `pd.Series` fails — select the
+  class you are explaining first.
 - **Permutation importance is biased downward for correlated features.**
   Shuffling one of two correlated features barely hurts the model (the other
   still carries the signal), understating both features' true importance.

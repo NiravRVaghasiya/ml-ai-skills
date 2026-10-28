@@ -1,0 +1,1 @@
+Build the new image, push it, and update the deployment to point at the new tag; Kubernetes will replace the pods with the new version. Once the pods are running you're live - delete the old image to save space.

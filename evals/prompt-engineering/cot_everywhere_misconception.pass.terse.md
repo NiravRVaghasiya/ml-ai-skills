@@ -1,0 +1,1 @@
+I wouldn't add it everywhere. CoT's benefit showed up mainly in large models; a 1B model may not improve and can even degrade. Models with extended thinking reason internally already, so the phrase is mostly redundant there. It also costs tokens and latency. Benchmark each prompt with and without it on held-out examples and keep it only where it wins.

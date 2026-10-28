@@ -1,0 +1,1 @@
+That inflates your result: selecting on the test set leaks it into model selection, so the reported number is optimistically biased. Tune with cross-validation on the training data, keep the test set untouched until the end, and evaluate once. Nested CV is an option for small data.

@@ -18,7 +18,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - recall-at-k
   - precision-at-k
@@ -71,38 +71,64 @@ already exists.
    ```python
    import math
 
+   def _check_k(k: int) -> None:
+       if k < 1:  # retrieved[:-1] would silently score "all but the last" instead of failing
+           raise ValueError(f"k must be >= 1, got {k}")
+
    def recall_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
+       _check_k(k)
        if not relevant:
-           return float("nan")
+           return float("nan")  # unlabeled query: undefined, not 0 — see mean_metric below
        hits = len(set(retrieved[:k]) & relevant)
        return hits / len(relevant)
 
    def precision_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-       if k == 0:
-           return 0.0
+       _check_k(k)
+       if not relevant:
+           return float("nan")  # same unlabeled policy as recall, so mean_metric skips it
        hits = len(set(retrieved[:k]) & relevant)
-       return hits / k
+       return hits / k  # denominator is k even if fewer than k docs came back (standard IR convention)
 
    def reciprocal_rank(retrieved: list[str], relevant: set[str]) -> float:
+       if not relevant:
+           return float("nan")  # 0.0 here would silently deflate MRR over the eval set
        for i, doc_id in enumerate(retrieved, start=1):
            if doc_id in relevant:
                return 1.0 / i
        return 0.0
 
    def ndcg_at_k(retrieved: list[str], relevant: set[str], k: int) -> float:
-       def dcg(ids: list[str]) -> float:
-           return sum((1.0 if d in relevant else 0.0) / math.log2(i + 1) for i, d in enumerate(ids[:k], start=1))
-       ideal_order = list(relevant)[:k] + [d for d in retrieved if d not in relevant][:max(0, k - len(relevant))]
-       idcg = dcg(ideal_order)
-       return dcg(retrieved) / idcg if idcg > 0 else float("nan")
+       _check_k(k)
+       if not relevant:
+           return float("nan")
+       seen: set[str] = set()
+       dcg = 0.0
+       for i, d in enumerate(retrieved[:k], start=1):
+           # Credit each relevant id once: a duplicate would earn gain twice and push nDCG above 1.
+           if d in relevant and d not in seen:
+               dcg += 1.0 / math.log2(i + 1)
+           seen.add(d)
+       idcg = sum(1.0 / math.log2(i + 1) for i in range(1, min(k, len(relevant)) + 1))
+       return dcg / idcg
+
+   def mean_metric(values: list[float]) -> float:
+       """Mean over queries, skipping NaN (unlabeled) entries; count the NaNs separately."""
+       vals = [v for v in values if not math.isnan(v)]
+       return sum(vals) / len(vals) if vals else float("nan")
 
    # example: retriever returned these doc ids, ranked, for query 1
    retrieved = ["policy_017", "policy_042", "policy_003", "policy_099", "policy_042"]
    relevant = eval_set[0]["gold_doc_ids"]
    print("recall@3:", recall_at_k(retrieved, relevant, 3))
    print("precision@3:", precision_at_k(retrieved, relevant, 3))
-   print("MRR:", reciprocal_rank(retrieved, relevant))
+   print("reciprocal rank:", reciprocal_rank(retrieved, relevant))  # MRR = its mean over queries
    print("nDCG@3:", ndcg_at_k(retrieved, relevant, 3))
+
+   # Aggregate per query; a query with no run counts as an empty retrieval.
+   runs = {"What is our refund window?": retrieved}  # query -> ranked ids from your retriever
+   recalls = [recall_at_k(runs.get(ex["query"], []), ex["gold_doc_ids"], 3) for ex in eval_set]
+   skipped = sum(math.isnan(v) for v in recalls)  # report it: a mean over 3 of 300 queries isn't comparable
+   print("mean recall@3:", mean_metric(recalls), f"({skipped} unlabeled queries skipped)")
    ```
    **When each matters:** Recall@k — "did we get the right doc in front of the
    generator at all" (most important when a missed doc means a wrong/unanswerable
@@ -116,6 +142,8 @@ already exists.
    the generator, which may differ from raw retrieval if you rerank or truncate).
    ```python
    def context_precision(final_context_ids: list[str], relevant: set[str]) -> float:
+       if not relevant:
+           return float("nan")  # unlabeled query, as in step 2
        if not final_context_ids:
            return 0.0
        return len(set(final_context_ids) & relevant) / len(final_context_ids)
@@ -123,6 +151,9 @@ already exists.
    final_context_ids = ["policy_042", "policy_003"]  # after reranking/truncation to fit budget
    print("context precision:", context_precision(final_context_ids, relevant))
    ```
+   This is the unweighted fraction of the final context that is relevant; the
+   Ragas library's "Context Precision" is rank-weighted (mean of precision@k at
+   each relevant position), so the two numbers are not interchangeable.
    A retrieval step with strong Recall@10 but a reranker/truncation step that
    drops the one relevant doc before generation will still produce a wrong
    answer — measure both stages, not just raw retrieval.
@@ -132,7 +163,7 @@ already exists.
    check in [[llm-evaluation]] — the reference set here is the *retrieved
    context*, not general world knowledge.
    ```python
-   # Illustrative structure only — llm-evaluation/SKILL.md Workflow step 5 has the
+   # Pair construction only — llm-evaluation/SKILL.md Workflow step 5 has the
    # full runnable NLI-based faithfulness check; re-used here against RAG context
    # instead of a general reference answer.
    def faithfulness_pairs(answer_sentences: list[str], context: str) -> list[tuple[str, str]]:
@@ -146,12 +177,14 @@ already exists.
    ```python
    def citation_correctness(answer_claims: list[dict], retrieved_by_id: dict[str, str]) -> list[dict]:
        """answer_claims: [{"claim": str, "cited_doc_id": str}, ...]
-       Returns claims whose cited doc doesn't exist in what was actually retrieved
-       — the cheapest, fully mechanical citation check (existence), which should
-       run before any semantic "does it really support the claim" check."""
+       retrieved_by_id: the docs actually placed in the generator's context (step 3's
+       final context, not raw retrieval — a doc the reranker dropped was never seen).
+       Returns claims that are uncited or whose cited doc isn't in that context — the
+       cheapest, fully mechanical citation check (existence), which should run before
+       any semantic "does it really support the claim" check."""
        broken = []
        for c in answer_claims:
-           if c["cited_doc_id"] not in retrieved_by_id:
+           if c.get("cited_doc_id") not in retrieved_by_id:  # missing citation -> None -> broken
                broken.append(c)
        return broken
    ```
@@ -184,6 +217,8 @@ already exists.
            tags.append("retrieval_failure")
        elif relevant and (set(retrieved) & relevant) and not (set(final_context_ids) & relevant):
            tags.append("reranking_failure")
+       if any(d not in context_tokens for d in final_context_ids):
+           tags.append("context_tokens_unknown")  # counting unknowns as 0 would hide overflow
        total_tokens = sum(context_tokens.get(d, 0) for d in final_context_ids)
        if total_tokens > token_budget:
            tags.append("context_overflow")
@@ -215,5 +250,6 @@ already exists.
 
 ## References
 - [Lewis et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" (2020)](https://arxiv.org/abs/2005.11401) — the original RAG paper; useful for the retrieval/generation separation this skill is built around.
-- [Es et al., "RAGAS: Automated Evaluation of Retrieval Augmented Generation" (2023)](https://arxiv.org/abs/2309.15217) — proposes faithfulness/context-precision/context-recall metrics specifically for RAG, the basis for steps 3–4 here.
+- [Es et al., "RAGAS: Automated Evaluation of Retrieval Augmented Generation" (2023)](https://arxiv.org/abs/2309.15217) — proposes reference-free faithfulness, answer-relevance and context-relevance metrics for RAG, the basis for step 4 here.
+- [Ragas documentation — Context Precision](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_precision/) — the library's rank-weighted context-precision definition, contrasted with step 3's unweighted fraction.
 - [Järvelin & Kekäläinen, "Cumulated Gain-Based Evaluation of IR Techniques" (2002)](https://dl.acm.org/doi/10.1145/582415.582418) — the original nDCG formulation used in step 2.

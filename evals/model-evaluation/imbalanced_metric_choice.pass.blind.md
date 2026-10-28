@@ -1,0 +1,1 @@
+Not necessarily. Fraud is rare - if only 0.6% of transactions are fraud, a model that always predicts 'not fraud' also gets 99.4% accuracy. Look at precision and recall on the fraud class (and the PR curve), compare against that trivial baseline, and pick a threshold based on the cost of a missed fraud versus a false alarm.

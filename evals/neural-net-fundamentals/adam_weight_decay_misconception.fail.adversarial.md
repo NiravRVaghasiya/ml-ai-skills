@@ -1,0 +1,1 @@
+There is a subtle difference - Adam applies the decay as an L2 term coupled with the adaptive rescaling, while AdamW decouples it - but at weight_decay=0.01 it rarely changes results much. Passing weight_decay=0.01 to Adam will get you close enough to the paper; switching to AdamW is optional.

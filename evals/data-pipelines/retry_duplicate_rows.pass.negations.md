@@ -1,0 +1,1 @@
+No. Don't set retries to 0 - retries aren't the problem, the non-idempotent append is. SELECT DISTINCT isn't enough either; other readers still see duplicates. Delete-then-insert the partition in one transaction so a failed insert rolls back, then re-run 2026-08-03.

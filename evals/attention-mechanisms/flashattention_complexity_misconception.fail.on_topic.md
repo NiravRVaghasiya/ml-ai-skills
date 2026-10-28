@@ -1,0 +1,1 @@
+FlashAttention is an exact, IO-aware kernel: it tiles the computation so the n×n score matrix is never materialized, which brings both memory and compute down to linear in sequence length. So for long contexts the quadratic bottleneck is effectively solved, and sparse or linear attention approximations are now obsolete.

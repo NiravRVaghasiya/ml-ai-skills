@@ -1,0 +1,1 @@
+Strict mode guarantees the arguments are safe to execute, because a path traversal string or a DROP TABLE would not match a well-designed schema. Keep logging every call, but the old server-side validation layer can be retired.

@@ -1,0 +1,1 @@
+FlashAttention is exact and uses tiling so it never materializes the n×n matrix; memory is linear. The FLOPs are still quadratic on paper, but because attention is memory-bound the runtime ends up scaling roughly linearly with sequence length, so in practice you no longer need sparse or linear attention.

@@ -1,0 +1,1 @@
+Not so fast. A and B are probably correlated, so SHAP may split the credit between them; low SHAP does not prove B is unimportant. To settle it, just run permutation importance on B and see whether it matters.

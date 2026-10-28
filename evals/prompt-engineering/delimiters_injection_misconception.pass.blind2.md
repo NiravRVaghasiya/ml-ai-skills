@@ -1,0 +1,1 @@
+No. Delimiters make injection harder, not impossible: the model can still follow text inside the tags, and an attacker can include a fake </document> to break out, so escape tag-like text. Rely on least privilege for tools, validate outputs, require human approval for sensitive actions, and red-team with injected documents.

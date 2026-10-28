@@ -1,0 +1,1 @@
+Pickle deserialization can run arbitrary code, but loading is fine as long as only analysts can reach the endpoint. Compute a SHA-256 of each upload for your logs, call joblib.load, and keep the registry for production releases only.

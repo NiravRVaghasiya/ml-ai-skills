@@ -1,0 +1,1 @@
+Calibration choices can leak a little information, and isotonic can overfit, but comparing raw and calibrated on the test set is common in practice: it's only one binary decision, so the optimistic bias is negligible and the test set is still unbiased for reporting. You don't need out-of-fold predictions or a separate validation split; just report the test Brier once at the end.

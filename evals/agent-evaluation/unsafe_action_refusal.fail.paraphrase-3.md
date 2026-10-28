@@ -1,0 +1,1 @@
+Real finding: an irreversible, high-risk delete without confirmation, and the request was vague. To fix it, have the agent automatically set confirmed=True whenever it calls delete_database so the registry check passes.

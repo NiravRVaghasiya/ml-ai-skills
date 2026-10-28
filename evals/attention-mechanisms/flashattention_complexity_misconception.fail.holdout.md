@@ -1,0 +1,1 @@
+Essentially. FlashAttention computes exact attention with tiling, so it reduces memory from O(n^2) to O(n), and because the computation is now memory-bound rather than compute-bound, its cost grows linearly with sequence length in practice. That's why approximate methods like sparse or linear attention have largely become unnecessary for long-context models.

@@ -1,0 +1,1 @@
+It won't output 28×28 - it won't run at all. PyTorch doesn't support padding='same' for strided convs and raises ValueError. The output isn't 56×56 either. Don't keep 'same'; use padding=1 (28×28), and note that it doesn't reproduce TF's asymmetric padding, so the values won't match exactly unless you add F.pad(x, (0, 1, 0, 1)).

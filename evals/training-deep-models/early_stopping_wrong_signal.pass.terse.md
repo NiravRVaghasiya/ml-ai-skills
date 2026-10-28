@@ -1,0 +1,1 @@
+Not really. Early stopping has to watch the val loss, not the training loss, which keeps falling as the model overfits. Checkpoint whenever validation improves and reload the best weights at the end rather than the last epoch's.

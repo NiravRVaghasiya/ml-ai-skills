@@ -1,0 +1,1 @@
+It depends - could you tell me whether this is classification or regression, how many rows you have, whether the features are numeric, categorical or text, and whether interpretability matters? You don't need to answer all of these, but the first two matter most.

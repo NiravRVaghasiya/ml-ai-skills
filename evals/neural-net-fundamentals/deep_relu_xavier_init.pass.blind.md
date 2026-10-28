@@ -1,0 +1,1 @@
+Xavier/Glorot initialization is derived for tanh-like activations. ReLU throws away the negative half, so each layer halves the signal's second moment; across 40 layers the activations vanish (roughly 2^-20 in variance) and so do the early-layer gradients. Use He init: nn.init.kaiming_normal_(m.weight, nonlinearity='relu'). Then check per-layer activation std with forward hooks.

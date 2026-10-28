@@ -1,0 +1,1 @@
+Zero days do make MAPE unstable since you divide by the actual, and MAE would be steadier. But a baseline that bad still tells you the current approach has failed; I'd go straight to a Transformer-based forecaster.

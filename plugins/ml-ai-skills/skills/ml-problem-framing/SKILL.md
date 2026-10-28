@@ -15,7 +15,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - problem-spec-definition
   - label-leakage-audit
@@ -31,6 +31,9 @@ related:
   - model-evaluation
 inputs: A vague business ask or request to apply ML, before any data exploration or modeling has begun.
 outputs: A structured problem spec (unit, horizon, label, metric, baseline), a leakage-audited label definition, and a non-ML baseline score to beat.
+version_constraints:
+  - "pandas>=2.0: Series.between(inclusive='right'), DatetimeIndex.where, pd.to_timedelta(unit='D') (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified)"
+  - "scikit-learn>=1.0: DummyClassifier(strategy='prior'), train_test_split(stratify=), average_precision_score (executed against scikit-learn 1.9.0 on 2026-10-27; lower bound not verified)"
 ---
 
 ## Overview
@@ -80,6 +83,7 @@ building the wrong thing or leaking the answer into the features.
    import numpy as np
    import pandas as pd
 
+   # Synthetic stand-in so the example runs end to end — load your real table here.
    rng = np.random.default_rng(42)
    n = 5000
    df = pd.DataFrame({
@@ -95,6 +99,14 @@ building the wrong thing or leaking the answer into the features.
    print(f"rows: {len(df):,}")
    print(df["churn"].value_counts(normalize=True))       # class balance check
    print(df.isna().mean().sort_values(ascending=False))   # feature availability
+
+   def require_both_classes(label: pd.Series) -> None:
+       """A stratified split and PR-AUC both need at least 2 examples of each class."""
+       class_counts = label.value_counts()
+       if len(class_counts) < 2 or class_counts.min() < 2:
+           raise ValueError(f"label is degenerate: {class_counts.to_dict()} — revisit the label or horizon")
+
+   require_both_classes(df["churn"])   # re-run on the final label in step 4
    ```
 3. **Pick the ML formulation with an explicit decision rule, not by default.**
    The task type determines everything downstream (loss, metric, model
@@ -114,17 +126,45 @@ building the wrong thing or leaking the answer into the features.
    print(choose_formulation(label_type="categorical", needs_ranking=False, has_labels=True))
    ```
 4. **Build the label with an explicit time cutoff and audit for leakage.**
-   The label and every feature must only use information available *as of*
-   the scoring moment — the most common way ML problems are mis-framed.
+   The label must come only from events *after* the scoring moment, and every
+   feature only from information available *as of* it — getting this wrong is
+   one of the most common ways ML problems are mis-framed.
    ```python
    scoring_date = pd.Timestamp("2026-01-01")
-   df["scoring_date"] = scoring_date
-   df["signup_date"] = scoring_date - pd.to_timedelta(df["tenure_months"] * 30, unit="D")
+   horizon = pd.Timedelta(days=30)
 
-   # Leakage check: every feature must be derivable from data at/ before scoring_date.
-   assert (df["signup_date"] <= df["scoring_date"]).all(), (
-       "Found a feature computed from information after the scoring date"
-   )
+   # Synthetic raw timestamps, consistent with the simulated churn flag above.
+   df["signup_date"] = scoring_date - pd.to_timedelta(df["tenure_months"] * 30, unit="D")
+   cancel_offset = pd.to_timedelta(rng.integers(1, 31, len(df)), unit="D")
+   df["cancel_date"] = (scoring_date + cancel_offset).where(df["churn"].eq(1).to_numpy())
+
+   # Label: cancellation strictly after the cutoff and within the horizon.
+   df["churn"] = df["cancel_date"].between(
+       scoring_date, scoring_date + horizon, inclusive="right").astype(int)
+   require_both_classes(df["churn"])   # this is the label step 5 trains on
+
+   def audit_feature_asof(feature_cols, feature_asof, cutoff):
+       """Fail unless every feature declares the latest timestamp of the data it
+       was computed from, and none is later than the cutoff. Raises instead of
+       `assert`, which `python -O` strips. A null timestamp (e.g. .max() of an
+       empty or all-NaT column) counts as undeclared: `NaT > cutoff` is False."""
+       missing = sorted(set(feature_cols) - {f for f, ts in feature_asof.items()
+                                             if not pd.isna(ts)})
+       if missing:
+           raise ValueError(f"no as-of timestamp recorded for features: {missing}")
+       late = {f: str(ts) for f, ts in feature_asof.items() if ts > cutoff}
+       if late:
+           raise ValueError(f"features use data from after {cutoff}: {late}")
+
+   feature_cols = ["tenure_months", "support_tickets_30d", "monthly_spend"]
+   # In production, take these from your feature pipeline's metadata.
+   feature_asof = {
+       "tenure_months": df["signup_date"].max(),
+       "support_tickets_30d": scoring_date,          # window (scoring_date - 30d, scoring_date]
+       "monthly_spend": scoring_date - pd.Timedelta(days=1),
+   }
+   audit_feature_asof(feature_cols, feature_asof, scoring_date)
+   # cancel_date feeds the label only — it (or anything derived from it) is never a feature.
    ```
 5. **Establish a non-ML baseline before building any model.** If a simple
    rule or the prior class distribution already scores well, that's the bar
@@ -134,7 +174,7 @@ building the wrong thing or leaking the answer into the features.
    from sklearn.model_selection import train_test_split
    from sklearn.metrics import average_precision_score
 
-   X = df[["tenure_months", "support_tickets_30d", "monthly_spend"]]
+   X = df[feature_cols]   # exactly the features audited in step 4
    y = df["churn"]
    X_train, X_test, y_train, y_test = train_test_split(
        X, y, test_size=0.2, stratify=y, random_state=42)

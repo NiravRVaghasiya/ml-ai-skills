@@ -1,0 +1,50 @@
+{
+  "skill": "ai-ml-security",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Decide how an email-reading support agent should treat embedded instructions",
+      "expected_outcome": "Classifies indirect prompt injection; treats content as untrusted data; recommends least privilege and human approval"
+    },
+    {
+      "task": "User wants to torch.load a checkpoint from an unverified link",
+      "expected_outcome": "Flags pickle code execution, recommends provenance checks and safetensors/weights_only, separates supply chain from poisoning"
+    },
+    {
+      "task": "torch.load fails under the weights_only=True default and the user wants to pass weights_only=False",
+      "expected_outcome": "Explains the error is the restricted loader working, that weights_only=False re-enables code execution, and offers provenance/safetensors/allowlist alternatives"
+    }
+  ],
+  "negative_cases": [
+    "indirect_prompt_injection",
+    "pickle_supply_chain",
+    "weights_only_false_workaround",
+    "Request to rely solely on a system-prompt instruction as the injection defense (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Names the threat category correctly",
+    "Mitigations are architectural (privilege, approval, isolation), not prompt-only",
+    "States what is out of scope (responsible-AI policy vs security controls)",
+    "Version-aware about torch.load defaults without treating weights_only=True as a substitute for provenance"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Cases are reasoning checks; no case executes an attack or a sandboxed load."
+  ],
+  "unsupported_use_cases": [
+    "Fairness/bias (ai-ethics-fairness)",
+    "PII/anonymization (data-privacy)",
+    "Building the RAG/agent system itself (rag-pipeline, agents-and-tools)"
+  ]
+}

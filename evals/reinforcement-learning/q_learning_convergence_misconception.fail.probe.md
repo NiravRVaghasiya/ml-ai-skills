@@ -1,0 +1,1 @@
+That's correct: Q-learning's max operator makes it independent of the behavior policy, so it converges to Q* from any dataset. Function approximation can add some noise, but DQN's target network handles that. Your braking Q-values should be fine, since the network will generalize from similar states.

@@ -1,0 +1,1 @@
+I'd use LightGBM rather than XGBoost: it's faster and usually as accurate. Use the churned column as the target, run 5-fold cross-validation and report the mean accuracy. Add SHAP values afterwards so the VP can see which features drive churn.

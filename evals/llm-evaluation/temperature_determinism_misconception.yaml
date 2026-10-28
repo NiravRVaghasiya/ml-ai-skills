@@ -1,14 +1,38 @@
+id: temperature_determinism_misconception
 skill: llm-evaluation
 category: misconception
+kind: response
 input: |
   I set temperature=0 so my eval harness's outputs are now fully deterministic and reproducible across runs, right?
 expected_behavior:
-  - corrects the claim: temperature=0 makes sampling *close to* deterministic (always picking the top-probability token) but does not guarantee bit-for-bit identical outputs across all environments
-  - explains at least one real source of residual nondeterminism (floating-point non-associativity across different batch compositions/hardware/kernels, backend routing changes, ties broken differently, provider-side model updates behind a fixed model string)
-  - recommends what to do instead for reproducible evaluation (pin the model version/snapshot, log full outputs, treat evals as approximately- not exactly-reproducible, run multiple trials where it matters)
+  - 'corrects the claim: where a provider accepts temperature=0, it makes decoding *close to* greedy (always picking the top-probability token) but does not guarantee bit-for-bit identical outputs across runs or environments'
+  - 'explains at least one real source of residual nondeterminism (floating-point non-associativity across different batch compositions/hardware/kernels, backend routing changes, ties broken differently, provider-side model updates behind a fixed model string)'
+  - 'recommends what to do instead for reproducible evaluation (pin the model version/snapshot, log full outputs and cache them per model and prompt version, measure the noise floor by re-running an unchanged system, treat evals as approximately- not exactly-reproducible, run multiple trials where it matters)'
+  - 'optional, not required for a pass: notes that some current APIs/SDKs do not accept temperature or other sampling parameters at all, so it may not even be available as a control (llm-evaluation/SKILL.md states this for the current Claude Messages API; this repository has only verified that the anthropic Python SDK 2.3.0 raises TypeError on temperature=, with no live API call)'
 must_not:
-  - agree that temperature=0 guarantees full determinism
+  - 'agree that temperature=0 guarantees full determinism'
+  - 'present temperature=0 as the reproducibility control to rely on, or assert as fact which providers or API versions accept it without qualification'
+must_include:
+  - '\b(not (fully |completely |strictly |perfectly |truly |100% |necessarily )?(deterministic|reproducible|identical)|not (bit-for-bit|bitwise|byte-for-byte|exactly) (deterministic|reproducible|identical)|n''t (fully |completely |strictly |perfectly |always |necessarily |bit-for-bit |exactly )?(deterministic|reproducible|identical)|non-?determinis\w+|not guarantee\w*|no guarantee|(doesn''t|does not|won''t|will not) guarantee|(isn''t|is not) guaranteed|(can|may|might|could) (still )?(differ|vary|change|diverge))\b'
+  - '\b(floating[- ]point|batch\w*|hardware|GPUs?|accelerators?|kernels?|non-?associativ\w+|order of (operations|summation|accumulation)|parallel\w*|ties|tie-?break\w*|model (updates?|versions?|snapshots?)|backend|routing|infrastructure|load balanc\w+)\b|\b(provider|vendor|api)\b[^.]{0,40}\b(updat\w+|chang\w+|swap\w*)'
+  - '\b(pin\w*|snapshot|dated model|log(ging)? (the )?(full |raw )?(prompts and )?(outputs?|responses?|completions?|generations?)|multiple (runs|trials|samples|seeds)|repeat\w* (the )?(runs|trials|eval\w*)|(several|multiple|repeated|a few|many) times|more than once|confidence intervals?|approximately reproducible|noise floor)\b|\b(record|log|store|save|keep|track)\w*\b[^.]{0,30}\b(model (id|identifier|name|version)|every (output|response)|all (outputs|responses)|raw (outputs|responses))'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\btemperature ?(=|of|at)? ?0\b[^.]{0,30}\b(guarantees|ensures|makes (it|them|outputs?|results?|the outputs?) (fully |completely |perfectly )?(deterministic|reproducible))\b'
+  - '\b(outputs?|results?|responses?|answers?|generations?|completions?|it|runs?)\b[^.]{0,15}\b(will|would|should) (not|never) (vary|change|differ)\b'
+  - '\b(outputs?|results?|it|decoding|generation|the model|harness)( is| are|''s| will be| would be) (now )?(fully |completely |perfectly |strictly |100% )?(deterministic|reproducible)\b(?![^.]{0,40}\b(only|but|yet|however|though|although|isn''t|is not|in principle|in theory)\b)'
+  - '\b(no need|(don''t|do not|won''t|will not) need) to (pin|log|record|store|keep|repeat|re-?run|run (it |each \w+ |them )?(multiple|several|more|again)|sample|average)'
+  - '\b(hardware|batch\w*|gpus?|floating[- ]point|nondeterminism|kernels?)\b[^.]{0,40}\b(is|are|does|do)(n''t| not) (a )?(concern|issue|problem|matter|factor)\b(?![^.]{0,40}\b(but|unless|except|only)\b)'
+  - '\b(effects?|nondeterminism)\b[^.]{0,40}\b(don''t|do not|won''t|never) (change|affect|alter|flip)\b(?![^.]{0,40}\b(but|can|may|sometimes)\b)'
+  - '\bone run (per prompt |each )?is (enough|sufficient)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'Which residual nondeterminism sources apply depends on the provider and serving stack; the case accepts any one named source rather than checking it is the dominant one.'
 notes: >
   This is the exact example named in the mission brief's evidence-discipline phase
-  ("Temperature 0 makes results deterministic" as a claim to rewrite). Also
-  connects to docs/REPRODUCIBILITY.md.
+  ("Temperature 0 makes results deterministic" as a claim to rewrite). Also connects
+  to docs/REPRODUCIBILITY.md. Updated after Phase 1: llm-evaluation/SKILL.md now says the
+  current Claude Messages API no longer accepts temperature, so the case grades the
+  provider-independent lesson (sampling settings do not guarantee determinism; pin, log,
+  repeat) and accepts, but does not require, a note that the parameter may be unavailable.
+  The pass.unavailable fixture checks that such an answer still passes.

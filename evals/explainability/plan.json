@@ -1,0 +1,53 @@
+{
+  "skill": "explainability",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "SHAP gives a correlated feature low importance; conclude it doesn't matter?",
+      "expected_outcome": "Explains credit splitting under correlation, rejects the causal conclusion, proposes correlation checks / grouped or drop-column importance"
+    },
+    {
+      "task": "Explain one prediction of a gradient-boosting model",
+      "expected_outcome": "Local SHAP attributions with a cross-method agreement check"
+    },
+    {
+      "task": "Plot SHAP values of a 3-class RandomForest by slicing [:, :, 1]",
+      "expected_outcome": "Explains the per-class axis, picks and labels the class explicitly or aggregates mean |SHAP|, never sums signed values across classes"
+    }
+  ],
+  "negative_cases": [
+    "shap_correlated_features",
+    "multiclass_shap_class_axis",
+    "Request to present SHAP values as causal effects in a report (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Correlation caveat stated",
+    "Attribution is not causation",
+    "A concrete disambiguation step",
+    "Multi-output attributions handled per class, not presented as whole-model importance"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, pandas, scikit-learn, shap, matplotlib) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "2-D SHAP values for an explicitly chosen class that reproduce predict_proba for that class"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Group fairness measurement (ai-ethics-fairness)",
+    "PII removal (data-privacy)"
+  ]
+}

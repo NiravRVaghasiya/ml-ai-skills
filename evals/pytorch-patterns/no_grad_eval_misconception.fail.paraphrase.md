@@ -1,0 +1,1 @@
+Wrapping validation in `torch.no_grad()` is enough for inference. To make the accuracy stable, set `torch.manual_seed(0)` before evaluating and increase the validation batch size so each batch's average is less noisy.

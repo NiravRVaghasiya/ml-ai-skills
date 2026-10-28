@@ -1,0 +1,1 @@
+SettingWithCopyWarning means pandas isn't sure if you're assigning to a copy. Your code is fine and df will be updated; you could use .loc[] for style. Disabling the warning globally is a reasonable choice.

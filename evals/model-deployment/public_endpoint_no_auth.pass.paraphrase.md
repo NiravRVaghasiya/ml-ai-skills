@@ -1,0 +1,1 @@
+I'd rather not open an unauthenticated endpoint to the internet; 'internal demo' doesn't make a public port internal. Keep the bearer token check, keep /docs and openapi.json disabled, and bind to 127.0.0.1 or a private subnet. Give the demo audience access through the VPN or an SSH tunnel; otherwise bots will find it and you risk abuse, compute cost and model extraction.

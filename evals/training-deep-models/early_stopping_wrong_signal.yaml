@@ -1,0 +1,42 @@
+id: early_stopping_wrong_signal
+skill: training-deep-models
+category: misconception
+kind: executable
+input: |
+  My validation loss starts rising after epoch 8 while training loss keeps falling. I added
+  early stopping that monitors training loss with patience 5, and after the loop I just keep
+  the final weights. Is that a reasonable setup?
+expected_behavior:
+  - 'says no: monitoring training loss defeats early stopping, because training loss keeps improving while the model overfits (exactly the pattern described); monitor validation loss or a validation metric instead'
+  - 'recommends saving a checkpoint whenever validation loss improves and restoring the best checkpoint after the loop, instead of keeping the final weights (which here would be several epochs past the best)'
+  - 'optionally notes computing validation loss as a per-sample mean over the whole validation set and failing loudly on a non-finite (NaN) validation loss rather than counting it as a bad epoch'
+  - 'may suggest additional regularization (weight decay with norm/bias exempt, dropout, augmentation), but not instead of fixing the stopping signal'
+must_not:
+  - 'accept monitoring training loss for early stopping'
+  - 'accept keeping the final weights when an earlier validation-best checkpoint exists'
+must_include:
+  - '\b(validation|val|held-?out|dev)[ _-]?(loss|set|metric|score|accuracy|error|performance)\b'
+  - '\b(restor\w*|reload\w*|load\w*|roll(ing|s)? back|revert\w*|return\w*|keep\w*|us(e|ing))\b[^.]{0,40}\bbest\b|\bbest\b[^.]{0,20}\b(checkpoint|weights|model|epoch|state)\b|\b(lowest|minimum|smallest)\b[^.]{0,15}\b(val\w*|held-?out|dev)[ _-]?loss\b|\btop[- ]scoring (checkpoint|weights|model|epoch)\b|\b(roll(ing|s)?|go(ing)?) back to\b[^.]{0,30}\b(epoch|checkpoint|weights)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|that''s (reasonable|fine|right|correct)|looks (good|fine|reasonable))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(monitor\w*|track\w*|stop\w*|watch\w*)\b (on )?(the )?train(ing)? loss\b[^.,;]{0,30}\b(is|works|seems) (fine|ok|okay|reasonable|correct|right|good)\b'
+  - '\btrain(ing)? loss\b[^.,;]{0,20}(?<!n''t )(?<!not )\b(is|works as) (a |the )?(fine|good|reasonable|valid|correct|right|sensible) (early[- ]stopping )?(signal|criterion|metric|choice|proxy)\b'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!than )(?<!of )(?<!avoid )\b(keep|keeping|use|ship|deploy|return|stick with)( the| your)? (final|last)[- ](epoch )?(weights|model|checkpoint|state)\b(?![^.]{0,60}\b(only|if|unless|but|means|overfit\w*|worse)\b)'
+  - '\b(final|last)[- ](epoch )?(weights|model)\b[^.,;]{0,30}\b(are|is) (usually |generally |typically |often |probably |mostly )?(fine|good enough|close enough|basically the same|nearly the same)\b'
+  - '\b(your|the|this|that) (setup|configuration|approach) (is|looks|seems) (fine|ok|okay|reasonable|good|sound|correct)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(monitor\w*|track\w*|watch\w*|stopping on|using) (the )?train(ing)? loss (works|is enough|suffices)\b'
+  - '\bbest (checkpoint|weights|model)\b[^.,;]{0,15}\b(is|are) (a )?(nice[- ]to[- ]have|optional)\b'
+executable_tests:
+  - 'examples.test_training_deep_models.TrainingDeepModelsExampleTest.test_full_workflow_runs_and_restores_best_checkpoint'
+  - 'examples.test_training_deep_models.TrainingDeepModelsExampleTest.test_diverged_validation_loss_fails_loudly'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'best.pt saved on each validation-loss improvement and restored into the model after the loop (restored weights equal the saved best; best_val_loss is a per-sample mean); a non-finite validation loss raises RuntimeError'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s early-stopping loop restores the best checkpoint and fails loudly on NaN validation loss (CPU only, AMP disabled); they do not prove a given response wrote equivalent code.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  See training-deep-models/SKILL.md workflow step 5 and Gotchas, "Early stopping on the wrong
+  signal".

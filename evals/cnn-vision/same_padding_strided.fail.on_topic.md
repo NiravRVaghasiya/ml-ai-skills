@@ -1,0 +1,1 @@
+Keras 'same' at stride 2 gives ceil(56/2) = 28, and PyTorch supports padding='same' with stride=2 using the same convention, so your nn.Conv2d will output 28×28 just like Keras. There's no need to set explicit padding, and since the shapes match, the outputs will match once you copy the weights.

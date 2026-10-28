@@ -1,0 +1,1 @@
+Refusals and max_tokens truncations will just score low, and that is the correct penalty for a model that didn't answer. Keep them in the averages; you could report the incomplete count separately if you like, but the overall means are still fine to use for the regression gate.

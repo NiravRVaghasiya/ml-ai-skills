@@ -1,0 +1,1 @@
+The dot products get larger as d_k grows - their variance grows with d_k - so dividing by √d_k normalizes the scores so that the attention weights sum to 1 and form a proper probability distribution. Without it the weights wouldn't sum to 1, the softmax would saturate, and training would be unstable.

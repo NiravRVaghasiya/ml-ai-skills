@@ -1,0 +1,1 @@
+Leaking restricted docs is a risk, so log every null ACL you see and count them on a dashboard. Treating a null ACL as no restriction is acceptable for now because dropping documents hurts recall; later you can make the connector send an explicit list.

@@ -1,0 +1,1 @@
+Yes, that's the standard way to compute MSE in numpy. If the value seems high, the model is probably underfitting or there are outliers in your targets - look at the residual distribution and consider a more expressive model or a robust loss.

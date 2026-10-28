@@ -1,0 +1,1 @@
+There's some risk of leakage, but tickets are a legitimately strong churn signal and the as-of cutoff mostly matters for the label. The 0.93 is impressive; maybe it's a little optimistic, so monitor it in production, but I'd go ahead and launch.

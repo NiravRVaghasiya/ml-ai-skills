@@ -1,0 +1,1 @@
+Yes, your colleague is right. The sqrt(d_k) factor is a normalization that keeps the attention logits standardized, which is why transformers never need to worry about logit scale. Dividing by d_k would also work; it's a convention, and the original paper picked sqrt(d_k) because it performed slightly better.

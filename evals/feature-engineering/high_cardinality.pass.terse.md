@@ -1,0 +1,1 @@
+Not a good idea for 9,000 levels: one-hot would explode the feature space into thousands of columns that are almost all zero. Consider target encoding with out-of-fold fitting (otherwise it leaks the label), hashing, frequency encoding, or rolling ZIPs up to a coarser region. Which one is best depends on your model and how much data each ZIP has.

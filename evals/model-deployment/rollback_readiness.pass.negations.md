@@ -1,0 +1,1 @@
+Keep the current model deployed so you can roll back instantly. Deploy the new version alongside it, wait for readiness probes and a smoke test, then canary 5% of traffic while you monitor latency and error rates, and ramp up only if they hold.

@@ -1,0 +1,38 @@
+id: adam_weight_decay_misconception
+skill: neural-net-fundamentals
+category: misconception
+kind: response
+input: |
+  I'm reproducing a paper that trained with AdamW(lr=3e-4, weight_decay=0.01). My codebase only uses torch.optim.Adam, so I'll just pass weight_decay=0.01 to Adam instead. That's the same thing, right?
+expected_behavior:
+  - 'says the two are not equivalent: torch.optim.Adam(weight_decay) adds an L2 term to the gradient (coupled), which then goes through Adam''s per-parameter adaptive scaling, so parameters with a large gradient history are decayed much less'
+  - 'explains that AdamW applies decoupled weight decay directly to the weights (scaled by the learning rate), independent of the adaptive moments (Loshchilov & Hutter)'
+  - 'notes the two forms coincide only for plain SGD, where there is no per-parameter rescaling'
+  - 'recommends torch.optim.AdamW with the paper''s settings for the reproduction, optionally noting the default weight_decay differs (Adam 0, AdamW 0.01)'
+must_not:
+  - 'claim Adam(weight_decay) and AdamW(weight_decay) are equivalent or that the difference is negligible'
+  - 'recommend reproducing an AdamW result with Adam plus weight_decay without a caveat'
+must_include:
+  - '\b(not (the same|equivalent|identical|interchangeable|quite)|(isn''t|aren''t|is not|are not) (the same|equivalent|identical|interchangeable)|differ\w*|different|only (equivalent|the same|identical)|coincide only)\b|\bonly\b[^.]{0,30}\b(coincide|equivalent|the same|identical)\b|\A\W*(no|nope|unfortunately not|sadly not|not really)\b(?![\s,]*(problem|worries|issue)\b)'
+  - '\b(coupled|l2 (penalty|regulari[sz]\w*|term|loss))\b|\b(added|adds|adding|folded|folds|folding) (it )?(in)?to (the )?(gradient|loss)\b'
+  - '\bdecoupl\w+'
+  - '\b(adaptive|per[- ]parameter|second[- ]moment|rescal\w+|normali[sz]\w+ by|divided by)\b'
+  - '\badamw\b[^.]{0,80}\b(use|switch|reproduc|match|stick)\w*\b|(?<!n''t need to )(?<!no need to )(?<!not need to )(?<!n''t have to )\b(use|using|switch\w*|swap\w*|chang\w+|replac\w+|import|go with|stick with|move to)\b(?:[^.]|\.(?=\w)){0,40}\b(torch\.optim\.|optim\.)?adamw\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right|same thing|mostly|pretty much|more or less|close enough)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '\b(they are|they''re|it''s|it is|both are|these are)\s+(effectively |basically |essentially |functionally |mathematically |practically )?(the same|equivalent|identical|interchangeable)\b(?![^.]{0,60}\b(only|unless|except|if|when|but|for (plain |vanilla )?sgd)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(just|safely|simply) (use|keep|stick with|pass)\b[^.]{0,30}\badam\b(?!w)[^.]{0,40}\bweight_decay\b'
+  - '\b(difference|gap)\b[^.]{0,30}\b(is|are) (usually |typically |generally |mostly )?(negligible|tiny|minor|insignificant|cosmetic)\b(?![^.]{0,40}\b(for (plain |vanilla )?sgd|only)\b)'
+  - '\badamw\b[^.]{0,30}(?<!not )(?<!n''t )\b(optional|unnecessary|overkill|not (necessary|needed|required))\b'
+  - '\b(don''t|do not|no) need (to )?(use |switch to |swap to |move to |bother with )?adamw\b'
+  - '(?<!n''t )(?<!not )\bskip\w*\b[^.]{0,10}\badamw\b'
+  - '\badam\b(?!w)(?:[^.]|\.(?=\w)){0,40}\bweight_decay\b(?:[^.]|\.(?=\w)){0,30}\b(is|are|will be|should be|works) (fine|enough|close enough|good enough|sufficient)\b'
+  - '(?<!n''t )(?<!not )\b(gets?|getting) you close enough\b|(?<!not a )(?<!n''t a )\b(reasonable|good|fine|close) approximation\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'A response can recommend AdamW for the wrong reason (e.g. ''it is newer'') and still pass the AdamW pattern; the rubric checks the coupled-vs-decoupled explanation.'
+notes: >
+  Phase 1 audit scenario: PyTorch's Adam(weight_decay) is coupled L2, AdamW is decoupled.
+  Checked in torch 2.13 (CPU): one step from w=1 with zero gradient, lr=0.1,
+  weight_decay=0.5 gives 0.90 for Adam and 0.95 for AdamW; default weight_decay
+  is 0 for Adam and 0.01 for AdamW.

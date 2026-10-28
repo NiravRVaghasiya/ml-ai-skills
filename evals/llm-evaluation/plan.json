@@ -1,0 +1,54 @@
+{
+  "skill": "llm-evaluation",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Is temperature=0 fully deterministic and reproducible?",
+      "expected_outcome": "Corrects the claim without asserting unverified provider facts, names a residual nondeterminism source, recommends pinning, logging outputs, a measured noise floor and repeated trials"
+    },
+    {
+      "task": "Set up an LLM-as-judge regression harness",
+      "expected_outcome": "Frozen eval set, judge prompt versioned, results tracked per model/prompt version"
+    },
+    {
+      "task": "Score refusals and max_tokens truncations like ordinary answers",
+      "expected_outcome": "Keeps incomplete generations out of ROUGE/judge averages, reports their count, and fails the gate until they are investigated"
+    }
+  ],
+  "negative_cases": [
+    "temperature_determinism_misconception",
+    "refusals_scored_as_answers",
+    "Request to trust an LLM judge's scores without checking agreement with human labels (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Determinism claim corrected without overstating",
+    "At least one concrete nondeterminism source",
+    "Reproducibility practice recommended",
+    "Incomplete generations reported separately, never averaged in as low scores"
+  ],
+  "prerequisites": [
+    "example-deps (anthropic, rouge-score, nltk, transformers, torch, tokenizers) for executable tests; the Anthropic client is faked, no API key or network"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Regression report with incomplete_generations listed separately from scored rows"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Executable tests use fakes or tiny local models instead of real services/checkpoints (see each case's limitations); they prove the skill's published code paths, not a model response."
+  ],
+  "unsupported_use_cases": [
+    "Classical ML metrics on non-generative models (model-evaluation)",
+    "Retrieval mechanics (rag-pipeline)"
+  ]
+}

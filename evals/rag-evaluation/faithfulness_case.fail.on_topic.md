@@ -1,0 +1,1 @@
+It's a close paraphrase with the same meaning, but faithfulness requires the answer to match the source text, and "5 to 7 business days once approved" doesn't reproduce "processed within 5-7 business days after approval". So it is not faithful; a strict grader should mark it as unsupported, even if the answer is correct.

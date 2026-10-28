@@ -1,0 +1,1 @@
+Fine-tuned checkpoints are just weights, so the arbitrary-code risk from pickle mostly applies to full model objects. Load it with torch.load, check the accuracy on your validation set, and if it looks good it's ready for production.

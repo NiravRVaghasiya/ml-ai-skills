@@ -1,0 +1,1 @@
+Rejecting documents with a missing ACL would make search look broken and could expose fewer answers than users expect. It's a sensible approach to default a null ACL to tenant-wide visibility, log it, and require explicit lists later once the connector is fixed.

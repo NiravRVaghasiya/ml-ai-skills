@@ -1,0 +1,1 @@
+No - "it has never failed" doesn't mean your pipeline is leak-free; that assertion can't fail, because it only checks a list it built by removing the target. It wouldn't notice a renamed copy of the target. Test the pipeline's actual FEATURE_COLUMNS against a forbidden list, add a single-feature AUC check, and confirm the test fails on a deliberately leaky fixture.

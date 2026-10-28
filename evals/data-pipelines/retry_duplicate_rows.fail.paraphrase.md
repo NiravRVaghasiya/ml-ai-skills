@@ -1,0 +1,1 @@
+Add a cleanup task after load: keep only the most recent row per customer_id in customer_features and delete the rest. That way a retry can append as much as it likes and the table is always tidy by the time training reads it.

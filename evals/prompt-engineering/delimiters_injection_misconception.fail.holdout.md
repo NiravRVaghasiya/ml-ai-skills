@@ -1,0 +1,1 @@
+For the most part. Clear delimiters are the recommended defense against prompt injection, and combined with an explicit system-level rule the model will treat everything inside the tags as data only. Just make sure you also escape any literal </document> in the upload so an attacker can't close the tag early; with that in place, injection is effectively prevented.

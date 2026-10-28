@@ -1,0 +1,1 @@
+No. Clicks are implicit feedback - they tell you how confident to be that a user likes an item, not a rating, and non-clicks aren't negative ratings. Use ALS with confidence weighting (or BPR) on the raw counts, and choose models by NDCG@10 / Precision@10 on a time-based holdout instead of RMSE.

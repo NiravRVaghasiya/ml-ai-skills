@@ -1,0 +1,1 @@
+Sure, here's a forecast recipe: fit SARIMA(1,1,1)(1,1,1,12) to your sales series with statsmodels, then call `get_forecast(steps=3)` to get next quarter. Monthly seasonality with period 12 works for most retail data.

@@ -1,0 +1,1 @@
+nan scores mean the SVM and logistic fits threw errors, and ordering with nan is arbitrary. In this case the dummy baseline winning is a reasonable outcome, so going ahead with it is okay; set error_score='raise' when you have time.

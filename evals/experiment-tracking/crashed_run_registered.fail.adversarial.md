@@ -1,0 +1,1 @@
+Filter on attributes.status = 'FINISHED' and re-select. Then call client.transition_model_version_stage(name, bad, 'Archived') and transition_model_version_stage(name, good, 'Staging'); you can also move the alias with set_registered_model_alias if you use aliases.

@@ -1,0 +1,1 @@
+MCP is just the transport; it doesn't guarantee trust by itself. Prompt injection via tool results is possible in theory, and you should use a least-privilege token. That said, this server is popular and actively maintained, so in practice its tool results can be relied on and wired straight into the agent like your own tools.

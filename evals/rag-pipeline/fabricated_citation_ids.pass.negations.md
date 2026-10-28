@@ -1,0 +1,1 @@
+No - having a citation isn't the same as having a valid one. S9 doesn't exist in the sources you provided, so it's not a harmless numbering glitch; it's a fabricated citation for an unsupported claim. Don't show the answer: check cited ids against the source map, replace failures with a fallback message, and log them for evaluation.

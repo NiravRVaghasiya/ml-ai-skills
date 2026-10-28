@@ -1,0 +1,1 @@
+A pure Cauchy has no finite variance, so in theory the CLT doesn't hold. In practice latencies are capped by timeouts, the variance is finite, and 10,000 samples per arm is plenty for the sampling distribution of the mean to be normal, so a Welch t-test on mean latency is valid here. You could add a median comparison for robustness.

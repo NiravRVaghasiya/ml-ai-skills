@@ -1,0 +1,54 @@
+{
+  "skill": "rag-evaluation",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Is a paraphrased answer faithful to its retrieved source?",
+      "expected_outcome": "Recognizes a faithful paraphrase and separates faithfulness from correctness"
+    },
+    {
+      "task": "Faithfulness passes but retrieved documents conflict (stale vs current policy)",
+      "expected_outcome": "Identifies the conflicting-sources failure mode and fixes it at retrieval/ranking/indexing"
+    },
+    {
+      "task": "Score unlabeled eval queries as 0 recall / 0 reciprocal rank to keep the denominator",
+      "expected_outcome": "Treats unlabeled metrics as undefined, reports the labeled-subset metric with the skipped count"
+    }
+  ],
+  "negative_cases": [
+    "conflicting_sources",
+    "unlabeled_queries_in_mrr",
+    "Request to report one blended RAG score instead of separate retrieval and generation metrics (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Faithfulness vs correctness kept separate",
+    "Failure mode named",
+    "Fix placed at the right layer",
+    "Unlabeled queries excluded from retrieval means and counted"
+  ],
+  "prerequisites": [
+    "Executable tests referenced by cases need no third-party packages; numpy and scikit-learn are used only by the nDCG cross-check test"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Retrieval metrics that return NaN for unlabeled queries and a printed skipped-query count"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Building the retrieval pipeline (rag-pipeline)",
+    "Generic LLM text evaluation (llm-evaluation)",
+    "Agent trajectories (agent-evaluation)"
+  ]
+}

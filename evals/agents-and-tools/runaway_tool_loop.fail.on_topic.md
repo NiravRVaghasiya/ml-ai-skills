@@ -1,0 +1,1 @@
+Add the instruction; that will be enough in most cases, because the model will obey a clear rule like "do not retry failed searches". A max-iteration cap or a budget is a nice backstop, but loop detection and backoff are over-engineering for one bad run, so you can skip them for now.

@@ -1,0 +1,1 @@
+No - don't ship the top-ranked one. nan isn't just a low score; it means those fits or scorers failed with an error. Sorting with nan keys is arbitrary, which is how the dummy baseline came out on top. Never rank until every score is finite: raise on nan (or use error_score="raise"), fix the failing models, and don't ship anything that doesn't beat the baseline.

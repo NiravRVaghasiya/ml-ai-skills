@@ -1,0 +1,1 @@
+The scaling isn't there to make the weights sum to 1 (softmax does that), and it isn't a speed trick. It's because the dot product's variance increases linearly with d_k; without dividing by √d_k the softmax saturates into a near one-hot distribution and the gradients become vanishingly small.

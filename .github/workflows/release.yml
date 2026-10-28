@@ -1,0 +1,227 @@
+name: release
+
+# Builds and publishes the release tarball when a version tag (v*) is pushed. Never runs on
+# pull requests. Two jobs:
+#   verify   read-only token: the tagged commit is on the default branch and has a green
+#            ci.yml push run (so every CI job - examples, installer on macOS, plugins,
+#            routing - passed for exactly this commit), VERSION == tag, the fast gates
+#            again (same list as ci.yml's lint + validate jobs, plus unit tests), and a
+#            reproducible build whose SHA-256 is handed to the next job
+#   publish  the only job with write scopes: rebuilds on a fresh runner, requires the
+#            byte-identical SHA-256, refuses (before attesting anything) to replace an existing
+#            release's assets unless its SHA256SUMS is byte-identical to the rebuild (an
+#            idempotent re-run), attests build provenance, uploads to the GitHub release.
+# The build is scripts/build_release.py (sorted entries, SOURCE_DATE_EPOCH = tag commit
+# time, uid/gid 0, normalized modes). Pin bump procedure: see the header of ci.yml.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+
+jobs:
+  verify:
+    name: Verify tag, run gates, reproducible build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read  # gh run list: look up the ci.yml run for the tagged commit
+    outputs:
+      sha256: ${{ steps.build.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # all branches, for the default-branch ancestry check
+      - name: The tagged commit is on the default branch and its CI passed
+        # A v* tag can be pushed on any commit; only reviewed, merged commits whose full
+        # ci.yml run succeeded are released. If the tag was pushed before CI finished, wait
+        # for the ci.yml run on the default branch to go green and re-run this workflow.
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          if ! git merge-base --is-ancestor "$sha" "origin/$DEFAULT_BRANCH"; then
+            echo "::error::tagged commit $sha is not on origin/$DEFAULT_BRANCH"
+            exit 1
+          fi
+          green="$(gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 20 --json databaseId --jq 'length')"
+          if [ "$green" -lt 1 ]; then
+            echo "::error::no successful ci.yml push run for $sha (still running, failed, cancelled, or this commit was not the tip of a push). Re-run that commit's ci.yml push run (Actions > skill-library-ci, filter by the commit), wait for it to pass, then re-run this workflow."
+            exit 1
+          fi
+          echo "ci.yml succeeded for $sha ($green run(s))"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: VERSION matches the tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::tag $TAG does not match VERSION $version"
+            exit 1
+          fi
+          grep -qF "## [$version]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## [$version]' section"; exit 1; }
+      - name: Install the pinned ruff and shellcheck from requirements-dev.txt
+        run: python -m pip install "$(grep -E '^ruff==' requirements-dev.txt)" "$(grep -E '^shellcheck-py==' requirements-dev.txt)"
+      - name: Validation gates (ci.yml lint + validate, generated-artifact drift, offline evals)
+        run: |
+          set -euo pipefail
+          ruff check --output-format=github .
+          shellcheck install.sh uninstall.sh bin/ml-ai-skills
+          python scripts/audit_workflows.py --strict
+          python scripts/validate_skills.py --warnings
+          python scripts/generate_schema.py --check
+          python scripts/check_contract.py --check --base-ref HEAD^1
+          python scripts/validate_evals.py --strict --require-full-coverage
+          python scripts/check_claims.py
+          python scripts/check_freshness.py
+          python scripts/check_generated.py
+          python scripts/run_evals.py --out "$RUNNER_TEMP/eval-report.json"
+      - name: Unit tests (stdlib only; installer tests run in CI on ubuntu + macOS)
+        run: |
+          set -euo pipefail
+          mods=()
+          for f in tests/test_*.py; do
+            case "$f" in tests/test_install*) continue ;; esac
+            m="${f#tests/}"; mods+=("${m%.py}")
+          done
+          PYTHONPATH=tests python -m unittest "${mods[@]}"
+      - name: Build twice and require identical bytes
+        id: build
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir "$RUNNER_TEMP/a"
+          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir "$RUNNER_TEMP/b"
+          cmp "$RUNNER_TEMP"/a/*.tar.gz "$RUNNER_TEMP"/b/*.tar.gz
+          (cd "$RUNNER_TEMP/a" && sha256sum -c SHA256SUMS)
+          echo "sha256=$(cut -d' ' -f1 "$RUNNER_TEMP/a/SHA256SUMS")" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Rebuild, attest, upload to the GitHub release
+    needs: verify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write      # create the release / upload assets
+      id-token: write      # OIDC token for the provenance attestation
+      attestations: write  # store the attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Rebuild and compare with the verify job's SHA-256
+        env:
+          TAG: ${{ github.ref_name }}
+          EXPECTED_SHA256: ${{ needs.verify.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
+          export SOURCE_DATE_EPOCH
+          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir dist
+          (cd dist && sha256sum -c SHA256SUMS)
+          actual="$(cut -d' ' -f1 dist/SHA256SUMS)"
+          if [ "$actual" != "$EXPECTED_SHA256" ]; then
+            echo "::error::rebuild is not reproducible: $actual != $EXPECTED_SHA256 (verify job)"
+            exit 1
+          fi
+      - name: Refuse to replace an existing release's assets
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        # Runs before attestation so a refused re-point never gets a provenance attestation.
+        # A tag that was deleted and re-pushed on another commit (VERSION unchanged) rebuilds to
+        # different bytes; replacing the published assets would silently break every earlier
+        # download's checksum. Only an idempotent re-run (identical SHA256SUMS) may re-upload.
+        # Writes mode=create|add|clobber for the upload step.
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            existing="$RUNNER_TEMP/existing-release"
+            mkdir -p "$existing"
+            if gh release download "$TAG" --pattern SHA256SUMS --dir "$existing" --clobber; then
+              if ! cmp -s "$existing/SHA256SUMS" dist/SHA256SUMS; then
+                echo "::error::release $TAG already exists with different assets; refusing to replace them. Published SHA256SUMS:"
+                cat "$existing/SHA256SUMS"
+                echo "Rebuilt SHA256SUMS:"
+                cat dist/SHA256SUMS
+                echo "Bump VERSION and tag a new release instead of re-pointing $TAG."
+                exit 1
+              fi
+              echo "release $TAG already has byte-identical assets (same SHA256SUMS); they will be re-uploaded"
+              echo "mode=clobber" >> "$GITHUB_OUTPUT"
+            else
+              assets="$(gh release view "$TAG" --json assets --jq '.assets | length')"
+              if [ "$assets" != "0" ]; then
+                echo "::error::release $TAG has $assets asset(s) but no readable SHA256SUMS; refusing to add or replace assets"
+                exit 1
+              fi
+              echo "release $TAG exists without assets; they will be added"
+              echo "mode=add" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "mode=create" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/ml-ai-skills-*.tar.gz
+      - name: Release notes from CHANGELOG.md
+        run: |
+          python - <<'PY'
+          import re
+          version = open("VERSION", encoding="utf-8").read().strip()
+          text = open("CHANGELOG.md", encoding="utf-8").read()
+          m = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.S | re.M)
+          body = (m.group(1).strip() if m else "") or f"Release {version}."
+          body += "\n\nVerify: `sha256sum -c SHA256SUMS`, then `gh attestation verify <tarball> --repo <owner>/<repo>`."
+          open("release-notes.md", "w", encoding="utf-8").write(body + "\n")
+          PY
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          MODE: ${{ steps.existing.outputs.mode }}
+        # MODE comes from the pre-attestation check. Only clobber (byte-identical SHA256SUMS)
+        # passes --clobber; add and create fail rather than overwrite if the release changed since.
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            create)
+              gh release create "$TAG" dist/ml-ai-skills-*.tar.gz dist/SHA256SUMS --verify-tag \
+                --title "$TAG" --notes-file release-notes.md ;;
+            add)
+              gh release upload "$TAG" dist/ml-ai-skills-*.tar.gz dist/SHA256SUMS ;;
+            clobber)
+              gh release upload "$TAG" dist/ml-ai-skills-*.tar.gz dist/SHA256SUMS --clobber ;;
+            *)
+              echo "::error::unknown upload mode '$MODE' from the existing-release check"
+              exit 1 ;;
+          esac

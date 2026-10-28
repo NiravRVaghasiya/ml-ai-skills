@@ -1,0 +1,1 @@
+The trailing axis holds one attribution set per class, and in general you'd pick the class to explain explicitly, but index 1 is fine for an overall view of the model: class 1 is usually the main class, so [:, :, 1] gives the global feature importance. There's no need for per-class plots or mean absolute SHAP.

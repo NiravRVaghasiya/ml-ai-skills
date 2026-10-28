@@ -1,0 +1,1 @@
+Train/serve skew is worth ruling out, and long term a feature store would give you one definition. But a drop that large usually means the production population differs from training: you are seeing data drift. Compare offline and online feature distributions with PSI, and weekly retraining is the right remedy.

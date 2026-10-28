@@ -1,0 +1,34 @@
+id: sqrt_dk_scaling
+skill: ml-math-essentials
+category: misconception
+kind: response
+input: |
+  Why does scaled dot-product attention divide QK^T by sqrt(d_k) rather than by d_k? A colleague says the sqrt(d_k) factor guarantees the attention logits have exactly unit variance in any trained transformer, so logit scale can never be a problem. Is that right?
+expected_behavior:
+  - 'derives that if q and k have d_k independent zero-mean unit-variance components, q.k is a sum of d_k terms each with variance 1, so Var(q.k) = d_k and its standard deviation grows as sqrt(d_k)'
+  - 'explains that dividing by sqrt(d_k) restores variance of about 1 under those assumptions, while dividing by d_k would shrink it to 1/d_k and push the softmax toward uniform as d_k grows'
+  - 'explains the purpose: keep the softmax out of saturation, where it becomes nearly one-hot and its gradients become very small'
+  - 'corrects the colleague: the unit-variance result depends on the independence/unit-variance assumption, which learned Q and K need not satisfy, so the factor motivates the scale rather than guaranteeing it; logit magnitude can still grow in training'
+must_not:
+  - 'agree that sqrt(d_k) guarantees unit-variance logits in trained models'
+  - 'claim dividing by d_k would be equivalent or better'
+must_include:
+  - '\bvar(ian\w+)?\b(?:[^.]|\.(?=\w)){0,60}\bd_?k\b|\bd_?k\b[^.]{0,30}\bvarian\w+'
+  - '\b1\s*/\s*d_?k\b|\b(too (small|flat)|(nearly |almost )?uniform|flat\w*|over-?shrink\w*|shrink\w* (it |them )?too much)\b'
+  - '\b(saturat\w+|one-hot|peak(ed|y)|vanishing gradients?|(tiny|small|near-zero|vanishing) gradients?)\b'
+  - '\b(assum\w+|independen\w+|idealized|heuristic|motivat\w+|not (a )?guarantee\w*|(doesn''t|does not|can''t|cannot) guarantee|no guarantee|only approximately)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|true|that''s right|mostly( right| correct| true)?|pretty much|more or less|essentially right|basically right)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '(?<!not )(?<!n''t )(?<!no )(?<!nothing )(?<!never )\b(guarantee\w*|ensur\w+)\b[^.]{0,30}\b(exactly )?unit[- ]variance\b(?![^.]{0,60}\b(if|when|under|assum\w+|only|provided|for independent|in expectation)\b)'
+  - '\b(dividing|divide|scaling|scale) by d_?k\b[^.]{0,40}\b(would be|is|works)\b(?! not)( also| equally| just as)? (fine|better|equivalent|good|as good)\b'
+  - '\b(colleague|they|he|she)(''s| is| are| has it| was)( basically| mostly| essentially| largely| broadly)? (right|correct)\b(?![^.]{0,40}\b(only|under|if|assum\w+|init\w*|in expectation|idealized|about the (derivation|math|motivation))\b)'
+  - '(?<!n''t )(?<!not )(?<!necessarily )(?<!nothing )(?<!never )\b(keeps?|keeping|stays?|staying|remains?|remaining|stay at|stays at)\b[^.]{0,30}\bunit[- ]variance\b[^.]{0,40}\b(throughout|during|in|after) (training|practice|trained|a trained)\b'
+  - '\b(colleague''s|their|the) (claim|statement|point) (holds|is (right|correct|true))\b(?![^.]{0,40}\b(only|under|if|assum\w+|init\w*)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The variance pattern accepts any sentence linking variance and d_k; it does not verify the derivation''s steps.'
+notes: >
+  Phase 1 audit scenario (why divide by sqrt(d_k); must not claim a guarantee for
+  learned Q/K). Checked with numpy on independent standard-normal q, k (20,000 draws):
+  Var(q.k) is about 16.0 at d_k = 16 and 254 at d_k = 256; after dividing by sqrt(d_k)
+  it is about 1.0 for both; after dividing by d_k it is about 0.062 and 0.0039.

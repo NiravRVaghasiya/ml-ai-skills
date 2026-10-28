@@ -1,0 +1,33 @@
+id: segmentation_pixel_accuracy
+skill: computer-vision
+category: edge_case
+kind: response
+input: |
+  My DeepLabV3 model for pavement-crack segmentation reaches 97% pixel accuracy on the
+  validation set. About 95% of the pixels in our masks are background. Is the model good
+  enough to hand over?
+expected_behavior:
+  - 'explains that pixel accuracy is misleading when background dominates: a model that predicts background everywhere already scores about 95%, so 97% may mean it finds few cracks'
+  - 'recommends per-class IoU (Jaccard) / mean IoU or Dice, with the crack-class score reported separately'
+  - 'keeps void/unlabelled pixels out of the metric (ignore_index) and evaluates on non-augmented validation images'
+  - 'ties "good enough" to a target on the crack-class metric (and visual inspection of predicted masks), not to pixel accuracy'
+must_not:
+  - 'call 97% pixel accuracy good enough to hand over'
+  - 'treat pixel accuracy as a sufficient metric for an imbalanced segmentation task'
+must_include:
+  - '\b(m?iou|jaccard\w*|intersection[- ]over[- ]union|dice)\b'
+  - '\ball[- ]background\b|\bpredict\w* (only |nothing but |just )?(background|everything as background)\b|\bmajority[- ]class\b|\bconstant (prediction|predictor|baseline)\b|\btrivial (baseline|model|predictor)\b|\b(empty|blank) masks?\b'
+  - '\bper[- ]class\b|\b(crack|foreground|minority)[- ]class\b|\b(iou|dice)\b[^.]{0,30}\b(for|of|on) (the )?(cracks?|foreground|each class|every class)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|congrat\w*|good news|great news|looks good)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(\b97 ?%|\bpixel accuracy\b)(?:[^.]|\.(?=\d)){0,40}\b(is|looks|seems) (very |really |quite )?(good|great|excellent|strong|solid|impressive|high enough|good enough)\b(?![^.]{0,30}\b(but|until|unless|on paper|if)\b)'
+  - '(?<!not )(?<!n''t )\b(ready|good enough) to (hand (it )?over|ship|deploy|release)\b'
+  - '(?<!not )(?<!n''t )(?<!never )(?<!before )(?<!until )\b(i would|i''d|you can|you could|go ahead and|safe to|fine to|ok to|okay to) (hand (it |the model )?over|ship( it)?|deploy( it)?|release( it)?)\b(?![^.]{0,30}\b(only|once|after|when|if|unless|until)\b)'
+  - '\bbeat\w* (the |a |an )?(trivial|majority[- ]class|all[- ]background|naive|constant|empty[- ]mask)( baseline| predictor| model)?\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bweak\b|\blittle\b|\bno\b|\bminimal\b)[^.]){0,40}\b(sign|evidence|proof|shows? (it|the model)|means (it|the model))\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'A correct answer that explains the imbalance without naming a trivial/all-background baseline in so many words fails the second must_include pattern; the rubric remains authoritative.'
+notes: >
+  computer-vision/SKILL.md Gotchas: "Pixel accuracy is misleading for segmentation"
+  and step 5 (JaccardIndex with ignore_index=255).

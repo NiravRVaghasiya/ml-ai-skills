@@ -1,0 +1,1 @@
+Great question! For tabular churn, gradient boosting usually wins. Use the churned column as the label, compare against a dummy baseline, track ROC-AUC and precision, and decide on the action and horizon as you go.

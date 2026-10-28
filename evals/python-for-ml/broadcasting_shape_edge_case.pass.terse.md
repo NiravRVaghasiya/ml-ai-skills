@@ -1,0 +1,1 @@
+Not correct. (1000,) minus (1000, 1) broadcasts to a 1000 x 1000 array - the outer difference of the two vectors - so you are averaging a million mismatched pairs. Flatten the predictions with `y_pred.squeeze()` (or call `mean_squared_error`) and assert the shapes match before computing metrics.

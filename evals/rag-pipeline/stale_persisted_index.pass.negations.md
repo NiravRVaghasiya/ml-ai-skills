@@ -1,0 +1,1 @@
+No - the index isn't fine just because it loaded. Matching dimensions don't mean matching vector spaces: it's stale relative to the new embedding revision. Don't tune the reranker first; rebuild the index (or roll back the encoder), and make the loader refuse to serve when the manifest's model revision doesn't match the running config.

@@ -1,0 +1,1 @@
+Yes. MCP gives you a uniform way to plug the server in, and popular servers are widely reviewed by the community, so you can wire it up and let the agent use all of its tools. Just add the org token to the server config and you're done.

@@ -1,0 +1,1 @@
+It depends a little on whether it's classification or regression, how many rows you have, and whether you need interpretability, but you don't need to answer any of that: use XGBoost. It works well on tabular data of any size and on both numeric and categorical features, so it's the right choice for your dataset.

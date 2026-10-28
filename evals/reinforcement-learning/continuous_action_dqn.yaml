@@ -1,0 +1,30 @@
+id: continuous_action_dqn
+skill: reinforcement-learning
+category: edge_case
+kind: response
+input: |
+  I want to train a policy for a 7-joint robot arm in simulation; the actions are continuous torques for each joint. Should I use DQN? It's the algorithm I know best.
+expected_behavior:
+  - 'explains that DQN needs a max/argmax over actions, which requires enumerating a discrete action set; with continuous torques that maximization becomes an optimization problem at every step'
+  - 'explains that discretizing all 7 joints jointly blows up combinatorially (k levels per joint gives k^7 actions, e.g. 11^7 is about 19.5 million) and loses fine control'
+  - 'recommends algorithms built for continuous actions: off-policy actor-critic methods (SAC, TD3, DDPG) for sample efficiency with replay, or PPO for on-policy robustness at the cost of more samples, and frames the choice by simulator speed or sample budget'
+  - 'may note that coarse or per-joint factorized discretization can work in some settings, phrased conditionally, and that DQN concepts (TD targets, replay, target networks) carry over to SAC/TD3'
+must_not:
+  - 'recommend DQN with naive joint discretization as a good default for this task'
+must_include:
+  - '\b(max\w*|argmax)\b[^.]{0,80}\b(continuous|infinite|every|all|enumerat\w+)\b|\b(continuous|infinite|enumerat\w+)\b[^.]{0,80}\b(max\w*|argmax)\b'
+  - '\b(sac|soft actor[- ]critic|td3|ddpg|ppo)\b'
+  - '\b(exponential\w*|combinatori\w+|curse of dimensionality|blows? up|blow-up|explod\w+)\b|\^\s*7\b'
+must_not_include:
+  - '(?<!not )(?<!n''t )\b(dqn|deep q-?networks?)\b[^.]{0,30}(?<!not )(?<!n''t )\b(is|works|would work|will work|should work|is still)\b(?! not)[^.]{0,10}\b(fine|well|great|good|a good (fit|choice)|the right choice|appropriate|perfect\w*)\b(?![^.]{0,50}\b(discrete|atari|only|unless)\b)'
+  - '(?<!n''t )(?<!not )\b(just|simply) discreti[sz]\w*'
+  - '(?<!n''t )(?<!not )\b(use|go with|stick with|try|pick|choose)\b[^.]{0,10}\bdqn\b[^.]{0,30}\b(good|fine|reasonable|sensible|solid|decent) (default|choice|starting point|option|fit)\b(?![^.]{0,40}\b(only|unless|for discrete)\b)'
+  - '\bdqn\b[^.]{0,20}(?<!n''t )(?<!not )(?<!never )\b(handles|can handle|will handle|copes with|deals with)\b(?![^.]{0,20}\b(discrete|atari|small|finite)\b)[^.]{0,30}\b(fine|well|easily|comfortably)\b'
+  - '(?<!n''t )(?<!not )\bdiscreti[sz]\w*\b[^.]{0,40}\b(and|then) (use|train|run|apply) (a |plain |vanilla )?dqn\b(?![^.]{0,40}\b(but|only|if|unless|though|although)\b)'
+  - '\b(manageable|tractable|fine|small enough)\b[^.]{0,40}\bdqn\b[^.]{0,30}\b(should|will|would|can) (work|do)\b(?![^.]{0,40}\b(only|unless)\b)|\bdqn\b[^.]{0,40}\b(should|will|would) work (well|fine)\b(?![^.]{0,50}\b(discrete|atari|only|unless)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'Naming SAC/TD3/PPO satisfies the algorithm pattern without the trade-off reasoning; the rubric covers the sample-budget framing.'
+notes: >
+  Phase 1 audit scenario (DQN for continuous control). 11^7 = 19,487,171 was computed
+  directly.

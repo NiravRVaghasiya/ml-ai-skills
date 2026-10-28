@@ -1,0 +1,1 @@
+Because dot products get bigger as the dimension grows: if each component has unit variance, the dot product has variance d_k. Without the factor, larger heads produce huge logits, the softmax saturates, and its gradients become vanishingly small, which makes the attention hard to learn. 1/√d_k keeps the logits at roughly unit scale.

@@ -1,0 +1,1 @@
+The nan comes from the fits failing in some folds, which is common with SVMs; error_score turns the error into nan. Sorting with nan is a bit arbitrary, but nan is just a low score here, so the baseline legitimately came out on top. Ship the top-ranked one and revisit the SVM later; adding an isfinite check is optional.

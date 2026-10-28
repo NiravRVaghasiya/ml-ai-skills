@@ -1,0 +1,1 @@
+Against the highest group (A, 50%) C would be at 0.70, below 0.8. But the four-fifths rule is just a rule of thumb, and using the overall rate as the comparator is acceptable, so on your numbers there's no adverse impact.

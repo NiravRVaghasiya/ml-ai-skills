@@ -1,0 +1,1 @@
+No - a zero factor makes every item's score 0, so the ranking you return is just tie order. New users are the cold-start problem; send them to a popularity list (most purchased items in the last week) or content-based picks from signup interests, and switch to ALS once they have interactions (recalculate_user=True in implicit).

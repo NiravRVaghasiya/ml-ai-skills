@@ -1,0 +1,1 @@
+Yes - p = 0.01 is well below 0.05, so the difference is statistically significant. A paired test is the right choice because both models were evaluated on the same folds, which removes fold-to-fold variation. You can report that A is significantly better than B (p = 0.01, paired t-test, 10-fold CV).

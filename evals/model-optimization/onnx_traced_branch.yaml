@@ -1,0 +1,45 @@
+id: onnx_traced_branch
+skill: model-optimization
+category: failure_recovery
+kind: executable
+input: |
+  I exported my PyTorch model with torch.onnx.export(model, (sample,), "model.onnx",
+  dynamo=False). Outputs matched PyTorch on my sample batch, but in production some
+  requests get clearly wrong outputs. forward() contains
+  `if x.abs().max() > 10: x = x / x.abs().max()`. It's probably ONNX Runtime precision -
+  should I loosen the parity tolerance or bump opset_version?
+expected_behavior:
+  - 'identifies the cause: the legacy tracing exporter (dynamo=False) records only the branch the sample input took, so inputs that should take the other branch silently run the baked-in path'
+  - 'rejects precision as the explanation and says loosening tolerances or changing the opset will not fix a structurally wrong graph'
+  - 'recommends expressing the condition with tensor ops (torch.where / clamp) or torch.cond, and exporting with dynamo=True (torch.export), which refuses un-exportable data-dependent control flow instead of silently baking it in'
+  - 'recommends re-running the parity check on inputs that exercise every branch (here: inputs with max |x| above and below 10) and on more than one batch size'
+must_not:
+  - 'attribute the wrong outputs to floating-point precision differences'
+  - 'recommend loosening rtol/atol or bumping the opset as the fix'
+must_include:
+  - '\btrac(e|es|ed|ing|er)\b'
+  - '\b(branch|if|condition\w*|control flow)\b[^.]{0,60}\b(baked|hard-?coded|frozen|recorded|fixed|captured|constant)\b|\b(baked|hard-?coded|frozen|recorded|captured)\b[^.]{0,60}\b(branch|path|condition)\b'
+  - '\btorch\.(where|cond|clamp)\b|\bdynamo ?= ?true\b|\btorch\.export\b'
+  - '\b(both|every|each|all) (branch|branches|paths?)\b|\b(inputs?|samples?|cases?|batch\w*|values?)\b[^.]{0,40}\b(above|over|exceed\w*|larger than|greater than|> ?)\s?10\b|\b(other|second|untaken) (branch|path)\b|\b(both|either) sides? of\b|\babove and below\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!neither will )(?<!nor )(?<!or )\b(loosen|relax|increase|widen|raise)\w* (the )?(parity )?(tolerances?|rtol|atol)\b(?![^.]{0,30}\b(won''t|will not|doesn''t|does not|isn''t|not|only|hides?|hiding|masks?|masking)\b)'
+  - '\b(precision|numerical|rounding|floating[- ]point)\b[^.]{0,30}\b(is|are|explains?|causes?)\b (probably |likely |most likely )?(the |a )?(likely |probable |main |real |most likely )?(cause|culprit|issue|problem|reason|explanation)\b'
+  - '(?<!not )(?<!n''t )(?<!neither will )(?<!nor )(?<!or )\b(bump|upgrad|rais|increas|chang)\w* (the )?opset(_version)?\b(?![^.]{0,30}\b(won''t|will not|doesn''t|does not|isn''t|not|only|hides?|hiding|masks?|masking)\b)'
+executable_tests:
+  - 'examples.test_model_optimization.TestOnnxExporterClaims.test_legacy_exporter_silently_bakes_data_dependent_branch'
+  - 'examples.test_model_optimization.TestModelOptimizationBlocks.test_onnx_parity_and_dynamic_batch'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'An ONNX export whose parity with PyTorch is checked on inputs covering every branch and on a batch size different from the export sample'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The executable tests prove the legacy exporter bakes in the traced branch (a toy module returns -2.0 in ONNX vs -101.0 in PyTorch) and that the skill''s dynamo export keeps parity across batch sizes; they do not test the torch.where / torch.cond rewrite of the user''s model.'
+notes: >
+  model-optimization/SKILL.md step 3 and Gotchas ("ONNX export and data-dependent
+  control flow"). Observed in the example venv (torch 2.13.0+cpu, onnxruntime 1.31.1):
+  exporting a module with `if x.abs().max() > 10:` using dynamo=True raised
+  TorchExportError, while a torch.where rewrite exported with dynamo=True and matched
+  PyTorch on inputs from both sides of the threshold.

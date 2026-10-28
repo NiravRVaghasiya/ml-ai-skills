@@ -131,7 +131,8 @@ def main() -> int:
 
     if args.write:
         GRAPH_DOC.parent.mkdir(exist_ok=True)
-        GRAPH_DOC.write_text(rendered, encoding="utf-8")
+        # newline="\n": the doc is drift-checked byte-for-byte, so Windows must not write CRLF.
+        GRAPH_DOC.write_text(rendered, encoding="utf-8", newline="\n")
         print(f"wrote {GRAPH_DOC}")
         return 0
 

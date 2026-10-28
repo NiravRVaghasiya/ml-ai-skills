@@ -1,0 +1,1 @@
+For a demo that's workable: start uvicorn with --host 0.0.0.0 --port 8080, open 8080 in the security group to 0.0.0.0/0 and re-enable /docs. Auth can come later once real users show up; scanning bots aren't much of a risk for a short demo.

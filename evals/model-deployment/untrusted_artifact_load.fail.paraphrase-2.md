@@ -1,0 +1,1 @@
+Joblib files are pickles, so they can execute arbitrary code. Mitigate that by restricting the endpoint to the analyst group and checking a SHA-256 checksum of each upload for auditing, then the server can joblib.load the upload directly; route big releases through the registry.

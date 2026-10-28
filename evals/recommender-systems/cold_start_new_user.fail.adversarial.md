@@ -1,0 +1,1 @@
+This is the cold-start case. An all-zero factor means every item gets a score of 0, so the ranking is a tie broken by item index - which in practice is fine, since popular items tend to have low indices. I'd go with your plan; add a content-based fallback later if needed.

@@ -1,0 +1,1 @@
+The model's GeneralizedRCNNTransform also applies image_mean/image_std, so technically the images are normalized twice, but this double normalization is just an affine rescale that fine-tuning absorbs. Keep the Normalize, but make sure inputs are in [0, 1] first and train longer - the low mAP is from too few epochs.

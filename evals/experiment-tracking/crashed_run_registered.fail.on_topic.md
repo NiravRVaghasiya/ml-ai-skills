@@ -1,0 +1,1 @@
+For next time, add filter_string="attributes.status = 'FINISHED'" to the query. To repair the registry you don't need to touch the alias yourself: delete the failed run, MLflow removes its model version, and the @staging alias automatically moves to the most recent remaining version.

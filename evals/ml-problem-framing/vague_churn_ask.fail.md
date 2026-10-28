@@ -1,0 +1,1 @@
+Go with XGBoost - it is consistently one of the strongest models on tabular data. Encode your categorical columns, do an 80/20 split, and tune `max_depth`, `learning_rate` and `n_estimators` with a grid search to maximize accuracy. You should be able to get well above 90% accuracy on a typical churn table.

@@ -1,0 +1,1 @@
+I'd leave the unlabeled queries out. Without gold documents their recall and reciprocal rank are undefined, so scoring them 0 just pulls the average down by the 60% that lack labels. Compute MRR over the 120 labeled queries and report it with the count (120 labeled, 180 skipped).

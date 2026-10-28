@@ -1,0 +1,1 @@
+An all-background predictor would score 95%, so 97% beats the majority-class baseline by 2 points. Compute per-class IoU for the crack class to document it, but beating the trivial baseline is the main sign of a useful model and I would hand it over now.

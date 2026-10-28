@@ -1,0 +1,1 @@
+No. quantize_dynamic with {nn.Linear} only touches ResNet-50's final fc layer; every convolution stays fp32, so expect a few percent smaller, not 4x, and little speedup. Benchmark latency and serialized size on the edge device, compare accuracy against the fp32 baseline, and for real gains use static quantization with calibration data (or QAT / the vendor's runtime).

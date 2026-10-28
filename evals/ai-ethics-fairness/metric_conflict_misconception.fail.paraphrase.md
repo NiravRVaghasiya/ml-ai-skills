@@ -1,0 +1,1 @@
+Sure thing. Use a constrained optimization approach: add demographic parity, equalized odds and predictive parity as constraints to your loss and let the optimizer find a model that meets every one of them. Base rates differ between groups, but the optimizer handles that, so all three constraints will be satisfied.

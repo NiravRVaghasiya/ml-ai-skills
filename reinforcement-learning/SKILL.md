@@ -6,17 +6,16 @@ description: >
   Q-learning, or policy-gradient methods in reinforcement learning. Trigger
   phrases: "explain Q-learning", "what is a Markov decision process", "how
   do policy gradients work", "explain the exploration-exploitation
-  tradeoff", "value-based vs policy-based RL". NOT for implementing and
-  training a deep RL agent end-to-end with a specific framework (see
-  training-deep-models) or general neural network optimization theory (see
-  neural-net-fundamentals).
+  tradeoff", "value-based vs policy-based RL". NOT a framework-specific
+  implementation guide for deep RL agents, and NOT for general neural
+  network optimization theory (see neural-net-fundamentals).
 type: reference
 domain: specialized
 level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - mdp-formalization
   - bellman-value-functions
@@ -46,40 +45,66 @@ implementation guide.
 - **Markov Decision Process (MDP).** The formal environment model:
   \((S, A, P, R, \gamma)\) — states, actions, transition probabilities
   \(P(s'|s,a)\), rewards \(R(s,a)\), and a discount factor \(\gamma \in
-  [0,1)\). The **Markov property** means the next state depends only on the
-  current state and action, not the full history — this is what makes the
-  problem tractable.
+  [0,1]\) (\(\gamma = 1\) is only safe for episodic tasks that are guaranteed
+  to terminate; continuing tasks need \(\gamma < 1\) or an average-reward
+  formulation). The **Markov property** means the next state depends only on
+  the current state and action, not the full history — this is what makes
+  the problem tractable. When the agent only sees partial observations
+  (e.g. a single video frame), the problem is a POMDP, and practitioners
+  approximate a Markov state by stacking recent frames or using a recurrent
+  policy.
 - **Value functions.** \(V(s)\) is the expected discounted return from state
   \(s\) under a policy; \(Q(s,a)\) is the expected return from taking action
   \(a\) in state \(s\), then following the policy. Both satisfy the
   **Bellman equation**, which expresses value recursively in terms of
   immediate reward plus the discounted value of the next state — the basis
-  for almost every RL algorithm.
+  for dynamic programming, TD learning/Q-learning, and the critic in
+  actor-critic methods (pure Monte Carlo methods like REINFORCE don't
+  bootstrap from it).
 - **Exploration vs. exploitation.** An agent that always picks its
   current best-known action (pure exploitation) never discovers better
   ones; an agent that acts randomly (pure exploration) never exploits what
   it learns. **ε-greedy** (act randomly with probability ε, greedily
-  otherwise) and **softmax/Boltzmann** action selection are the standard
-  tradeoffs; ε is typically annealed down over training.
+  otherwise) and **softmax/Boltzmann** action selection are the simplest
+  schemes, with ε commonly annealed down over training. More directed
+  alternatives include optimism / upper-confidence bounds (UCB), Thompson
+  sampling (common in bandits), and entropy bonuses in policy-gradient
+  methods.
 - **Q-learning (value-based, off-policy).** Learns \(Q(s,a)\) directly via
   the temporal-difference update
   \(Q(s,a) \leftarrow Q(s,a) + \alpha\big[r + \gamma \max_{a'} Q(s',a') -
   Q(s,a)\big]\). It's off-policy because it learns about the greedy policy
   while possibly *acting* exploratorily — the max operator lets it bootstrap
-  toward the optimal policy regardless of how data was collected.
+  toward the optimal policy without following it. In the tabular case it is
+  guaranteed to converge to \(Q^*\) if every state-action pair keeps being
+  visited and the step sizes satisfy the usual Robbins-Monro decay
+  conditions (Watkins & Dayan, 1992) — sufficient, not necessary
+  conditions (e.g. a constant \(\alpha = 1\) also works in a deterministic
+  MDP); with function approximation there is no such guarantee (see the
+  deadly triad below).
 - **Policy gradients (policy-based, typically on-policy).** Instead of
   learning values and deriving a policy, parameterize the policy
   \(\pi_\theta(a|s)\) directly and ascend the gradient of expected return.
   **REINFORCE** is the simplest form: increase the log-probability of
   actions that led to high return. **Actor-critic** methods reduce the high
   variance of REINFORCE by learning a value function (the critic) to
-  provide a lower-variance baseline for the policy update (the actor).
+  provide a lower-variance baseline or advantage estimate for the policy
+  update (the actor); when the critic bootstraps, this trades some bias for
+  that variance reduction. **PPO** (Schulman et al., 2017) — typically run
+  as an actor-critic method, it clips the new/old action-probability ratio
+  in its objective so each update stays near the data-collecting policy — is
+  a widely used default, and was the RL step in early RLHF fine-tuning of
+  LLMs (e.g. InstructGPT, 2022).
 - **Value-based vs. policy-based tradeoffs.** Value-based methods (DQN and
-  variants) are sample-efficient and work well with discrete action spaces
-  but struggle with continuous actions and can be unstable with function
-  approximation. Policy-based methods handle continuous/stochastic action
-  spaces naturally and optimize the actual objective directly, at the cost
-  of higher variance and generally more samples.
+  variants) tend to be more sample-efficient than on-policy policy gradients
+  (replay lets them reuse old data) and work well with discrete action
+  spaces, but the \(\max_{a'}\) is awkward over continuous actions and they
+  can be unstable with function approximation. Policy-based methods handle
+  continuous/stochastic action spaces naturally and optimize the actual
+  objective directly, at the cost of higher variance and, when on-policy,
+  generally more samples. The line blurs in practice: off-policy
+  actor-critic methods (DDPG, TD3, SAC) use replay *and* handle continuous
+  actions.
 - **On-policy vs. off-policy.** On-policy methods (SARSA, vanilla policy
   gradient) learn about the policy that is currently generating data;
   off-policy methods (Q-learning, DQN) can learn from data generated by a
@@ -94,13 +119,17 @@ implementation guide.
   fix, not a hyperparameter tweak.
 - **Reward hacking / misspecified rewards.** Agents optimize exactly the
   reward you write, not the intent behind it — a poorly shaped reward (e.g.,
-  rewarding "distance traveled" instead of "task completed") reliably
+  rewarding "distance traveled" instead of "task completed") frequently
   produces an agent that games the metric rather than solving the task.
+  Scaling up doesn't reliably fix it — Pan, Bhatia & Steinhardt (2022) found
+  more capable agents often exploit misspecified rewards *more* — so audit
+  learned behavior, not just the reward curve.
 - **High-variance policy gradient estimates.** REINFORCE's gradient
-  estimator has high variance because it credits every action in an episode
-  with the *entire* episode's return; without a baseline (critic) or reward
-  normalization, training can be unstable or fail to converge even when the
-  math is implemented correctly.
+  estimator has high variance because, in its basic form, it credits every
+  action in an episode with the *entire* episode's return; using only the
+  reward-to-go (rewards after each action) helps, and without a baseline
+  (critic) or return normalization, training can be unstable or fail to
+  converge even when the math is implemented correctly.
 - **The "deadly triad."** Combining function approximation, bootstrapping
   (as in TD/Q-learning), and off-policy learning is a well-documented
   recipe for divergence — this is why naive Q-learning with neural networks
@@ -113,5 +142,5 @@ implementation guide.
 
 ## References
 - [Sutton & Barto, "Reinforcement Learning: An Introduction" (2nd ed.)](http://incompleteideas.net/book/the-book-2nd.html) — the standard textbook; free full text from the authors.
-- [Mnih et al., "Playing Atari with Deep Reinforcement Learning" (2013) / DQN Nature paper (2015)](https://www.nature.com/articles/nature14236) — the paper that introduced experience replay + target networks to stabilize Q-learning with neural nets.
+- [Mnih et al., "Human-level control through deep reinforcement learning" (Nature, 2015)](https://www.nature.com/articles/nature14236) — the DQN paper: stabilized Q-learning with neural nets by combining experience replay (an older idea, cited by the 2013 arXiv version to Lin, 1993) with a periodically updated target network (added in this 2015 version).
 - [OpenAI Spinning Up in Deep RL](https://spinningup.openai.com/) — concise, code-adjacent explanations of policy gradients, actor-critic, and the value/policy-based split.

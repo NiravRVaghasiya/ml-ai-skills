@@ -1,0 +1,1 @@
+Your representation is read at a padding step for every sentence shorter than the batch max: the forward direction has processed padding, and the backward direction starts on padding. Use packing (pack_padded_sequence with enforce_sorted=False) and take the top layer of h_n: h_n.view(2, 2, B, 128)[-1] gives forward and backward final states; concatenate them.

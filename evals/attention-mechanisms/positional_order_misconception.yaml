@@ -1,0 +1,34 @@
+id: positional_order_misconception
+skill: attention-mechanisms
+category: misconception
+kind: response
+input: |
+  Self-attention is permutation-invariant, so a decoder-only GPT trained without any
+  positional encoding (no RoPE, no learned position embeddings) has literally no way to know
+  word order, right?
+expected_behavior:
+  - 'corrects the terminology: unmasked self-attention is permutation-equivariant (permuting the input tokens permutes the outputs the same way), not permutation-invariant; only a pooled/summed output would be invariant'
+  - 'explains that the causal mask breaks this symmetry - each position attends to a different-length prefix - so a decoder-only model without explicit positional encodings can still learn positional information (Haviv et al., 2022, "NoPE")'
+  - 'distinguishes this from an unmasked/bidirectional encoder without positional information, which really cannot tell word order'
+  - 'notes that standard practice still adds explicit positional information (RoPE, ALiBi-style biases, learned or sinusoidal embeddings) rather than relying on the mask'
+must_not:
+  - 'agree that the decoder-only model has no way to know word order'
+  - 'leave "permutation-invariant" uncorrected'
+must_include:
+  - '\bequivarian\w*'
+  - '\b(causal|autoregressive|triangular|look-?ahead|future)[- ](mask\w*|attention)\b|\bmask\w*\b[^.]{0,40}\b(break\w*|leak\w*|asymmetr\w*|position\w*|order)\b'
+  - '\bnope\b|\bhaviv\b|\b(still|can|does|do)\b (still )?(learn|infer|recover|pick up|encode|represent)\w*\b[^.]{0,40}\b(position\w*|order)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '(?:\A|[.!?;] )(?:(?!\bnot\b|n''t\b|\bencoder\w*|\bbidirectional\b|\bunmasked\b|\bmask\w*|\bequivarian\w*|\bfalse\b|\bwrong\b|\bmyth\b|\bonly\b|\balone\b)[^.]){0,160}(\b(no way|cannot|can''t|unable|no (information|signal|notion|sense))\b[^.]{0,30}\b(word |token )?(order|position\w*)\b|\bno (positional|position|order|ordering) (information|signal|notion|sense|cue)s?\b)(?![^.]{0,60}\b(yet|but|still|however|although|though|except|mask\w*)\b)'
+  - '(?<!saying )(?<!that )(?<!claim )(?<!'')\b(it|self-attention|attention) (is|really is|truly is) (fully |completely )?permutation[- ]invariant\b(?!'')(?![\s,;:-]{0,3}(not\b|only\b|after pool\w*|when pool\w*|is (wrong|incorrect|imprecise|a misnomer)\b))'
+  - '(?:\A|[.!?;] )(?:(?!\bnot\b|n''t\b|\bencoder\w*|\bbidirectional\b|\bunmasked\b|\bwithout (a |the |any )?(causal )?mask\w*|\bno mask\w*)[^.]){0,160}\b(treats?|sees?|processes|views?|handles?) (the )?(input|tokens?|sequence|context) as (a |an )?(bag[- ]of[- ](words|tokens)|unordered (set|bag|collection)|set)\b(?![^.]{0,60}\b(yet|but|still|however|although|though|except)\b)'
+  - '\bmask\w*\b(?:(?!\bbut\b|\byet\b)[^.]){0,60}\b(doesn''t|does not|can''t|cannot|won''t|never) (encode|provide|give|leak|carry|convey|reveal|supply|add|contain)\w*\b(?:(?!\bexplicit\w*|\bdirectly\b)[^.]){0,30}\b(position\w*|order)\b(?![^.]{0,40}\b(explicitly|directly|but|yet|however|still)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The NoPE result (Haviv et al., 2022) is about decoder-only language models trained without positional encodings; the case does not test finer claims about how well such models extrapolate to longer contexts.'
+notes: >
+  Exercises the Positional information gotcha: unmasked self-attention is equivariant, the
+  causal mask leaks order. Equivariance (and its loss under a causal mask) was confirmed
+  numerically in the example venv (torch 2.13) with random projections. Scenario suggested
+  by the Phase 1 reference auditor.

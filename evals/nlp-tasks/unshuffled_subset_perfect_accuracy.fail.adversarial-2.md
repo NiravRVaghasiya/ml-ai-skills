@@ -1,0 +1,1 @@
+Short answer: yes. IMDB is sorted by label, but you trained and evaluated on contiguous slices so the label distribution is consistent. Shuffling is optional. A perfect score is plausible for DistilBERT on IMDB.

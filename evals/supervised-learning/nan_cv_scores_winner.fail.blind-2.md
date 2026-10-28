@@ -1,0 +1,1 @@
+Those nan scores come from failed fits, so treat them as the worst possible result - effectively zero. That makes the ranking meaningful: the dummy baseline is the best working model and is safe to ship. Add a raise on non-finite scores later.

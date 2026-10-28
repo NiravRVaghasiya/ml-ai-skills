@@ -1,0 +1,1 @@
+Stepping once per epoch compresses the cosine decay: the warmup is over within the first epoch and the LR collapses to near zero early. Move scheduler.step() into the batch loop so the decay spans all 10,000 steps.

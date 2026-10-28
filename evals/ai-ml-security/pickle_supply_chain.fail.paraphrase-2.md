@@ -1,0 +1,1 @@
+Pickle files can carry malicious code, but modern PyTorch loads with weights_only by default, which means there's no code execution risk on current versions. Verify the checksum if the link has one, consider data poisoning separately, and then deploy it.

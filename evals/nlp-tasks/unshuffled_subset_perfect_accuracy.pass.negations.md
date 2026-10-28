@@ -1,0 +1,1 @@
+No, it isn't safe to report. A 1.0 is not plausible after one epoch: the IMDB splits are sorted by label, so each first-N slice is one class. Macro-F1 does not rule this out - with only one label present it is 1.0 too. Check the class counts, shuffle with a seed before select(), and don't trust any number until both labels are in the eval set.

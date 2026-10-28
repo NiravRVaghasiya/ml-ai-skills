@@ -1,0 +1,1 @@
+Re-run the search with filter_string="attributes.status = 'FINISHED'" so crashed runs are excluded, register that run, and call client.set_registered_model_alias('churn-rf-classifier', 'staging', new_version). Aliases are just pointers: nothing moves on its own, and anything already deployed from the bad version needs a separate rollback.

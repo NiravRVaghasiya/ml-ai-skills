@@ -1,0 +1,1 @@
+Strict mode enforces the JSON Schema at generation time, so path and query will always be well-formed strings. Path traversal and destructive SQL are possible in principle, but the sandbox already contains the agent, so the server-side validation is now redundant and you can remove it to simplify the code.

@@ -1,0 +1,3 @@
+Not quite - and depending on your provider you may not be able to set it at all: some current model APIs and SDKs reject sampling parameters such as temperature outright, so check what yours accepts. Where temperature=0 is accepted, it only gives near-greedy decoding; floating-point non-associativity in batched GPU inference, backend routing and silent model updates behind an alias can still change outputs between runs.
+
+For a reproducible harness: pin the exact model snapshot and log it with every result, cache every raw output per model and prompt version, measure the noise floor by re-running the unchanged system, and repeat runs before calling a difference a regression.

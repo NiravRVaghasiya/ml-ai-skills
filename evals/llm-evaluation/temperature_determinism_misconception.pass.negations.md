@@ -1,0 +1,1 @@
+Not necessarily. Temperature 0 makes decoding greedy, but outputs can still differ across runs because of floating-point effects in batched GPU inference and silent model updates. Pin the model version, log every output, and run important evals multiple times.

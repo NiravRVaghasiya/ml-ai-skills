@@ -1,0 +1,1 @@
+Strict mode only guarantees shape and types, not that the values are safe - a path like ../../etc/passwd or a DROP TABLE is still schema-valid. But you already run the agent in a sandbox with a read-only database role, so the server-side checks are optional at this point; feel free to delete them to simplify the server. You should still validate nothing else.

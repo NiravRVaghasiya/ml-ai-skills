@@ -1,0 +1,1 @@
+Chain-of-thought was shown by Wei et al. to improve reasoning, and while the effect is larger at scale, it helps small models too. Reasoning models already think, but adding the phrase doesn't hurt. The extra tokens are a small cost, so it's fine to add it to every prompt without running an eval.

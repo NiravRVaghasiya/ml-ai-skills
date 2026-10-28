@@ -81,3 +81,46 @@ OPTIONAL_KEYS = ("version_constraints",)
 LIST_KEYS = ("capabilities", "requires", "conflicts", "related", "version_constraints")
 
 DATE_KEY = "last_verified"
+
+
+# ---------------------------------------------------------------------------
+# Formal-schema inputs. scripts/generate_schema.py turns everything below (and
+# the enums above) into schema/skill-frontmatter.schema.json; never hand-edit
+# that JSON, and never restate these values anywhere else.
+# ---------------------------------------------------------------------------
+
+# Every enum-valued frontmatter key and its allowed values.
+ENUM_KEYS = {
+    "type": TYPE,
+    "domain": DOMAIN,
+    "level": LEVEL,
+    "lifecycle": LIFECYCLE,
+    "risk_level": RISK_LEVEL,
+    "evidence_level": EVIDENCE_LEVEL,
+}
+
+# Free-text scalar keys that must be non-empty strings.
+STRING_KEYS = ("name", "display_name", "description", "inputs", "outputs")
+
+# List keys whose items are skill slugs / routing tags (lowercase-kebab).
+SLUG_LIST_KEYS = ("capabilities", "requires", "conflicts", "related")
+
+# List keys whose items are free text.
+TEXT_LIST_KEYS = ("version_constraints",)
+
+# lowercase letters/digits separated by single hyphens; used for folder
+# names, `name`, and every SLUG_LIST_KEYS item.
+SLUG_PATTERN = r"^[a-z0-9]+(-[a-z0-9]+)*$"
+
+# Calendar validity (no 2026-13-45) is checked separately: JSON Schema
+# `format: date` plus a real date parse in validate_skills.py.
+DATE_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+
+# Claude Agent Skills frontmatter limits, as published at
+# https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
+# (fetched 2026-10-27): name <= 64 chars, lowercase letters/numbers/hyphens,
+# no XML tags, must not contain "anthropic"/"claude"; description non-empty,
+# <= 1,024 chars, no XML tags.
+NAME_MAX_LENGTH = 64
+DESCRIPTION_MAX_LENGTH = 1024
+RESERVED_NAME_WORDS = ("anthropic", "claude")

@@ -1,0 +1,1 @@
+No. Stepping once per epoch isn't correct here, and the scheduler is not innocent - it is the likely cause. The warmup never finishes: after 20 epochs it has taken 20 of 500 warmup steps. Don't look elsewhere first; call `scheduler.step()` once per batch.

@@ -1,0 +1,1 @@
+Before forecasting I need a few details: what frequency is the data (daily, weekly, monthly) and how much history do you have? Are there seasonal patterns, holidays or promotions, and any drivers like price? Which error metric and backtest window should we use to evaluate it?

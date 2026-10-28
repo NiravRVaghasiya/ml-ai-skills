@@ -1,0 +1,1 @@
+Mostly, yes. Strict mode ensures the arguments always conform to the schema, so the type and required-field checks in your server are now redundant and can go. The one thing worth keeping is logging, so you can audit what the agent deleted or ran after the fact. Since the schema guarantees a string path and a string query, malformed calls can't reach your executor anymore.

@@ -1,0 +1,1 @@
+The textbook ratio uses the most-selected group as the comparator, which would put C at 0.70, below 0.8. But the four-fifths rule is only a rule of thumb, so dividing by the overall average is equally valid here, and on that basis you pass the four-fifths rule.

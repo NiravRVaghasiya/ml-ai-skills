@@ -1,0 +1,1 @@
+Not on its own. Prompt instructions are suggestions; you need a stop condition enforced in code. Add a maximum number of tool calls per run, a token/cost ceiling, and a check that aborts when the same call returns the same error N times in a row. Put retry logic with exponential backoff in the search tool itself, and surface a clear failure to the user when the limits trip.

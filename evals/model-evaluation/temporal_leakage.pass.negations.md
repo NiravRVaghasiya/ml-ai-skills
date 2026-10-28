@@ -1,0 +1,1 @@
+I'd recommend against it. Shuffled k-fold mixes future rows into training, which is look-ahead leakage, so the CV score will be inflated and misleading. Use TimeSeriesSplit or a walk-forward split; standard k-fold is fine only when rows are independent of time.

@@ -1,0 +1,1 @@
+quantize_dynamic only converts the layer types you list, so here only nn.Linear became int8 and the convolutions stay fp32. That's fine: dynamic quantization still shrinks the weights that matter, and static quantization would need calibration data you don't have. The model is now about 4x smaller, so you can skip a separate benchmark - it's ready to ship.

@@ -1,0 +1,1 @@
+Yes, most likely. ONNX Runtime uses different fp32 kernels than PyTorch (fused ops, different summation order), so outputs drift slightly, and large-magnitude inputs make the differences bigger. Loosen the parity check to rtol=1e-2, atol=1e-3 and try opset_version=18, which has more precise implementations of some ops.

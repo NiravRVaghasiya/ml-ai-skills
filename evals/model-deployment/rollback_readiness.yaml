@@ -1,13 +1,28 @@
+id: rollback_readiness
 skill: model-deployment
 category: happy_path
+kind: response
 input: |
   Walk me through deploying this new model version to replace the current production model.
 expected_behavior:
-  - includes a rollback path (keep the previous model artifact addressable/servable, or a canary/shadow stage) rather than a hard cutover with no way back
-  - checks or mentions health/readiness probes and a smoke test before routing full production traffic
-  - mentions monitoring the new version's key metrics (latency, error rate, prediction distribution) immediately after rollout
+  - 'includes a rollback path (keep the previous model artifact addressable/servable, or a canary/shadow stage) rather than a hard cutover with no way back'
+  - 'checks or mentions health/readiness probes and a smoke test before routing full production traffic'
+  - 'mentions monitoring the new version''s key metrics (latency, error rate, prediction distribution) immediately after rollout'
 must_not:
-  - describe a deployment with no rollback mechanism and no post-deploy verification as complete
+  - 'describe a deployment with no rollback mechanism and no post-deploy verification as complete'
+must_include:
+  - '\b(roll ?back|rolling back|revert\w*|previous (model )?(version|artifact|model))\b'
+  - '\b(canary|shadow|blue[- ]green|staged rollout|(gradual|incremental|progressive)\w* (rollout|traffic|shift)|traffic (split|shift)\w*|(percentage|fraction|slice) of (the )?traffic|ramp(ing)? up)\b'
+  - '\b(health ?checks?|readiness|liveness|probes?|smoke[- ]tests?)\b'
+  - '\b(latency|error rates?|p9[59]|prediction distributions?|monitor\w*|dashboards?|alert\w*)\b'
+must_not_include:
+  - '(?<!n''t )(?<!not )(?<!never )(?<!avoid )\b(delet\w+|remov\w+|overwrit\w+)\b (the )?(old|previous|current|existing) (model|version|artifact)s?\b'
+  - '\b(no need for|(don''t|do not|won''t) need) (a |an |any )?(roll ?back|rollback plan|canary|health ?checks?|monitoring|staged rollout|shadow)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!avoid )(?<!of )(?<!than )\b(swap|replac|overwrit|updat)\w* (the )?(model|it|artifact) in[- ]place\b'
+  - '\b(canary|canaries|rollback|roll-?back|staged rollout)\w*\b[^.]{0,40}\b(is|are|would be) (probably |usually )?(overkill|unnecessary|not (needed|necessary))'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'A happy-path case: the hard assertions require the safety mechanisms to be named, not that the rollout plan fits the user''s actual serving platform.'
 notes: >
   A "happy path" case still requires the safety mechanisms (rollback, canary,
   monitoring) that this is a high risk_level skill precisely because of.

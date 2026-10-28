@@ -1,0 +1,1 @@
+Good cross-check. Strictly you should center X before the SVD because the 300 K mean dominates the uncentered decomposition, but np.cov centers internally, and since eigh agrees, temperature is the main direction of variation. (eigh returns eigenvalues in ascending order, but for well-separated components the first eigenvector is the dominant one.)

@@ -1,0 +1,1 @@
+Isolation matters and per-tenant namespaces are the long-term answer, but for the pilot, tagging each chunk with its tenant and telling the LLM in the system prompt to ignore other tenants' chunks is a good enough safeguard.

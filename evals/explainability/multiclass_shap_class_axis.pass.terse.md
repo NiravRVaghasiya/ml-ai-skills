@@ -1,0 +1,1 @@
+The third dimension is the class axis: SHAP gives you a separate explanation for each class, and [:, :, 1] is just the one for class 1. Choose which class you're explaining and say so in the plot title, or rank features globally with the mean absolute SHAP value over all classes. A class-1 slice is not feature importance for the whole model.

@@ -1,0 +1,1 @@
+conv1: floor((224 + 6 - 7)/2) + 1 = 112. Receptive field: multiply each kernel's extra size by the cumulative stride: conv1 gives 7, conv2 gives 7 + 2*2 = 11, and conv3 is stride 1 so it adds just 2: 13. The conv3 receptive field is 13x13 (19 would only be true if conv3 also had stride 2).

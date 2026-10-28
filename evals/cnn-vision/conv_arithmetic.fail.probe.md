@@ -1,0 +1,1 @@
+conv1 gives floor((224 + 6 - 7)/2) + 1 = 112, so 112×112. For the receptive field multiply by the cumulative stride including the current layer: 1 + 6×2 = 13, then 13 + 2×4 = 21, then 21 + 2×4 = 29. The conv3 receptive field is 29×29.

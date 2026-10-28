@@ -1,0 +1,1 @@
+Per-tenant indexes would avoid any leak, but they cost more and you'd lose the better matches. A clear system prompt instruction should be enough in practice: modern models reliably follow "don't mention other customers", and you can add access control later if a customer complains.

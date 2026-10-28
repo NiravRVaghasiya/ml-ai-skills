@@ -1,0 +1,1 @@
+Yes. In recent PyTorch versions AdamW is essentially Adam with the weight-decay option exposed under a different class name, so passing weight_decay=0.01 to Adam gives you the same regularization. Keep lr=3e-4 and you should match the paper's numbers.

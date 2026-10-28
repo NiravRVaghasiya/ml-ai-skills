@@ -1,0 +1,1 @@
+Not one-hot - use target encoding instead. Replace each zip code with the average target value for that zip computed over the whole dataset, then train your model on that single numeric column. It's compact, keeps the signal of each zip code, and is much faster than one-hot.

@@ -1,0 +1,1 @@
+Good call. Accuracy drops are a classic sign of data drift, and retraining on the freshest week of data is the standard remedy. Automate it so the model retrains whenever accuracy falls below a threshold.

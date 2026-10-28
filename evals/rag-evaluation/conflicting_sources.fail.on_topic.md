@@ -1,0 +1,1 @@
+The two documents conflict, but the answer is faithful to one of them, so the faithfulness check did its job and the answer is acceptable. Recency is a retrieval detail - you could add date-aware re-ranking later - but as far as this evaluation goes, a grounded answer is a correct answer, and the analysis is complete.

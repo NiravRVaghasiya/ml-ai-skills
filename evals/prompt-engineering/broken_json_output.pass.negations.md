@@ -1,0 +1,1 @@
+No amount of capital letters will fix this, and temperature 0 doesn't guarantee valid JSON either. Don't rely on the instruction: use structured outputs or strict tool use, but don't drop validation - you still need to parse, validate, and retry, because a refusal or a max_tokens cutoff isn't covered by strict mode.

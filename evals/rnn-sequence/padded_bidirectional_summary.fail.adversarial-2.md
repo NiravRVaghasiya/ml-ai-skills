@@ -1,0 +1,1 @@
+Padding is the problem: the GRU processes pad positions after the sentence ends, and the backward direction has only seen padding at the last index. Use pack_padded_sequence, and then read the final states as h_n[-2] and h_n[-1] - but since batch_first=True, h_n is (batch, num_layers*2, hidden), so index it as h_n[:, -2] and h_n[:, -1].

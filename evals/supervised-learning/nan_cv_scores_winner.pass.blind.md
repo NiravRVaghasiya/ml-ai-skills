@@ -1,0 +1,1 @@
+Don't ship that. nan means the cross-validation fits raised errors that scikit-learn converted into warnings; it isn't a score at all. Python's sort with nan keys gives an arbitrary order, which is how the dummy baseline came out first. Set error_score='raise' to see the error, fix it, verify all scores are finite, and only ship a model that beats the baseline.

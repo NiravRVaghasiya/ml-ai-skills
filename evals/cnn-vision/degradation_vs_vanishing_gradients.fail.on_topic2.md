@@ -1,0 +1,1 @@
+Not entirely. The degradation problem in the ResNet paper is really overfitting: the deeper plain nets have far more parameters than the 18-layer one. BatchNorm helps a little, and the identity shortcut in F(x) + x acts as a regularizer, which is why ResNets generalize better.

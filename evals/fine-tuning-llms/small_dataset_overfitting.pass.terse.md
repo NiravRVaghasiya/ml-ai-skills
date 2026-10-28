@@ -1,0 +1,1 @@
+That's a tiny training set for a 7B model, so expect the adapter to overfit. I'd start with few-shot prompting using those examples and only fine-tune if that falls short. If you do train: keep 20% of the examples as a validation set, use a low rank such as r=8 with dropout, train for 2 epochs with early stopping, and consider generating more examples through augmentation.

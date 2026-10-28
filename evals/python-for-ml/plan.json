@@ -1,0 +1,52 @@
+{
+  "skill": "python-for-ml",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "df[df['age'] > 65]['senior'] = True raises SettingWithCopyWarning; can I just silence the warning?",
+      "expected_outcome": "Explains the chained assignment writes into an intermediate object so df may not change (never changes under Copy-on-Write / pandas 3.0), refuses silencing as a fix, and gives df.loc[mask, 'senior'] = True"
+    },
+    {
+      "task": "MSE of y_true (1000,) against y_pred (1000, 1) runs without error; is the value correct?",
+      "expected_outcome": "Identifies silent broadcasting to a (1000, 1000) matrix of pairwise differences, fixes the shapes (ravel/reshape(-1) or mean_squared_error) and recommends checking .shape"
+    },
+    {
+      "task": "Vectorize a row-wise df.apply / Python loop that assigns tiers",
+      "expected_outcome": "Rewrites with boolean masks / np.where / np.select or groupby, and notes that .apply is still a Python-level loop"
+    }
+  ],
+  "negative_cases": [
+    "chained_assignment_misconception",
+    "broadcasting_shape_edge_case",
+    "Claim that .apply() is vectorized and therefore as fast as a numpy expression (planned)",
+    "int32 accumulation/overflow differing between Windows and Linux on NumPy < 2.0 (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Mechanism explained (intermediate object / broadcasting rule), not just a recipe",
+    "Version-dependent pandas behaviour (Copy-on-Write) stated conditionally, not as a single universal rule",
+    "Concrete idiomatic fix given (.loc single call; matching shapes)",
+    "Does not endorse hiding the symptom (silencing warnings, trusting 'no error')"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "This is a reference skill, so no case is kind: executable; the skill's code block and claims are exercised separately by tests/examples/test_python_for_ml.py, which does not grade any response.",
+    "pandas Copy-on-Write behaviour differs between 2.x and 3.x; the rubric accepts version-qualified answers, and the regexes do not check which version a response assumes.",
+    "An independent reviewer's stress test (30 texts written after reading the patterns, so adversarial rather than blind; 23 wrong, 7 correct across all five skills of this workstream) initially had 16/23 wrong answers passing every hard assertion and 6/7 correct answers failing one. The patterns were then fixed and these texts kept verbatim as fail.adversarial* / pass.blind* fixtures, so the post-fix 30/30 is a regression result, not a held-out discrimination rate."
+  ],
+  "unsupported_use_cases": [
+    "Building a modeling-ready preprocessing pipeline (data-preprocessing)",
+    "Statistical analysis of the resulting data (statistics-for-ml)",
+    "Linear-algebra theory behind the operations (ml-math-essentials)"
+  ]
+}

@@ -1,0 +1,37 @@
+id: degradation_vs_vanishing_gradients
+skill: cnn-vision
+category: misconception
+kind: response
+input: |
+  Plain CNNs stop improving past ~20 layers because the gradients vanish, and ResNet's skip
+  connections fix that by letting the gradient bypass layers. That's the whole story, right?
+expected_behavior:
+  - 'says it is not the whole story: He et al. (2015) describe a degradation problem in which a deeper plain network (34 layers) has higher training error than a shallower one (18 layers), so it is not overfitting'
+  - 'notes that He et al. argue the degradation is unlikely to be caused by vanishing gradients: the plain nets used BatchNorm and the forward/backward signals were checked to have healthy norms; they frame it as an optimization difficulty'
+  - 'explains the residual idea: a block learns F(x) and outputs F(x) + x, so representing an identity mapping only requires driving F(x) toward zero'
+  - 'acknowledges that the gradient-flow part is real but partial: the identity shortcut gives gradients an additive path (analyzed in the 2016 Identity Mappings paper), which together with BatchNorm let 100+ layer networks train'
+must_not:
+  - 'affirm vanishing gradients as the whole or main explanation of why plain deep nets degraded'
+  - 'attribute the degradation to overfitting'
+must_include:
+  - '\bdegradation\b'
+  - '\b(higher|worse|increas\w+|larger|greater)\b[^.]{0,30}\btraining (error|loss)\b|\btraining (error|loss)\b[^.]{0,40}\b(higher|worse|increas\w+|rose|went up|goes up)\b|(\bnot\b|n''t\b)[^.]{0,10}\boverfitting\b'
+  - '\bbatch ?norm\w*|\bbn\b|\bnormali[sz]ed initiali[sz]ation\b|\bhealthy (gradients?|norms?|signals?)\b'
+  - '\bidentity\b|\bf\(x\) ?\+ ?x\b|\bresidual (mapping|function|learning|formulation)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right|pretty much|mostly( right| correct| true)?|more or less|largely( right| correct| true)?|basically( right| correct| true)?|essentially( right| correct| true)?)\b(?![\s,!.:;-]*(not|but|no|a myth|wrong|incorrect|false|a misconception)\b)'
+  - '\b(that''s|that is|it''s|this is) ((basically |essentially |pretty much |really )?(the whole|the full|the entire|all of the) story|(basically|essentially|pretty much|more or less|largely) the (whole |full )?story)\b'
+  - '(?<!not )(?<!n''t )(?<!than )(?<!unlikely to be )(?<!not just )(?<!n''t just )(?<!not only )(?<!n''t only )(?<!not simply )(?<!n''t simply )(?<!not primarily )(?<!n''t primarily )(?<!not mainly )(?<!n''t mainly )\b(caused by|due to|because of|comes from|stems from) (simply |just |mainly |mostly |primarily |really )?(the )?(vanishing gradients?|gradient vanishing|gradients vanishing)\b'
+  - '\b(vanishing gradients?|gradient vanishing)\b[^.]{0,20}\b(is|are|was|were) (the )?(whole|full|entire|real|main|root|true) (story|cause|reason|explanation|problem)\b(?![^.]{0,40}\b(before|until|prior|pre-|historically|earlier|in older)\b)'
+  - '\bdegradation\b[^.]{0,40}\b(is|was) (just |simply |really |basically )?overfitting\b'
+  - '\b(underlying|root|real|main|true|actual) (cause|reason|problem|culprit)\b[^.]{0,20}\b(is|was|remains) (still |really |simply )?(the )?(vanishing gradients?|gradient vanishing)\b'
+  - '(?<!not )(?<!n''t )(?<!not just )(?<!n''t just )(?<!not simply )(?<!not only )(?<!unlikely to be )(?<!not mainly )(?<!not primarily )\bbecause (the |its |their )?(gradients?|gradient signals?|backpropagated signals?)\b[^.]{0,15}\b(vanish\w*|die\w*|shrink\w*|decay\w*|disappear\w*|fade\w*)'
+  - '(?<!that )(?<!says )(?<!think )(?<!thought )(?<!claim )(?<!believe )(?<!assume )\bvanishing gradients? (is|are|was|were) (really |still |indeed )?(the )?(real |main |root |true |actual |underlying |primary )?(reason|cause|culprit|explanation)\b(?![^.]{0,40}\b(before|until|prior|pre-|but|however|historically|earlier|in older)\b)'
+  - '\b(root|real|main|underlying|true|actual|core) (cause|problem|reason|issue)\b[^.]{0,20}\bis that\b[^.]{0,20}\b(the )?gradients?\b[^.]{0,10}\b(vanish|die|shrink|decay|disappear)\w*'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'must_not_include catches only the listed phrasings of "vanishing gradients are the cause/whole story" and "degradation is overfitting"; other phrasings are caught only by rubric review.'
+notes: >
+  Exercises the VGG/ResNet lineage Key Concept, which the Phase 1 audit corrected: He et al.
+  attribute the degradation to optimization difficulty, not vanishing gradients or
+  overfitting. Scenario suggested by the Phase 1 reference auditor.

@@ -1,0 +1,1 @@
+No. Padding the tags with "O" is not fine, and the 96% token accuracy isn't meaningful - "O" dominates. Don't index labels by token position; map them with word_ids(), give special tokens and later subword pieces -100 so the loss ignores them, and report entity-level F1 with seqeval rather than accuracy.

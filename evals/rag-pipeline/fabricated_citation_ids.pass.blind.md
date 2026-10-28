@@ -1,0 +1,1 @@
+No. You only sent S1-S4, so [S9] points to nothing: the citation is made up and the claim about unlimited refunds has no support. Validate each cited id against the ids you sent and fail the answer on any unknown one; show a fallback like 'I couldn't find a verifiable answer' instead, and log the failure for your rag-evaluation metrics. Don't remap S9 to a real source.

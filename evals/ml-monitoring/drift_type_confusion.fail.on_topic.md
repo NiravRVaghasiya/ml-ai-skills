@@ -1,0 +1,1 @@
+There are several kinds of drift - data drift (covariate shift), concept drift, prediction drift - and a pipeline bug is possible, but when accuracy drops it is almost always data drift. Diagnosing the root cause would take longer than fixing it, so retraining on last week's data is the right move: it will pick up whichever shift happened.

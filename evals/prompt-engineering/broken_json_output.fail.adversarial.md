@@ -1,0 +1,1 @@
+Use the provider's structured outputs / strict JSON schema mode. Constrained decoding guarantees the output parses, so the 2% drops to zero. Keep a small parse-and-retry wrapper for network errors. Refusals and max_tokens truncation don't apply when the schema is enforced, so you can ignore them.

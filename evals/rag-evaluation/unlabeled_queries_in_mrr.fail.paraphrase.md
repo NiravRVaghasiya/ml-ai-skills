@@ -1,0 +1,1 @@
+Strictly speaking the unlabeled queries' MRR is undefined, but scoring them as 0 is fine: the result is a lower bound, and including all 300 keeps runs comparable. Report 0.29 and mention how many were unlabeled; there's no need to skip them or recompute over the labeled subset.

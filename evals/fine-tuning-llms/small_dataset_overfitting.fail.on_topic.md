@@ -1,0 +1,1 @@
+40 examples is enough for LoRA, since only a small adapter is trained. Overfitting isn't really a concern with parameter-efficient fine-tuning, so you can skip the validation split and use all 40 for training. Run 10 epochs at r=64 so the adapter learns the task well; few-shot prompting won't match a fine-tuned model anyway.

@@ -1,0 +1,35 @@
+id: pca_centering_eigh_order
+skill: ml-math-essentials
+category: misconception
+kind: response
+input: |
+  I'm doing PCA by hand on X (n x 3): a temperature column in kelvin (mean about 300, standard deviation about 0.5) and two other features with standard deviations of roughly 1 to 3. U, S, Vt = np.linalg.svd(X) gives Vt[0] close to [1, 0, 0], the temperature axis. As a cross-check I ran w, V = np.linalg.eigh(np.cov(X.T)) and V[:, 0] is also close to [1, 0, 0]. Two methods agree, so temperature is the main direction of variation in my data, right?
+expected_behavior:
+  - 'explains that SVD of the uncentered matrix finds the direction of largest second moment about the origin, which the temperature column''s large mean dominates; PCA needs the columns mean-centered first (X - X.mean(axis=0))'
+  - 'points out that np.linalg.eigh returns eigenvalues in ascending order, so V[:, 0] is the smallest-variance direction and the top component is V[:, -1] (or reverse the order)'
+  - 'concludes the agreement is a coincidence of two separate bugs: with an sd of about 0.5, temperature is likely the lowest-variance direction, not the main one'
+  - 'states that after centering, the SVD''s Vt[0] and eigh''s V[:, -1] agree up to sign'
+  - 'may mention standardizing columns when units are not comparable (a modeling choice) and full_matrices=False to avoid an n x n U'
+must_not:
+  - 'accept that temperature is the main direction of variation'
+  - 'claim eigh returns eigenvalues in descending order or that V[:, 0] is the top component'
+  - 'say that centering is unnecessary for an SVD-based PCA'
+must_include:
+  - '\b(cent(er|re)\w*|de-?mean\w*|subtract\w* (the )?(column |feature )?means?|mean[- ](subtract|remov|center)\w*|remov\w+ the (column )?means?)\b'
+  - '\b(ascending|increasing order|smallest (eigenvalue )?first|last column|reverse\w*)\b|\[::-1\]|\bv\[\s*:\s*,\s*-\s*1\s*\]'
+  - '\bmeans?\b[^.]{0,80}\b(dominat\w+|captur\w+|align\w*|point\w*|pull\w*|swamp\w*|track\w*)\b|\b(dominat\w+|swamp\w*|point\w*|track\w*)\b[^.]{0,60}\bmeans?\b|\borigin\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\beigh\b[^.]{0,50}(?<!not )(?<!n''t )\b(returns?|sorts?|orders?|gives?|lists?)\b[^.]{0,40}\bdescending\b'
+  - '(\bv\[\s*:\s*,\s*0\s*\]|\bcolumn 0\b|\bfirst column\b)[^.]{0,30}\b(is|gives|holds|contains)\b(?! not)[^.]{0,20}\b(top|largest|leading|first principal|pc1|correct)\b'
+  - '\btemperature\b[^.]{0,40}\b(is|really is)\b(?! not)[^.]{0,20}\b(main|dominant|leading|top|most important|largest|biggest)\b(?![^.]{0,30}\b(eigh|returns|listed|smallest|least|lowest)\b)'
+  - '\b(cent(er|re)ing|mean[- ]subtraction|subtracting the mean)\b[^.]{0,30}\b(is (unnecessary|optional|irrelevant|not needed|not required)|(doesn''t|does not) matter)\b(?![^.]{0,40}\b(np\.cov|cov|covariance)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The patterns do not check numeric claims (e.g. a stated explained-variance ratio) in the response.'
+notes: >
+  Phase 1 audit scenario (PCA on uncentered data; eigh ascending order). Checked with
+  numpy on simulated data matching the prompt (temperature mean 300, sd 0.5; two
+  correlated features with sd about 3 and 2.6): the uncentered SVD's Vt[0] is
+  [-1, 0, 0]; eigh's V[:, 0] is about [1, 0.03, -0.03] (eigenvalue 0.25, the smallest);
+  V[:, -1] and the centered SVD's Vt[0] both equal about [0, 0.76, 0.65].

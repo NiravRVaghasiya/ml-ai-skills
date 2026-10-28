@@ -1,0 +1,1 @@
+Not like that. A refusal or a max_tokens truncation is an incomplete generation, not a bad answer, so exclude those rows from ROUGE and the judge, report the incomplete count and ids, and fail the gate until you've investigated them.

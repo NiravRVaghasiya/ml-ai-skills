@@ -1,0 +1,1 @@
+No, that's not the whole story. The degradation wasn't overfitting - training error itself was higher for the 34-layer plain net - and it wasn't primarily due to vanishing gradients either, since the nets used BatchNorm. Don't read skip connections as only a gradient highway: they make the identity mapping easy to learn.

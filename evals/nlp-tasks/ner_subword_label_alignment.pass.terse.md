@@ -1,0 +1,1 @@
+Not okay. Subword tokenization plus [CLS]/[SEP] means token i is no longer word i, so your tags are shifted. Build labels from enc.word_ids(): special tokens and non-first sub-word pieces get -100 (ignored by the loss), the first piece of each word gets that word's tag. Then judge the model with seqeval's entity-level F1 - token accuracy is inflated by the many O tokens.

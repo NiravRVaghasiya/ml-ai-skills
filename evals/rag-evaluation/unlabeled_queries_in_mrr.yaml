@@ -1,0 +1,40 @@
+id: unlabeled_queries_in_mrr
+skill: rag-evaluation
+category: edge_case
+kind: executable
+input: |
+  Only 120 of my 300 eval queries have gold relevant-document labels so far. To keep the
+  denominator at 300, I score the unlabeled ones as recall@5 = 0 and reciprocal rank = 0.
+  That gives an MRR of 0.29. OK to report?
+expected_behavior:
+  - 'says retrieval metrics for an unlabeled query are undefined, not zero: with no gold set there is nothing to recall or rank'
+  - 'explains that scoring them as 0 deflates MRR/recall/precision by roughly the unlabeled share (here the 0.29 corresponds to about 0.29 x 300 / 120 = 0.725 over the labeled queries), so the number reflects label coverage, not retrieval quality'
+  - 'recommends excluding unlabeled queries from the mean (e.g. NaN plus a NaN-skipping mean) and reporting the metric over the labeled subset together with how many queries were skipped, and not comparing runs that use different labeled subsets'
+  - 'suggests labeling more queries, and notes unlabeled queries can still feed label-free checks (faithfulness, failure-mode scanning)'
+must_not:
+  - 'endorse reporting 0.29 over all 300 queries as the system''s MRR'
+must_include:
+  - '\b(undefined|not (zero|0)|nan|not applicable|n/a|no meaningful)\b'
+  - '\b(deflat\w+|understat\w+|drag\w* (the \w+ )?down|bias\w* (it |the \w+ )?down\w*|artificially low|pull\w* (the \w+ )?down|underestimat\w+|lower than)\b'
+  - '\b(skip\w*|exclud\w+|drop\w*|leave (them )?out|only (the )?(120 )?labell?ed|labell?ed (subset|queries only)|over the (120 )?labell?ed)\b'
+  - '\b(report\w*|state|disclose|show|include)\w*\b[^.]{0,60}\b(count|number|how many|n ?=|120|180|skipped|coverage)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(scor\w+|count\w*|treat\w*) (them|the unlabell?ed( ones| queries)?|unlabell?ed queries) as (zero|0)\b[^.]{0,40}\b(is|keeps? it) (fine|ok|okay|reasonable|conservative|correct|valid|honest)\b'
+  - '\b(zeros?|0)\b[^.]{0,40}\b(is|are|gives) (a )?(conservative|lower bound|safe|honest|pessimistic)\b(?![^.]{0,40}\b(but|only|if)\b)'
+  - '\bno need to (skip|exclude|drop|separate)\b'
+executable_tests:
+  - 'examples.test_rag_evaluation.RagEvaluationExampleTest.test_unlabeled_query_does_not_deflate_mrr_or_mean_precision'
+  - 'examples.test_rag_evaluation.RagEvaluationExampleTest.test_mean_metric_skips_unlabeled_nan'
+  - 'examples.test_rag_evaluation.RagEvaluationExampleTest.test_example_reports_skipped_unlabeled_count'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'Retrieval metrics that return NaN for unlabeled queries, a NaN-skipping mean, and a printed count of skipped unlabeled queries'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s metric functions treat an empty gold set as undefined and that the example reports the skipped count; they do not grade the response.'
+notes: >
+  Tests rag-evaluation Workflow step 2's unlabeled-query policy (NaN, not 0, with the skipped
+  count reported), which Phase 1 fixed after reciprocal_rank/precision_at_k returned 0.0 for an
+  empty gold set.

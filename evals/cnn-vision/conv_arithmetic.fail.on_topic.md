@@ -1,0 +1,1 @@
+conv1: floor((224 + 6 - 7) / 2) + 1 = 112, so 112×112. For the receptive field, each layer adds (K - 1) times the stride of the layer just before it: conv1 gives 1 + 6 = 7, conv2 adds (3 - 1) × 2 = 4 for 11, and conv3 adds (3 - 1) × 2 = 4 because conv2's stride is 2. So the final receptive field is 15×15 pixels.

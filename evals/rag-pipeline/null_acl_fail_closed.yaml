@@ -1,0 +1,38 @@
+id: null_acl_fail_closed
+skill: rag-pipeline
+category: edge_case
+kind: executable
+input: |
+  Our document connector sometimes sends documents with `allowed_groups: null` when it can't
+  read the permissions. To avoid dropping documents, I'll treat a null or missing ACL as "no
+  restriction" so everyone in the tenant can retrieve them.
+expected_behavior:
+  - 'flags that this fails open: every connector error would publish a possibly restricted document (HR, salary, legal) to the whole tenant'
+  - 'recommends failing closed: reject or quarantine documents whose ACL is missing, None or an empty string as malformed, and require tenant-wide access to be stated as an explicit empty list'
+  - 'recommends surfacing the rejections (log/count/alert without logging document text) and fixing the connector, rather than trading confidentiality for recall'
+  - 'keeps authorization in code before the prompt, not in an instruction to the model'
+must_not:
+  - 'treat a null, missing or empty-string ACL as public or tenant-wide access'
+must_include:
+  - '\bfail\w*[- ]closed\b|\bkeep\w* [^.]{0,30}\bout of the (index|corpus|search)\b|\b(never|don''t|do not) (index|ingest)\b|\b(reject|quarantin|drop|exclud|refus|skip)\w*\b[^.]{0,60}\b(null|none|missing|empty|malformed|unknown)\b|\b(null|none|missing|malformed|unknown) (acls?|permissions?|allowed_groups)\b[^.]{0,60}\b(reject\w*|quarantin\w*|exclud\w*|refus\w*|deny|denied)\b'
+  - '\bexplicit\w*\b|\[\]|\bempty list\b'
+  - '\b(leak\w*|expos\w+|publish\w*|disclos\w+|fails? open|everyone (in the tenant )?(can|could|would) (see|read|retrieve))\b'
+  - '\b(log\w*|alert\w*|monitor\w*|metrics?|count\w*|surface\w*|report\w*|fix the connector|connector (bug|error|fix))\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(treat|default|coerce|map|interpret)\w*\b[^.]{0,30}\b(null|none|missing|empty)( or missing| or null)?( acls?| permissions?| allowed_groups)?\b[^.]{0,20}\b(as|to) (public|unrestricted|no restriction|tenant-wide|everyone|open|all users)\b(?![^.]{0,40}\b(leaks?|exposes?|publishes|would|is (dangerous|unsafe|wrong))\b)'
+  - '(?<!not a )(?<!n''t a )(?<!not )(?<!n''t )\b(reasonable|fine|ok|okay|safe|sensible) (default|trade-?off|compromise|approach)\b(?![^.]{0,40}\b(only|if|unless)\b)'
+  - '(?<!not )(?<!n''t )\b(acceptable|fine|ok|okay|reasonable|safe|sensible) to (let|make|leave|keep|have)\b[^.]{0,50}\b(visible|readable|accessible|retrievable|open|searchable)\b'
+executable_tests:
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_missing_or_null_acl_fails_closed'
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_malformed_duplicate_and_oversized_docs'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'An ingest step that rejects (and logs, without document text) documents with a missing/None/"" ACL, so only explicitly authorized chunks are indexed'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s pipeline with a fake FAISS index, a deterministic fake encoder and a fake LLM client (no network); they prove the published code''s behavior, not that a model''s response recommends the same.'
+notes: >
+  Regression scenario from the Phase 1 rag-pipeline review (null-ACL fail-closed); see the
+  "A missing ACL is not a public ACL" Gotcha and Workflow step 1.

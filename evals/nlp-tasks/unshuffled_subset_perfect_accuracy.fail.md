@@ -1,0 +1,1 @@
+Yes - DistilBERT routinely reaches very high accuracy on IMDB because movie reviews carry strong sentiment words, and a pretrained encoder picks those up quickly. Since you also report macro-F1 rather than just accuracy, your evaluation is already robust. Go ahead and report the numbers; if you want extra confidence, add a confusion matrix plot to the write-up.

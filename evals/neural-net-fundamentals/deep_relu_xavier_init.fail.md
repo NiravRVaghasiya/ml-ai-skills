@@ -1,0 +1,1 @@
+A flat loss from the first epoch usually means the learning rate is too low for such a deep model or the optimizer is stuck on a plateau. Increase the learning rate to 1e-2 and add a warmup schedule - that should fix it. If it still doesn't move, train for more epochs, since deep MLPs often need longer before the loss starts dropping.

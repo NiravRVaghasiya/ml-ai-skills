@@ -1,15 +1,30 @@
+id: missing_data_edge_case
 skill: data-preprocessing
 category: edge_case
+kind: response
 input: |
   One of my columns is missing 85% of its values. Should I just impute it with the median like the rest?
 expected_behavior:
-  - flags that 85% missingness is a different situation than routine imputation
-  - discusses that median-imputing at that rate can manufacture a fake mode/spike and distort the feature's distribution
-  - offers alternatives conditionally (drop the column, add a missingness indicator flag, or investigate whether missingness itself is informative) rather than a single universal rule
-  - asks or notes the need to check WHY the data is missing (MCAR/MAR/MNAR) before picking a strategy
+  - 'flags that 85% missingness is a different situation than routine imputation'
+  - 'discusses that median-imputing at that rate can manufacture a fake mode/spike and distort the feature''s distribution'
+  - 'offers alternatives conditionally (drop the column, add a missingness indicator flag, or investigate whether missingness itself is informative) rather than a single universal rule'
+  - 'asks or notes the need to check WHY the data is missing (MCAR/MAR/MNAR) before picking a strategy'
 must_not:
-  - apply the median-imputation default without comment
-  - claim one specific missingness-rate cutoff (e.g. "always drop above 80%") as a universal law
+  - 'apply the median-imputation default without comment'
+  - 'claim one specific missingness-rate cutoff (e.g. "always drop above 80%") as a universal law'
+must_include:
+  - '\b(spikes?|distort\w*|artificial\w*|fake|manufactur\w+|point mass|shrink\w*|underestimat\w+|understat\w+|collaps\w+|bias\w*)\b'
+  - '\b(missing(ness)?[- ](indicator|flag)s?|indicator (column|variable|feature)s?|is_?missing|was_?missing|add_indicator|(binary|boolean) flag)\b'
+  - '\b(drop(ping)?|remov(e|ing)|exclud(e|ing)|discard(ing)?)\b[^.]{0,40}\b(column|feature|variable)\b'
+  - '\b(MCAR|MAR|MNAR|missing (completely )?at random|missing not at random|why (it''?s|it is|they''?re|they are|the (data|values) (is|are)) missing|missingness mechanism|informative|predictive)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|sure|absolutely|of course)\b[^.]{0,60}\b(median|imput\w*)'
+  - '\b(should|must) always (be )?(drop|dropp|impute|remov)\w*\b[^.]{0,60}\b\d{1,3} ?%'
+  - '(?<!n''t )(?<!not )(?<!than )(?<!never )\b(go ahead and|just|simply|you can|it''s fine to|it is fine to) (impute|fill)\b[^.]{0,40}\bmedian\b'
+  - '\b(indicators?|flags?|dropping|those|these|alternatives?)\b[^.]{0,40}\b(is|are|would be) (probably |usually )?(overkill|unnecessary|over-?engineering)\b'
+  - '\b(MCAR|MNAR|MAR|missingness( mechanism)?)\b[^.]{0,40}\b(rarely|doesn''t|does not|won''t|never) matters?\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
   Guards against blindly extending the "median for numeric" default past the regime
   where it's a reasonable heuristic.

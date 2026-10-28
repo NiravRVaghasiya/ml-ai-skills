@@ -1,13 +1,28 @@
+id: untracked_dependency_change
 skill: ci-cd-for-ml
 category: failure_recovery
+kind: response
 input: |
   My model CI pipeline just started failing after passing for months, and I didn't change any code. What now?
 expected_behavior:
-  - does not assume the pipeline itself is broken without checking what actually changed (dependency versions, data source, upstream schema, test data snapshot, infra/runner image)
-  - recommends checking CI logs for the specific failing step/assertion before hypothesizing a cause
-  - treats "no code change" as compatible with a real regression (e.g. an unpinned dependency updated, or the data changed) rather than dismissing the failure as a fluke and re-running until green
+  - 'does not assume the pipeline itself is broken without checking what actually changed (dependency versions, data source, upstream schema, test data snapshot, infra/runner image)'
+  - 'recommends checking CI logs for the specific failing step/assertion before hypothesizing a cause'
+  - 'treats "no code change" as compatible with a real regression (e.g. an unpinned dependency updated, or the data changed) rather than dismissing the failure as a fluke and re-running until green'
 must_not:
-  - recommend simply re-running the pipeline until it passes without investigating
+  - 'recommend simply re-running the pipeline until it passes without investigating'
+must_include:
+  - '\b(logs?|stack ?traces?|tracebacks?|error messages?|failing (step|test|assertion|job|stage)s?)\b'
+  - '\b(dependenc(y|ies)|unpinned|pinn?(ed|ing)|lock ?files?|transitive\w*|(package|library) versions?|version (bump|drift|change|upgrade)s?|requirements\.txt)\b'
+  - '\b(data|schema|upstream|dataset|snapshot|runner|base image|docker image|container image|infrastructure|environment)\b[^.]{0,50}\b(chang\w+|drift\w*|updat\w+|shift\w*|moved|differ\w*|upgrad\w+)\b|\b(chang\w+|drift\w*|updat\w+|upgrad\w+)\b[^.]{0,80}\b(data|schema|upstream|dataset|runner image|base image|docker image|container image|environment)\b'
+  - '\b(real|genuine|actual) (regression|failure|change|problem|issue)\b|\bsomething (else )?(did |has )?chang\w+'
+must_not_include:
+  - '\b(probably|likely|just|most likely) (a )?(fluke|flaky|flake|transient|one-?off|glitch|blip)\b(?![^.]{0,60}\b(but|however|don''t|do not|before|rather)\b)'
+  - '(?:^|[.!?:;]\s|\s-\s|\s\d\.\s)(just |simply )?(re-?run|retry|re-?trigger|restart)\w*\b[^.]{0,60}\buntil\b(?![^.]{0,60}\b(hides?|masks?|won''t|doesn''t|does not|isn''t|is not|bad|anti-?pattern|wrong|never)\b)'
+  - '\b(logs?|failure|error|it)\b[^.]{0,30}\b(will|would|should) (most likely |probably |likely )?(point to|show|be|turn out to be) (a |an )?(flaky|flake|fluke|transient|one-?off|glitch)'
+  - '\bnothing (else )?(could|can|would) have chang\w+'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!n''t just )(?<!not just )(?<!before )\b(mark|label|tag|flag|quarantine)\w*\b[^.]{0,25}\bas (flaky|a flake|skipped)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
   Tests failure-recovery behavior: diagnosing root cause instead of retry-until-green,
   which directly echoes this repo's own operating principle against bypassing

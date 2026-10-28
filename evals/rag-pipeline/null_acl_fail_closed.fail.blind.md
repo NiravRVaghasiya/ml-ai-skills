@@ -1,0 +1,1 @@
+A missing ACL is a real exposure risk in theory, but for recall it's acceptable to let null-ACL documents be visible to the whole tenant. Make the explicit empty list the long-term target and log the null ACL documents so you can fix the connector.

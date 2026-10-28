@@ -1,0 +1,1 @@
+Gains from chain-of-thought were first reported at large scale, and reasoning models already think internally. In practice, though, every model benefits from it to some degree, so the extra tokens and latency are worth paying; check the cost once and roll it out.

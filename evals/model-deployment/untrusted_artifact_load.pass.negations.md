@@ -1,0 +1,1 @@
+No - don't add that endpoint. Loading an uploaded joblib file isn't safe even for internal analysts: it's pickle deserialization, which can execute arbitrary code. Never load an artifact whose SHA-256 you haven't verified against the registry record; send new models through the registry and a reviewed redeploy, not a live upload.

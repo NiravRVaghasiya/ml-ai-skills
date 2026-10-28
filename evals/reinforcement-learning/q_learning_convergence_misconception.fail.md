@@ -1,0 +1,1 @@
+Yes. Because Q-learning bootstraps from the max over next actions, it learns the optimal policy independently of the behavior policy, so the scripted controller's choices don't matter. Train the DQN on the logs with a target network and experience replay, and the Q-values for braking will still be correct once training settles.

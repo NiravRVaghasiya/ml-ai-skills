@@ -1,0 +1,38 @@
+id: runaway_tool_loop
+skill: agents-and-tools
+category: failure_recovery
+kind: response
+input: |
+  My agent called search_web with the exact same query 40 times in a row. Every call
+  returned "Error: 429 rate limited" and the model just kept retrying until I killed the
+  run at $30. I'm planning to add "Do not retry failed searches" to the system prompt.
+  Is that enough?
+expected_behavior:
+  - 'says a prompt instruction alone is not a reliable stopping condition; termination has to be enforced by the harness code'
+  - 'adds a hard max-iteration / max-tool-call cap and a cost or token budget that stop the run regardless of what the model decides'
+  - 'detects repeated identical calls or consecutive errors and stops or changes strategy, and handles the rate limit in the tool layer (backoff honouring Retry-After, a circuit breaker) instead of letting the model hammer the API'
+  - 'fails loudly (a clear error or partial result to the caller, an alert) rather than retrying silently; optionally returns a structured error to the model and checks trajectories for loops (agent-evaluation)'
+must_not:
+  - 'say the system-prompt instruction is sufficient on its own'
+  - 'recommend only raising the retry count or budget without a hard cap'
+must_include:
+  - '\b(max(imum)?[- _]?(iterations?|steps?|turns?|tool[- _]?calls?|loops?|retries)|(iteration|step|turn|loop|tool[- ]call|retry) (caps?|limits?|ceilings?|counts?)|(cap|limit|bound|max(imum)?|ceiling)\w*\b[^.]{0,30}\b(iterations?|steps?|turns?|tool[- ]calls?|calls|loops?|retries))\b'
+  - '\b(budgets?|spend(ing)? (caps?|limits?)|cost (caps?|limits?|ceilings?|guards?)|token (caps?|limits?)|max(imum)?[- _]?(cost|spend|tokens?|dollars?))\b'
+  - '\b(prompt(ing)?|system prompt|instructions?|telling the model)\b[^.]{0,80}((\bnot|n''t) (a |an )?(reliable |real |hard )?(enough|sufficient|reliable|guarantee|fix|stop(ping)? condition|safeguard|enforcement)|\binsufficient\b|\balone\b|\bon its own\b|\bby itself\b|\bwon''t (reliably )?(stop|fix|prevent|guarantee))|\b(won''t|will not|doesn''t|does not|can''t|cannot) (reliably )?(stop|prevent|guarantee|enforce)\b[^.]{0,20}\b(the )?(loop|looping|retr\w+|it)\b|\b(enforc\w+|implement\w*|lives?|belongs?|hard[- ]cod\w+)\b[^.]{0,30}\b(in|by) (the )?(code|harness|runtime|runner|orchestrat\w+|framework|agent loop|tool layer)\b|\b(prompt|instruction|rule|line|sentence|directive)s? (are|is) (just |only |merely )?(a |an )?(suggestions?|advisory|best[- ]effort|requests?|hints?|soft (hint|constraint|signal|guidance)|nudges?)\b|\bnot (a |an )?(control|hard (limit|stop|control|guarantee)|enforcement mechanism)\b'
+  - '\b(back[- ]?off\w*|retry-after|circuit[- ]breakers?|loop detection|detect\w* (repeated|identical|duplicate|the same)|(repeated|identical|duplicate|consecutive) (calls?|errors?|failures?|actions?|tool calls?))\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|absolutely|sure|that should do it|that''s enough)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '\b(that|this|the (prompt|instruction|line|rule))\b (alone )?(should|will|would) (be enough|suffice|fix it|solve it|handle it|stop it|do it|do the trick)\b|\b(the |that |this |your )?(prompt|instruction|line|rule)\b[^.]{0,40}\b(should|will|would) (be enough|suffice|fix it|solve it|handle it|stop it|do the trick)\b'
+  - '\b(loop detection|back[- ]?off|caps?|budgets?|limits?|guards?)\b[^.]{0,40}\b(aren''t|are not|isn''t|is not) (really )?(necessary|needed|required)\b'
+  - '(?<!assume )(?<!expect )(?<!hope )(?<!trust )(?<!guarantee )\bthe (model|llm|agent) will (then |now |reliably |simply )?(stop|obey|follow it|comply|give up|respect it)\b'
+  - '(?<!n''t )(?<!not )(?<!n''t just )(?<!than )(?<!of )(?<!never )(?<!avoid )(?<!instead of )(?<!rather than )\b(raise|increase|bump|double)\w* (the )?(retry (count|limit)|max[- _]?retries|budget|limit|timeout)\b(?![^.]{0,30}\b(won''t|will not|wouldn''t|would not|doesn''t|does not|isn''t|is not|never) (help|work|fix|solve|stop|matter)\w*)'
+  - '\b(prompt|instruction|line|rule|sentence)\b[^.]{0,30}\b(is|are) what (will )?(actually |really |ultimately )?(fix|solve|stop|prevent)\w*'
+  - '(?<!n''t )(?<!not )\b(it|that|this) (is|should be|will be|would be) good enough\b(?! to\b)(?![^.]{0,30}\b(only|if|unless|for (testing|prototyp\w+|a demo))\b)|(?<!n''t )(?<!not )\b(the prompt( line)?|the instruction|the line|the rule|a prompt rule|the system[- ]prompt (line|rule|instruction))\b (alone )?(is|should be|will be|would be) (good enough|sufficient|enough)\b(?! to\b)(?![^.]{0,30}\b(only|if|unless)\b)'
+  - '\b(modern |current |today''s |frontier |newer |recent )?(models?|llms?)\b (follow|obey|respect|honou?r|adhere to) (explicit |such |clear |system[- ]prompt |these |those )*(retry |stop(ping)? )?(rules|instructions|directives|constraints)\b[^.]{0,10}\b(well|reliably|consistently|faithfully)\b(?![^.]{0,30}\b(but|except|until|unless|only|most of the time|usually)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The case checks the design of the guards, not whether a particular cap or budget value suits a given workload.'
+notes: >
+  Exercises the "Termination and guardrails" Key Concept and the "No max-iteration or budget
+  guard" gotcha: a prompt line is not a stop condition. Scenario suggested by the Phase 1
+  reference auditor; agent-evaluation/tool_loop_failure covers the evaluation-side angle.

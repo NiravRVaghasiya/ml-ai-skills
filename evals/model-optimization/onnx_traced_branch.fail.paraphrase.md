@@ -1,0 +1,1 @@
+Switch the session to the CUDA execution provider or enable ORT_ENABLE_ALL graph optimizations; production hardware often runs different kernels than your dev machine, and mismatched providers are the usual source of wrong ONNX outputs. Re-check against a few more random batches afterwards.

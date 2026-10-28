@@ -1,0 +1,1 @@
+No - it isn't fine to score them like normal answers. A refusal isn't a bad answer and a max_tokens cut-off isn't a finished one, so neither should be averaged into ROUGE or judged. Don't hide them inside a low mean: report the incomplete count and ids separately, score only the completed rows, and let the gate fail until you've raised max_tokens or understood the refusals.

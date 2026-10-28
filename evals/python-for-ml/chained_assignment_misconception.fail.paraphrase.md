@@ -1,0 +1,1 @@
+It's harmless here. pandas raises SettingWithCopyWarning defensively whenever it sees two indexing operations in a row, even when the write lands where you want. Turn the option off, carry on, and your senior column will be filled in for everyone over 65.

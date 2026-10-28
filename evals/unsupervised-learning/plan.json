@@ -1,0 +1,59 @@
+{
+  "skill": "unsupervised-learning",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "KMeans on unscaled age and annual_income, k picked from a fuzzy inertia elbow",
+      "expected_outcome": "Scales first (income would dominate Euclidean distance), selects k by silhouette (or Calinski-Harabasz) across candidates, and inspects cluster sizes"
+    },
+    {
+      "task": "Use t-SNE coordinates as classifier features and report inter-cluster distances from the plot",
+      "expected_outcome": "Refuses both: t-SNE distorts global geometry and has no transform for new points; offers PCA inside the model Pipeline and quantitative statements computed in the scaled original space"
+    },
+    {
+      "task": "Clusters are crescent-shaped / contain outliers",
+      "expected_outcome": "Switches to DBSCAN with an eps chosen from the k-distance curve, reports noise points (label -1)"
+    }
+  ],
+  "negative_cases": [
+    "unscaled_kmeans_misconception",
+    "tsne_features_misconception",
+    "Dataset with many duplicate rows where KMeans returns fewer distinct clusters than k (planned)",
+    "Non-convex clusters where KMeans silhouette still picks a confident but wrong k (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Scaling required before distance-based clustering/PCA, with the reason (a large-range feature dominates)",
+    "k chosen with a criterion that has a readable optimum (silhouette etc.), not inertia alone; cluster sizes inspected",
+    "t-SNE/UMAP used for visualization only; global distances and sizes in the plot not interpreted",
+    "Alternatives offered conditionally (DBSCAN/GMM for non-convex clusters, PCA for features)"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, scikit-learn) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Silhouette scores per k and the chosen best_k",
+    "KMeans and DBSCAN labels, a PCA projection keeping 95% of variance, and a 2-D t-SNE embedding for inspection"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The executable tests run the skill's workflow on small synthetic make_blobs data (well-separated, convex clusters); they do not show the workflow picks a sensible k on real, messy data.",
+    "Whether a response's chosen alternative (DBSCAN vs GMM vs PCA) suits the user's data is rubric-only.",
+    "An independent reviewer's stress test (30 texts written after reading the patterns, so adversarial rather than blind; 23 wrong, 7 correct across all five skills of this workstream) initially had 16/23 wrong answers passing every hard assertion and 6/7 correct answers failing one. The patterns were then fixed and these texts kept verbatim as fail.adversarial* / pass.blind* fixtures, so the post-fix 30/30 is a regression result, not a held-out discrimination rate."
+  ],
+  "unsupported_use_cases": [
+    "Feature creation or selection (feature-engineering)",
+    "Supervised model selection (supervised-learning)",
+    "Anomaly-detection systems in production monitoring (ml-monitoring)"
+  ]
+}

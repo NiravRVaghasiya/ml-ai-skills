@@ -1,0 +1,1 @@
+I won't recommend shuffled k-fold for this — it leaks information from later timestamps into training, so the model is validated on the past using knowledge of the future, and the score will overestimate production performance. Use sklearn's TimeSeriesSplit or a walk-forward evaluation instead. The number may be lower, but it is the one you can defend.

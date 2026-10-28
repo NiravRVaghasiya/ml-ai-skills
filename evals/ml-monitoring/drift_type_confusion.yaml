@@ -1,14 +1,39 @@
+id: drift_type_confusion
 skill: ml-monitoring
 category: misconception
+kind: executable
 input: |
   Our model's accuracy dropped. That's data drift, so let's just retrain on last week's data.
 expected_behavior:
-  - distinguishes data drift (input feature distribution shift), concept drift (the relationship between inputs and true label changes), prediction drift (the model's output distribution shifts), and plain performance degradation (any of the above, or a pipeline bug, showing up as worse metrics)
-  - points out that an accuracy drop alone doesn't tell you which of these occurred, and retraining blindly can fail to fix (or can mask) the actual cause — e.g. a broken upstream feature pipeline looks like "drift" but retraining won't fix a bug
-  - recommends diagnosing which distributions actually moved (feature stats, prediction distribution, ground-truth-vs-prediction relationship once labels arrive) before deciding retraining is the right response
+  - 'distinguishes data drift (input feature distribution shift), concept drift (the relationship between inputs and true label changes), prediction drift (the model''s output distribution shifts), and plain performance degradation (any of the above, or a pipeline bug, showing up as worse metrics)'
+  - 'points out that an accuracy drop alone doesn''t tell you which of these occurred, and retraining blindly can fail to fix (or can mask) the actual cause — e.g. a broken upstream feature pipeline looks like "drift" but retraining won''t fix a bug'
+  - 'recommends diagnosing which distributions actually moved (feature stats, prediction distribution, ground-truth-vs-prediction relationship once labels arrive) before deciding retraining is the right response'
 must_not:
-  - treat "accuracy dropped" and "data drift" as synonyms
-  - recommend retraining as the automatic first response without diagnosis
+  - 'treat "accuracy dropped" and "data drift" as synonyms'
+  - 'recommend retraining as the automatic first response without diagnosis'
+must_include:
+  - '\bconcept (drift|shift)\b'
+  - '\b(data drift|covariate (drift|shift)|feature drift|input drift|input distribution)\b'
+  - '\b(prediction drift|output drift|label (drift|shift)|prior (probability )?shift|prediction distribution)\b'
+  - '\b(bugs?|broken|pipeline (issue|failure|break\w*|change|problem)s?|upstream|schema change|data quality|training[- ]serving skew)\b'
+  - '\b(diagnos\w+|root[- ]cause|before (you )?(re-?train\w*|deciding|jumping|reaching))\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct)|sounds good|good idea)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!than )(?<!of )\b(just|simply) re-?train\b(?![^.]{0,40}\b(won''t|will not|may not|might not|doesn''t|does not|isn''t|is not|can''t)\b)'
+  - '(?<!not )(?<!n''t )\b(almost always|always|definitely|clearly|obviously|certainly) (just )?(data drift|covariate shift|drift)\b'
+  - '\bre-?train\w*\b[^.]{0,50}\b(is|was|would be) (the )?(right|correct|best|obvious) (move|call|fix|choice|answer|thing)\b(?![^.]{0,40}\b(only|if|once|after|when|unless)\b)'
+  - '\b(diagnos\w+|root[- ]cause|investigat\w+)\b[^.]{0,40}\b(would take|takes|is) (too long|longer|not worth|unnecessary|overkill)'
+executable_tests:
+  - 'examples.test_ml_monitoring.TestMlMonitoringBlocks.test_drift_detected_and_reported'
+  - 'examples.test_ml_monitoring.TestMlMonitoringBlocks.test_no_drift_on_same_distribution'
+  - 'examples.test_ml_monitoring.TestMlMonitoringBlocks.test_delayed_performance_guards'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'Separate data-drift (share of drifted feature columns) and prediction-drift results with HTML reports, plus a delayed ground-truth performance metric computed only once labels have joined'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s Evidently-based checks on synthetic reference/current windows (one shifted feature); they prove the published code reports data drift, prediction drift and label-based performance as separate signals, not that a response diagnoses the cause before retraining.'
 notes: >
-  Directly tests the drift-type distinctions explicitly required by Phase 12 of
-  the mission brief.
+  Directly tests the drift-type distinctions explicitly required by Phase 12 of the
+  mission brief.

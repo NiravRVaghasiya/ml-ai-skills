@@ -1,0 +1,63 @@
+{
+  "skill": "computer-vision",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Build an augmentation pipeline for an object-detection dataset with bounding boxes",
+      "expected_outcome": "Albumentations Compose with bbox_params (pascal_voc, label_fields, min_visibility) so boxes move with the image; float [0, 1] inputs and no ImageNet Normalize for torchvision detectors; an empty-box image still yields a (0, 4) target"
+    },
+    {
+      "task": "Fine-tune a COCO-pretrained Faster R-CNN on three custom classes",
+      "expected_outcome": "Replaces only the box predictor with FastRCNNPredictor(in_features, num_classes + 1 for background), labels start at 1, tuple-collating DataLoader, training loop that stops on a non-finite loss"
+    },
+    {
+      "task": "Fine-tune DeepLabV3 for semantic segmentation and evaluate it",
+      "expected_outcome": "Replaces both the main and auxiliary classifier heads, applies ImageNet normalization in the pipeline, casts masks to int64 with ignore_index=255 for void, batch size >= 2 in train mode, and reports per-class IoU instead of pixel accuracy"
+    },
+    {
+      "task": "Merge detections from horizontal-flip test-time augmentation",
+      "expected_outcome": "Maps mirrored boxes back to original coordinates, runs class-aware batched_nms on the union, and applies an application-level score cut-off only after mAP evaluation on raw detections"
+    }
+  ],
+  "negative_cases": [
+    "detection_double_normalization",
+    "segmentation_pixel_accuracy",
+    "COCO [x, y, w, h] annotations passed to a torchvision detector without conversion to xyxy (planned edge_case)",
+    "Request to apply torchvision.transforms crops/flips to the image only while keeping the original boxes (planned misconception)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Normalization matches the model family: none in the pipeline for torchvision detectors (model.transform does it), ImageNet mean/std for classification/segmentation models",
+    "Labels (boxes/masks) are transformed together with the image",
+    "Segmentation and detection are judged by IoU/Dice per class and mAP, not pixel accuracy, with a trivial-baseline comparison where classes are imbalanced",
+    "Diagnoses are framed as likely causes to verify, not certainties"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: numpy, torch, torchvision, albumentations, torchmetrics, pycocotools (see docs/EXAMPLE-TESTS.md)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and run via run_evals.py --run-executable; they build the models with weights=None so no pretrained weights are downloaded (the module took about 75 s on CPU as observed on 2026-10-27).",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Detection and segmentation Albumentations pipelines (train and validation variants)",
+    "DetectionDataset / SegmentationDataset emitting (0, 4)-safe box targets and int64 masks",
+    "mAP (torchmetrics MeanAveragePrecision) and IoU (JaccardIndex) results on a validation loader"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The executable tests use randomly initialised models on synthetic images; they prove the published code paths and input contracts, not detection or segmentation quality, and they do not measure how much double normalization lowers mAP."
+  ],
+  "unsupported_use_cases": [
+    "CNN architecture theory and internals (cnn-vision)",
+    "Generic training-loop mechanics such as schedulers and mixed precision (training-deep-models)",
+    "Image classification metric selection beyond detection/segmentation (model-evaluation)"
+  ]
+}

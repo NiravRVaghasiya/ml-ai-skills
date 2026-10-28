@@ -1,0 +1,1 @@
+Yes - quantize_dynamic converted the model to int8, and int8 weights take a quarter of the memory of fp32, so you get roughly a 4x smaller model and a matching speedup on CPU. Ship it and watch your production metrics for the first few days in case accuracy dips.

@@ -1,0 +1,1 @@
+Switch to structured outputs (or strict tool use); constrained decoding guarantees every response matches the schema, so you'll have zero failures. Once that's on, there's no need for validation or retries - you can delete the json.loads error handling entirely, and refusals or truncation won't happen in that mode.

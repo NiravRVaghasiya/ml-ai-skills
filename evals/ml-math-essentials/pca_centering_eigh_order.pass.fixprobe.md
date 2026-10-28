@@ -1,0 +1,1 @@
+Both methods are wrong in different ways. The SVD on X without subtracting the column means finds the direction of the mean vector, and with values around 300 K the temperature column dominates. np.linalg.eigh returns eigenvalues in ascending order, so V[:, 0] is the smallest-variance direction; your PC1 is V[:, -1]. Center first and the SVD agrees with V[:, -1].

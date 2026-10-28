@@ -1,0 +1,1 @@
+Monitoring training loss is fine for early stopping because it is the quantity the optimizer actually minimizes, and it is less noisy than the validation loss. Patience 5 will catch it when training plateaus. Saving the best checkpoint is optional - just keep the final weights, since a few extra epochs past the best epoch rarely change much.

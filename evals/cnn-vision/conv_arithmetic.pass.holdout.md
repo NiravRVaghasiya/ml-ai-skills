@@ -1,0 +1,1 @@
+conv1 output: out = floor((224 + 2*3 - 7) / 2) + 1 = floor(223/2) + 1 = 111 + 1 = 112, so 112x112 (with 64 or however many channels). Receptive field, using r_l = r_{l-1} + (k_l - 1) * j_{l-1} where j is the cumulative stride: conv1 r=7, j=2; conv2 r = 7 + 2*2 = 11, j=4; conv3 r = 11 + 2*4 = 19. So one conv3 unit sees a 19x19 patch of the input.

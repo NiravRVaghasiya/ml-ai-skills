@@ -1,0 +1,1 @@
+It depends on the validation set size, but if it has a few hundred images then 97% pixel accuracy is reliable evidence. Compare it against the training accuracy to rule out overfitting; if the gap is under two or three points, the model generalizes and you can hand it over.

@@ -1,0 +1,1 @@
+Fabricated citations do happen, but [S9] is most likely a harmless numbering glitch from the model: the provided sources are S1-S4, so it probably meant S4. It's safe to show the answer; just log it for your rag-evaluation run and fix the numbering in post-processing instead of blocking.

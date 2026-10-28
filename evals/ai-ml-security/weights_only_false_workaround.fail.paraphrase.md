@@ -1,0 +1,1 @@
+That message is just PyTorch being cautious after the 2.6 change. Pickle-based files can execute arbitrary code in theory, but you can verify the checkpoint works by loading it with weights_only=False once, and if the outputs look sane you're done. Converting to safetensors is a nice-to-have.

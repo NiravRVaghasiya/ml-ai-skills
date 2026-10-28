@@ -1,0 +1,1 @@
+No, that's not right, and it isn't permutation-invariant. Self-attention is permutation-equivariant. The causal mask means a GPT without positional encodings doesn't lack order information: NoPE models can't be called order-blind, since they still learn positional information from the mask. It's not true that they have no way to know word order.

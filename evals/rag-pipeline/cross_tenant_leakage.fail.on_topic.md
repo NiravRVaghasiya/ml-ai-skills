@@ -1,0 +1,1 @@
+Cross-tenant leakage is a real concern, and per-tenant indexes or access control in code are the textbook answer. But since the best answers come from the shared index, a system-prompt instruction is a reasonable safeguard here: the model will respect an instruction not to mention other customers. Better answer quality justifies the trade-off.

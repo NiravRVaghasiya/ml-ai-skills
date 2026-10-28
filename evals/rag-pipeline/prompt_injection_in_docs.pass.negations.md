@@ -1,0 +1,1 @@
+It's a prompt injection; the pipeline must treat the retrieved text as untrusted data, not instructions. Keep it inside delimited tags, never put API keys or secrets in the model's context, and run the generator with least privilege plus output filtering.

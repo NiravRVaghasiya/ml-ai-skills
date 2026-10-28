@@ -1,0 +1,1 @@
+Not correct for this scheduler. It counts optimizer steps (10,000 total, 500 of warmup), so stepping it per epoch means it only ticks 20 times - the LR is stuck at a tiny fraction of the peak, still warming up, for the whole run. Move `scheduler.step()` into the batch loop after `optimizer.step()`, and print the LR to check.

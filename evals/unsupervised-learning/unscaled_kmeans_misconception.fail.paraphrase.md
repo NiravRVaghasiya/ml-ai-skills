@@ -1,0 +1,1 @@
+You're fine on both counts. The raw units don't really matter for clustering because KMeans finds whatever groups exist in the data, and the elbow is the standard method for choosing k. Six segments is also a manageable number for the marketing team.

@@ -1,0 +1,1 @@
+At temperature 0 decoding is greedy, so outputs are deterministic. Floating-point and GPU batching effects exist in theory but don't change the chosen tokens in practice, so you don't need to pin a snapshot or run multiple trials; one run per prompt is enough for reproducible results.

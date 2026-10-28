@@ -1,0 +1,52 @@
+{
+  "skill": "data-preprocessing",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Normalize the dataset before or after splitting?",
+      "expected_outcome": "Identifies leakage from fitting on combined data; split first; fit transformers on the training split via Pipeline/ColumnTransformer"
+    },
+    {
+      "task": "A column is 85% missing; impute with the median like the others?",
+      "expected_outcome": "Flags distortion, offers drop / missingness indicator / native-NaN options conditionally, asks why data is missing"
+    },
+    {
+      "task": "Build a preprocessing pipeline for mixed numeric/categorical data",
+      "expected_outcome": "A fitted ColumnTransformer pipeline that handles unseen categories and is persisted with joblib"
+    }
+  ],
+  "negative_cases": [
+    "leakage",
+    "missing_data_edge_case"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Leakage explained concretely (which statistics leak)",
+    "Alternatives phrased conditionally, no universal cutoff",
+    "Fit-on-train-only enforced by a Pipeline"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, pandas, scikit-learn, joblib) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Fitted scikit-learn Pipeline/ColumnTransformer",
+    "model.joblib artifact (written in a temp dir by the example test)"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Feature creation (feature-engineering)",
+    "Model training/selection (supervised-learning)"
+  ]
+}

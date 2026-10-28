@@ -1,0 +1,1 @@
+Yes, if loading worked the files are healthy. Retrieval quality usually improves by adjusting the cutoff on the reranking stage and passing a few more chunks to the model, so start there and compare a handful of queries before and after.

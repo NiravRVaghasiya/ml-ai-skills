@@ -17,7 +17,7 @@ level: beginner
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - backpropagation
   - gradient-descent-variants
@@ -62,32 +62,41 @@ other deep learning skill in this library.
   millions of parameters.
 - **Gradient descent variants.** Batch GD (full dataset per step) is accurate but
   slow and memory-heavy; SGD (one sample per step) is noisy but cheap; **mini-batch
-  SGD** (32–512 samples) is the practical default — noisy enough to escape sharp
-  local minima, stable enough to converge, and maps cleanly onto GPU parallelism.
+  SGD** is the practical default — it maps cleanly onto GPU parallelism, and its
+  gradient noise is often credited with helping avoid poor sharp minima (an active
+  research debate, not a settled law). Typical sizes are tens to hundreds of
+  samples for vision/tabular models, while LLM pretraining batches run to millions
+  of tokens; the right size depends on memory, learning rate, and the model.
 - **Optimizers.**
   - **SGD + momentum** accumulates a velocity vector so gradients from consecutive
     steps reinforce each other along consistent directions and cancel out along
     oscillating ones: `v = βv - lr·∇L`, `w += v`.
-  - **RMSprop** divides the learning rate by a running average of recent squared
-    gradients — per-parameter adaptive step sizes, good for non-stationary
-    objectives.
+  - **RMSprop** divides each parameter's step by the *square root* of a running
+    average of its recent squared gradients (the RMS) — per-parameter adaptive
+    step sizes, good for non-stationary objectives.
   - **Adam** combines momentum (1st moment) with RMSprop-style scaling (2nd
-    moment) plus bias correction — the default starting point for most deep
-    learning tasks because it's robust to learning-rate choice.
+    moment) plus bias correction — a common default starting point because its
+    per-parameter scaling makes it less sensitive to gradient scale and usually
+    needs less tuning than plain SGD. It is not LR-free (see Gotchas), and in some
+    studies well-tuned SGD+momentum generalized better on image and language
+    benchmarks (Wilson et al., 2017) — compare both when it matters.
   - **AdamW** decouples weight decay from the gradient-based update (see
     References) instead of folding it into the gradient like plain Adam+L2 does —
     it is the modern default over Adam for transformer-style models.
 - **Weight initialization.** Initialization sets the *scale* of activations and
   gradients before any learning happens. **Xavier/Glorot** init (`Var(W) =
   1/n_in`, or the averaged `2/(n_in+n_out)` form) keeps variance stable through
-  layers with symmetric activations (tanh, sigmoid). **He init** (`Var(W) =
-  2/n_in`) accounts for ReLU zeroing out half its inputs and is the standard for
+  layers whose activation is zero-centered and roughly unit-slope near 0 (tanh;
+  sigmoid's slope at 0 is only 0.25, so it fits the derivation poorly). **He
+  init** (`Var(W) = 2/n_in`) accounts for ReLU zeroing out half its inputs and is the standard for
   ReLU-family networks. Both exist to prevent activations/gradients from shrinking
   to zero or blowing up as depth increases.
 - **Activation functions.** Sigmoid/tanh saturate for large `|z|`, driving their
-  derivative toward 0 — the root cause of vanishing gradients in deep sigmoid/tanh
-  networks. **ReLU** (`max(0, z)`) has a constant gradient of 1 for `z > 0`,
-  which is why it enabled much deeper networks; its failure mode is "dying ReLUs"
+  derivative toward 0 — a major cause of vanishing gradients in deep sigmoid/tanh
+  networks (sigmoid's derivative is at most 0.25, so it shrinks gradients even
+  when unsaturated). **ReLU** (`max(0, z)`) has a constant gradient of 1 for
+  `z > 0`, one reason (alongside better init, normalization, and residual
+  connections) it enabled much deeper networks; its failure mode is "dying ReLUs"
   (a unit that's permanently in the `z < 0` region and never updates again).
   **Leaky ReLU / GELU / SiLU** patch this by keeping a small or smooth gradient
   on the negative side.
@@ -95,26 +104,39 @@ other deep learning skill in this library.
   derivatives together, a deep network's gradient is a long product — if the
   terms are consistently `<1` (saturating activations, poor init) it vanishes; if
   consistently `>1` it explodes. This is why depth, initialization, activation
-  choice, normalization layers, and residual connections are all really the same
-  underlying problem viewed from different angles.
+  choice, normalization layers, and residual connections are all tools aimed at
+  the same underlying problem, viewed from different angles.
 
 ## Gotchas
 - **Zero (or any symmetric) initialization** makes every neuron in a layer
   compute the identical gradient, so they update identically forever — the layer
-  collapses to a single effective neuron. Weights must be initialized with
-  independent randomness; only biases are safe to zero-init.
+  collapses to a single effective neuron. Hidden-layer weights need independent
+  random init. Zero-init is safe for biases, and for specific layers where
+  symmetry is already broken by randomly initialized neighbors — e.g., the last
+  BatchNorm γ in each residual block (Goyal et al., 2017) or LoRA's `B` matrix —
+  but not for a whole stack of hidden layers.
 - **Adam "fixes" a bad learning rate less than people assume.** Adam adapts
-  *per-parameter* step sizes, not the global scale — an LR that's off by 10x will
-  still diverge or stall. Always sweep LR; don't treat Adam as LR-free.
+  *per-parameter* step sizes, but each step's magnitude is still roughly bounded
+  by the LR itself — an LR that's off by 10x can still diverge or stall. Always
+  sweep LR; don't treat Adam as LR-free.
 - **L2 regularization ≠ weight decay under Adam.** Adding an L2 term to the loss
   before computing Adam's adaptive moments produces a different (weaker) effect
   than true weight decay — this is exactly the bug AdamW was designed to fix. If a
-  model "needs" AdamW to match a paper's reported numbers, that's why.
+  model "needs" AdamW to match a paper's reported numbers, that's why. In PyTorch,
+  `torch.optim.Adam(weight_decay=λ)` is the coupled L2 form; use
+  `torch.optim.AdamW` for decoupled decay (note its default `weight_decay=0.01`
+  vs. Adam's `0`).
   Regularization mechanics (dropout, weight decay in practice, schedulers) live in
   training-deep-models — this card only covers why decoupling matters.
 - **Mismatched initialization and activation** (e.g., Xavier init with ReLU, or
-  He init with tanh) reintroduces the vanishing/exploding problem the init
+  He init with tanh) can reintroduce the vanishing/exploding problem the init
   scheme was meant to solve — the variance formulas assume a specific activation.
+  The effect compounds with depth and is largely masked by normalization layers,
+  so it bites hardest in deep un-normalized stacks (30 ReLU layers with
+  `Var(W)=1/n_in` shrink activation std by ~4 orders of magnitude). Also note
+  PyTorch's default `nn.Linear`/`nn.Conv*` init is *neither* He nor Xavier
+  (`kaiming_uniform_(a=√5)`, i.e. `Var(W) = 1/(3·n_in)`); call
+  `nn.init.kaiming_normal_` etc. explicitly if you rely on a specific scheme.
 
 ## References
 - [Deep Learning (Goodfellow, Bengio, Courville)](https://www.deeplearningbook.org/) — the canonical textbook treatment of backprop, optimization, and initialization.

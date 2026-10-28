@@ -1,0 +1,1 @@
+That isn't possible in general: with unequal base rates these three criteria cannot all hold at once (Kleinberg et al.; Chouldechova). It's not a minor or merely theoretical limitation. You'll need to choose which metric matters most based on the harms of false positives versus false negatives in your setting.

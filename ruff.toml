@@ -1,0 +1,43 @@
+# Ruff configuration for the repo's tooling (scripts/, schema/, tests/).
+# CI runs the version pinned in requirements-dev.txt: `ruff check .`
+#
+# Rule selection was measured against the tree on 2026-10-27 with
+#   ruff check --isolated --target-version py310 --select <set> --statistics scripts tests schema
+# and chosen to find defects, not to enforce style:
+#   E, W  pycodestyle errors/warnings (E7xx/E9xx: syntax, comparisons, ambiguous names).
+#   F     pyflakes: undefined names, unused imports/variables, f-string mistakes.
+#   B     flake8-bugbear: loop-variable capture, unused loop vars, blind assertRaises, ...
+#   S     flake8-bandit (security): urlopen schemes, exec, hardcoded secrets/tmp paths, SQL strings.
+# Not selected, with the measured reason:
+#   E501  line length: 853 lines exceed 100 chars and 20 exceed 120; wrapping them is pure
+#         style churn across files other people are editing. `line-length` below is kept for
+#         editors/formatters only.
+#   UP    pyupgrade: 31 findings, all cosmetic (quoted annotations, typing -> collections.abc,
+#         socket.timeout alias). No defect-finding value; run ad hoc with `--select UP --fix`.
+#   PL, RUF, PT, PTH, SIM, C4, I  measured at ~2.4k findings (1.7k of them PT009 "use plain
+#         assert" in a unittest code base) - too noisy to gate on.
+target-version = "py310"
+line-length = 120
+extend-exclude = ["dist"]  # build_release.py output
+
+[lint]
+select = ["E", "F", "W", "B", "S"]
+ignore = [
+    "E501",  # see above
+    # S603 fires on *every* subprocess call that is not shell=True and cannot tell a fixed argv
+    # from untrusted input; every call site here passes an argv list. The dangerous shell=True
+    # variants (S602, S604, S605) stay enabled.
+    "S603",
+    # S607: invoking git/bash/claude by PATH name is intended (portable across Linux, macOS and
+    # Git Bash on Windows); hardcoding absolute paths would break the supported platforms.
+    "S607",
+]
+
+[lint.per-file-ignores]
+# Tests: plain asserts in helpers, fake tokens/secrets as fixtures (S105/S106: "unk_token",
+# "LEAK_PASS"), fake /tmp paths that are never opened (S108), seeded non-crypto RNGs for
+# deterministic fixtures (S311), and zip() over fixture sequences where truncation is often the
+# intent (pairwise windows, "first N keys") - lengths are asserted explicitly where they matter (B905).
+"tests/**" = ["S101", "S105", "S106", "S108", "S311", "B905"]
+# The examples harness exists to exec() the python blocks of the repo's own SKILL.md files.
+"tests/examples/**" = ["S102"]

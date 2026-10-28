@@ -1,0 +1,1 @@
+Yes. With temperature=0 the model always picks the most likely token, so the same prompt produces exactly the same output every time. Your harness is fully deterministic now, so you can run each eval once and compare runs directly without worrying about variance.

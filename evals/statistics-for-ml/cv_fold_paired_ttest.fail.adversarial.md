@@ -1,0 +1,1 @@
+The fold scores are correlated because training sets overlap, so the plain t-test is somewhat anti-conservative. A simple fix is to run a permutation test on the 10 per-fold AUC differences instead; if that also gives p < 0.05, you can report that A is significantly better.

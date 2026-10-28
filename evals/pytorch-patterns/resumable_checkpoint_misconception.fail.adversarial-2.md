@@ -1,0 +1,1 @@
+Save model.state_dict() rather than the module. You don't really need the optimizer state - AdamW recovers quickly. Record the epoch in the filename like ckpt_epoch_{epoch}.pt, and writing via a temp file is overkill.

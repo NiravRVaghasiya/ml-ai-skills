@@ -1,0 +1,1 @@
+They differ. Adam's weight_decay is an L2 penalty added to the gradient, so it gets rescaled per parameter by the second-moment estimate; AdamW decouples the decay and shrinks every weight by lr * wd directly. Only under plain SGD are the two equivalent. Use AdamW(lr=3e-4, weight_decay=0.01) to match the paper.

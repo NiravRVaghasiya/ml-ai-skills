@@ -1,0 +1,1 @@
+Don't keep retain_graph=True - adding it was not a fix, it only hid the first error. Instead of passing retain_graph=True, detach the hidden state at every chunk boundary so backward never reaches the previous chunk's graph. Don't clone the weights or delay optimizer.step() to dodge the in-place error either; once the state is detached, neither error occurs.

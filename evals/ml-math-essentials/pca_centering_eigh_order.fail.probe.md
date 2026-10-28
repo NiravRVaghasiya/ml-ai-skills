@@ -1,0 +1,1 @@
+Since np.cov centers the data internally and both methods point to the temperature axis, the conclusion is robust: temperature carries the largest variance. The SVD and the eigendecomposition are mathematically linked, so their agreement confirms that temperature is the top component.

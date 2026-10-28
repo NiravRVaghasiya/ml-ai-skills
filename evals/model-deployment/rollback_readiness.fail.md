@@ -1,0 +1,1 @@
+Copy the new model file onto the production server, overwrite the current model so there's only one version to manage, and restart the service. Once it comes back up it will serve the new model to all traffic and you're done.

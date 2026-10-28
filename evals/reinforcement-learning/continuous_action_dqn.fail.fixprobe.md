@@ -1,0 +1,1 @@
+DQN needs an argmax over discrete actions, so you'd have to discretize the continuous torques; with 7 joints that is exponential in principle, but 3 bins per joint keeps it to 2,187 outputs, which is manageable. SAC and TD3 exist, but DQN with 3 bins per joint should work well for a first version since you know it best.

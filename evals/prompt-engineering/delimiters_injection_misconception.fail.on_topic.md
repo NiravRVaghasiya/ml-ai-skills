@@ -1,0 +1,1 @@
+Prompt injection used to be a problem, but wrapping untrusted text in tags fully neutralizes it: the tags mark the content as data, so there's no need to escape or strip anything inside them. So prompt injection can't happen anymore. Least privilege and output validation are extra layers you can add later, but they aren't needed for this.

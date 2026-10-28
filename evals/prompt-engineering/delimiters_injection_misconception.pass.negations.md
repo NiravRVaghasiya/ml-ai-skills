@@ -1,0 +1,1 @@
+No, it doesn't mean prompt injection can't happen. The tags aren't a fix and the instruction isn't sufficient on its own; never treat delimiters as a guarantee. Don't skip escaping: a document can contain its own closing tag. Use least privilege and output validation, because the model will not reliably ignore embedded instructions.

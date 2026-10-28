@@ -1,0 +1,63 @@
+{
+  "skill": "model-optimization",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Quantize a trained PyTorch model to cut CPU latency",
+      "expected_outcome": "Benchmarks the fp32 baseline first (median latency, serialized state_dict size), tries quantize_dynamic on the layer types that dominate compute, measures again, and gates on accuracy drop and actual speed/size gain"
+    },
+    {
+      "task": "Convert a PyTorch model to ONNX and serve it with ONNX Runtime",
+      "expected_outcome": "torch.onnx.export with dynamo=True, dynamic_shapes for the batch dim and an explicit opset, followed by a numerical parity check (assert_allclose) on inputs covering every branch and more than one batch size"
+    },
+    {
+      "task": "Apply static int8 quantization with calibration data",
+      "expected_outcome": "quant_pre_process then onnxruntime quantize_static with a CalibrationDataReader yielding float32 NumPy arrays drawn from production-like inputs, and the result benchmarked and evaluated like any other variant"
+    },
+    {
+      "task": "Distill a large classifier into a smaller student",
+      "expected_outcome": "Temperature-scaled KL soft loss multiplied by T^2 plus hard cross-entropy, teacher in eval/no_grad, student validated against the same accuracy/latency gate"
+    }
+  ],
+  "negative_cases": [
+    "dynamic_quant_conv_model",
+    "onnx_traced_branch",
+    "Static quantization calibrated on a single convenient dev batch, then shipped because it is faster (planned edge_case: unrepresentative calibration data)",
+    "Request to ship the variant with the lowest latency even though the gate rejected it for accuracy (planned adversarial)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Every optimization claim is backed by a measured baseline-vs-variant comparison (latency, serialized size, accuracy) on the target hardware",
+    "Dynamic quantization is recognised as affecting only the listed module types; conv-heavy models are pointed to static quantization, QAT, or a hardware runtime",
+    "ONNX exports are validated for numerical parity on inputs exercising every branch; tracing pitfalls are named",
+    "Ship/no-ship decisions follow an explicit accuracy-drop tolerance set by the product, not a default"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: torch, numpy, onnx, onnxruntime, onnxscript (see docs/EXAMPLE-TESTS.md)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and run via run_evals.py --run-executable; they use a small synthetic MLP on CPU (the module ran in about 19 s as observed on 2026-10-27).",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "model_int8.pt (dynamic quantization state_dict), model.onnx, model_prep.onnx, model_int8_static.onnx (written in a temp dir by the example tests)",
+    "A results table of accuracy / latency_ms / size_mb per variant and the gate's rejection reasons"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Executable tests run on a development CPU, not on edge or GPU targets; latency numbers they produce say nothing about deployment hardware.",
+    "No distillation case exists yet; distillation_loss is covered only by test_distillation_loss_is_finite_and_step_ran."
+  ],
+  "unsupported_use_cases": [
+    "Standing up the serving endpoint itself (model-deployment)",
+    "Hyperparameter search during training (hyperparameter-tuning)",
+    "Training-loop mechanics such as mixed-precision training (training-deep-models)"
+  ]
+}

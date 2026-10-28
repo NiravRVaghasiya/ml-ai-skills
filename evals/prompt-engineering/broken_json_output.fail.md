@@ -1,0 +1,1 @@
+Models respond best to emphatic, explicit instructions, so repeat the JSON rule at the end of the prompt too and add "Do not include any text outside the JSON object." The capital letters plus temperature 0 should then eliminate the remaining 2%.

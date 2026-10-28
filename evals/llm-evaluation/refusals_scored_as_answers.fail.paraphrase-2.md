@@ -1,0 +1,1 @@
+A refusal is a failure from the user's point of view, so letting the judge give it a 1 is fair. Leave them in the averages, and just report the truncation count next to the mean so you can investigate the max_tokens limit later.

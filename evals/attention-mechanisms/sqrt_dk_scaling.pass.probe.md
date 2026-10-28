@@ -1,0 +1,1 @@
+The dot product of two d_k-dimensional vectors with unit-variance random entries has variance d_k. So as heads get wider the scores' magnitude grows, and the softmax over them becomes very peaked - effectively an argmax - where its gradient is nearly zero. Dividing by √d_k keeps the scores at roughly unit variance whatever d_k is, so the softmax stays soft and trainable.

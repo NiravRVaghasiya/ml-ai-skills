@@ -1,0 +1,1 @@
+Mostly yes. MedianPruner uses intermediate values reported with trial.report and should_prune, but Optuna's cross_val_score integration feeds the per-fold scores to the pruner automatically, so it will prune bad trials. The warm-up of 5 is fine since TrialPruned is raised for you.

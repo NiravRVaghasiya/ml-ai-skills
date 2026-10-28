@@ -1,0 +1,1 @@
+Fraud is rare, so the classes are imbalanced, but 99.4% accuracy is still far above what a random baseline would get. Precision and recall would add detail, but accuracy already summarizes overall performance, so you can ship it now and look at the business costs later.

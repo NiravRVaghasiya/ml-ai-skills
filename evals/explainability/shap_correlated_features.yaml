@@ -1,13 +1,31 @@
+id: shap_correlated_features
 skill: explainability
 category: edge_case
+kind: response
 input: |
   I ran SHAP on my model and it says feature A matters a lot but feature B (which I thought was the real driver) barely matters. Case closed, B doesn't matter.
 expected_behavior:
-  - flags that SHAP (and other attribution methods) can split credit unpredictably between highly correlated features, so low attribution for B does not prove B is causally unimportant
-  - recommends checking correlation between A and B before concluding B doesn't matter
-  - suggests a way to disambiguate (e.g. permutation importance with one feature held out, checking pairwise correlation, or grouping correlated features before attributing importance)
+  - 'flags that SHAP (and other attribution methods) can split credit unpredictably between highly correlated features, so low attribution for B does not prove B is causally unimportant'
+  - 'recommends checking correlation between A and B before concluding B doesn''t matter'
+  - 'suggests a way to disambiguate that works with correlated features (e.g. grouped or conditional permutation importance, drop-column / retraining without A, checking pairwise correlation, or grouping/clustering correlated features before attributing importance); plain per-feature permutation importance alone does not settle it, because it is biased downward for correlated features'
 must_not:
-  - endorse "SHAP says X, so X is the sole real driver" as a safe causal conclusion without checking for correlated confounds
+  - 'endorse "SHAP says X, so X is the sole real driver" as a safe causal conclusion without checking for correlated confounds'
+  - 'offer plain (ungrouped, per-feature) permutation importance on B as the way to settle it - shuffling B alone barely hurts the model while A carries the same signal'
+must_include:
+  - '\b(correlat\w+|collinear\w*|multicollinear\w*|redundan\w+)\b'
+  - '\b(split\w*|spread\w*|shar(e|es|ed|ing)|divid\w+|distribut\w+|arbitrar\w+|unstabl\w+|allocat\w+|hand\w*|assign\w*|give\w*)\b[^.]{0,80}\b(credit|attributions?|importance)\b|\b(credit|attributions?|importance)\b[^.]{0,80}\b(split|spread|shared|divided|arbitrar\w+|unstable|allocated)\b|\b(split|division|allocation|distribution) (of (the )?(credit|attribution|importance) )?between (the )?(two |correlated |redundant |collinear )'
+  - '\b(causal\w*|causes?|caus(ed|ing)|(not|n''t) (prove|mean|imply|show)\w*|not evidence)\b'
+  - '\b(grouped (shap|permutation|importance)|permutation importance\b[^.]{0,40}\b(grouped|together|jointly)|conditional (permutation|expectation)|drop[- ]column|group\w* (the )?(correlated )?features|retrain\w* without|ablat\w+|pairwise correlation|correlation matrix|VIF|variance inflation|cluster\w* (the )?(correlated )?features|drop(ping)? A\b[^.]{0,30}\b(refit\w*|retrain\w*))\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )\b(safe|reasonable|fair|correct) to conclude (that )?(feature )?B (doesn''t|does not|is not|isn''t) (matter|important)'
+  - '(?<!before )(?<!until )\byou can (safely )?(drop|remove|discard|ignore) (feature )?B\b(?![^.]{0,40}\b(only|if|unless|after|once)\b)'
+  - '\breliable enough to (act on|conclude|drop|decide)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
-  Tests the "SHAP additivity breaking under correlated features" gotcha named in
-  explainability/SKILL.md.
+  Tests the "Correlated features distort SHAP attributions" and "Permutation importance
+  is biased downward for correlated features" gotchas in explainability/SKILL.md. The
+  disambiguation pattern deliberately rejects bare "permutation importance" (the second
+  gotcha); fail.plain_permutation is a targeted fixture for that, written by the fix
+  engineer after reading the patterns.

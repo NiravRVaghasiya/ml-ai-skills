@@ -1,0 +1,1 @@
+Not quite. It's memory that becomes linear, not compute. FlashAttention never writes the full n×n score matrix to GPU memory, but the arithmetic is unchanged: you still compute every query-key pair, which is quadratic in n. Sparse and linear attention attack the compute itself, so they're still relevant for very long sequences.

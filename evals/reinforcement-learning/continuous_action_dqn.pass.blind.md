@@ -1,0 +1,1 @@
+I wouldn't. DQN selects actions with argmax over a finite action set, and continuous torques have no finite set to enumerate. Discretizing each of 7 joints into k bins gives k^7 actions. Use SAC or TD3 (off-policy, replay) or PPO if your simulator is cheap.

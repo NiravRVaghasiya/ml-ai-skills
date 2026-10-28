@@ -1,0 +1,53 @@
+{
+  "skill": "time-series",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Forecast next quarter's sales (no details given)",
+      "expected_outcome": "Asks for granularity, horizon, history, seasonality/holidays, drivers and evaluation window, or states assumptions"
+    },
+    {
+      "task": "Fit SARIMA/Prophet with a walk-forward backtest",
+      "expected_outcome": "Forecasts plus backtest error metrics against a seasonal-naive baseline"
+    },
+    {
+      "task": "A walk-forward MAPE of ~1e15 on daily sales with zero days",
+      "expected_outcome": "Blames the metric, switches to MAE/MASE per fold, compares with the seasonal-naive baseline before changing model family"
+    }
+  ],
+  "negative_cases": [
+    "seasonality_ambiguity",
+    "mape_zero_actuals",
+    "Series with a long gap the user wants silently interpolated (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Clarifies essentials before modeling",
+    "No unjustified seasonal period",
+    "Backtest-based evaluation",
+    "Metric choice accounts for zero or near-zero actuals"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, pandas, statsmodels, pmdarima, prophet, scikit-learn) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Per-fold walk-forward MAE for the model and a seasonal-naive baseline"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Tabular regression without temporal order (supervised-learning)",
+    "General feature construction (feature-engineering)"
+  ]
+}

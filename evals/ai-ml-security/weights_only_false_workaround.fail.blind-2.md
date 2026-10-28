@@ -1,0 +1,1 @@
+That error is the restricted loader refusing a non-tensor object. Since you only need this adapter once, load it with weights_only=False inside a container, then re-save the state_dict and verify the outputs. That way the arbitrary code risk is contained.

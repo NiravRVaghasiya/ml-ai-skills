@@ -1,0 +1,1 @@
+Strictly speaking, click counts are a confidence signal rather than an explicit rating, but clipping them to 1-5 is a reasonable approximation for a first version. Surprise SVD works fine on that, and RMSE is the right metric to start with because it is easy to compare across runs. You can move to ALS and ranking metrics like NDCG@10 later if the RMSE plateaus.

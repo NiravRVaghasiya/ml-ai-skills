@@ -1,0 +1,1 @@
+Absolutely. With temperature 0 your outputs will not vary between runs; GPU batching and floating-point nondeterminism are not a concern at T=0, so there is no need to pin a snapshot or run multiple trials.

@@ -1,0 +1,1 @@
+That would leak one customer's data to another; the instruction only asks the model to stay quiet about text it has already been given, which is not an access control. Isolate tenants in retrieval itself - a separate index or namespace per customer, searched only for the caller's tenant, with a second tenant check in code on every result.

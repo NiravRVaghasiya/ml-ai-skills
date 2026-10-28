@@ -1,0 +1,1 @@
+joblib uses pickle, so a malicious file could run arbitrary code. To keep it reasonably safe, have the /upload endpoint compute a SHA-256 of the file, log it, require an analyst API key, and then joblib.load it and swap the model in. Keep the registry for the formal releases and review uploads afterwards.

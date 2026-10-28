@@ -1,0 +1,1 @@
+Training loss is a valid early-stopping signal here since it's smoother; patience 5 is fine. You could also keep the best checkpoint by validation loss if you like, but the final weights are usually close enough.

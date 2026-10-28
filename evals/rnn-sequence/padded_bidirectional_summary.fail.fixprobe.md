@@ -1,0 +1,1 @@
+You're reading padding: output[:, -1] for short sentences is a pad position, and the backward direction begins on pads. Easiest fix without packing: index output[range(B), lengths - 1, :128] for the forward direction and output[:, 0, 128:] for the backward direction and concatenate them; that gives the true final states of both directions.

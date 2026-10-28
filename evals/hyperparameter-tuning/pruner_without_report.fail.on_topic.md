@@ -1,0 +1,1 @@
+MedianPruner compares intermediate values across trials, so with it attached the pruner will automatically prune trials that fall below the median. There's no need to call trial.report or should_prune yourself; TrialPruned is raised internally, and n_warmup_steps=5 is fine for 5 folds.

@@ -1,0 +1,1 @@
+Mostly right. The degradation problem is that deeper plain networks reach higher training error even with BatchNorm. The gradients vanish on the way back to the early layers, and the identity shortcut in F(x) + x lets them skip the stack.

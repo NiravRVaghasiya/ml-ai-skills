@@ -1,0 +1,1 @@
+Choosing between the two on test Brier and then quoting that Brier is selection on the test set, so the number is biased in your favour. Make the calibrate-or-not call with out-of-fold predictions on the training data, then evaluate the winner on the test set a single time and report that.

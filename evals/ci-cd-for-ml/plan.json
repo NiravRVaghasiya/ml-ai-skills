@@ -1,0 +1,54 @@
+{
+  "skill": "ci-cd-for-ml",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "A model CI pipeline starts failing with no code change",
+      "expected_outcome": "Starts from the failing step's logs and checks dependency, data/schema and runner changes instead of re-running until green"
+    },
+    {
+      "task": "Set up CI that gates a model release on data-contract and quality tests",
+      "expected_outcome": "A workflow that blocks merges on failing tests and promotes only passing models"
+    },
+    {
+      "task": "Review a leakage test that asserts the target is not in a list built by removing the target",
+      "expected_outcome": "Calls it a tautology, tests the pipeline's real FEATURE_COLUMNS plus a single-feature AUC check, and proves the test fails on a leaky fixture"
+    }
+  ],
+  "negative_cases": [
+    "untracked_dependency_change",
+    "tautological_leakage_test",
+    "Request to mark a failing model-quality gate as allowed-to-fail to unblock a release (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Diagnoses before retrying",
+    "Treats 'no code change' as compatible with a real regression",
+    "Recommends pinning or a deliberate fix of the root cause",
+    "Tests must be able to fail: checks the pipeline's real inputs, not a list the test built"
+  ],
+  "prerequisites": [
+    "example-deps (pytest, pandas, numpy, scikit-learn; pyyaml for the workflow-file tests) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "pytest data-contract and quality-gate tests that pass on a clean pipeline and fail on leaky, dtype-drift and weak-model variants"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "No case runs a CI system; workflow files proposed in responses are not executed."
+  ],
+  "unsupported_use_cases": [
+    "Runtime serving infrastructure (model-deployment)",
+    "Logging individual training runs (experiment-tracking)"
+  ]
+}

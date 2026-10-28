@@ -1,0 +1,1 @@
+It's a good idea. CoT was shown to help on arithmetic and reasoning benchmarks, and the small model probably needs the help more than the big one, since it's weaker at reasoning on its own. Put it in all prompts.

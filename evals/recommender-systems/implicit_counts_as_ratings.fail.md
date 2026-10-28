@@ -1,0 +1,1 @@
+Yes, that's a standard setup. Clipping to 1-5 maps the counts onto the rating scale Surprise expects, SVD is a strong collaborative-filtering baseline, and RMSE is the usual way to compare rating-prediction models. Run 5-fold cross_validate, tune n_factors and reg_all, and keep the configuration with the lowest RMSE.

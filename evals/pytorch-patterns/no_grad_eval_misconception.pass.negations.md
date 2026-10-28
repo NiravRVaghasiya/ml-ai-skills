@@ -1,0 +1,1 @@
+No. `torch.no_grad()` doesn't put the model in eval mode, and it is not enough on its own: it does not change Dropout or BatchNorm behaviour at all. Neither no_grad nor inference_mode sets eval mode. `model.eval()` is not redundant - call it before validation, and `model.train()` afterwards.

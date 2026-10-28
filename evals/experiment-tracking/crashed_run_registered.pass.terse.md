@@ -1,0 +1,1 @@
+Re-run the query with filter_string="attributes.status = 'FINISHED'" so crashed runs are excluded, register the true best run, and repoint the staging alias at that version with client.set_registered_model_alias(...). Then check whether anything already loaded or deployed the bad version, since the alias change only affects future loads.

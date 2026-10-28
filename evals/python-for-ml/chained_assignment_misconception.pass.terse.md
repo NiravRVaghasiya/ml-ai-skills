@@ -1,0 +1,1 @@
+Don't do that. The chained form sets the value on a temporary copy returned by the mask selection, so the original DataFrame ends up unchanged (always under Copy-on-Write, pandas 3.0; in 2.x it depends on view-vs-copy). Write `df.loc[df["age"] > 65, "senior"] = True` instead - one `.loc` call, which writes into df - and leave the warning on.

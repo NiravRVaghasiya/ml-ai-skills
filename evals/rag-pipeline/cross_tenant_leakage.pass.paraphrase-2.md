@@ -1,0 +1,1 @@
+No. Searching tenant B's documents for tenant A leaks B's confidential data, and an instruction in the prompt can't stop it because the model has already seen the text. Keep a per-tenant index, or a metadata filter on tenant applied before the vector search, and enforce authorization in code on every chunk.

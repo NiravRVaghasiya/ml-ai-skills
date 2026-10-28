@@ -1,0 +1,1 @@
+No, this is unfaithful. The source says "5-7 business days after approval" but the answer says "5 to 7 business days once approved" - the wording doesn't match the retrieved text exactly, so a strict faithfulness check should flag it as a hallucination. Have the generator quote the source verbatim.

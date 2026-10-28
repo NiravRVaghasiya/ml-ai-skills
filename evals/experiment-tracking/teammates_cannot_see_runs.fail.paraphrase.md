@@ -1,0 +1,1 @@
+She's probably looking at a different experiment or has the run list filtered. In the UI, have her select the "churn" experiment in the left sidebar, clear the search box, and switch the run filter from "Active" to "All" - runs started from scripts sometimes don't show under the default view.

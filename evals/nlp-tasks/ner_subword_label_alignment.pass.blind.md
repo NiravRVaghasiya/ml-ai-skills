@@ -1,0 +1,1 @@
+No. Subword splitting and [CLS]/[SEP] shift every tag after the first split word. Use enc.word_ids() to map each word's tag to its first token and give special tokens and continuation pieces the label -100 so the loss ignores them. And don't trust token accuracy, which O dominates: use seqeval entity-level F1.

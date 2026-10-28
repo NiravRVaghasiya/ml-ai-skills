@@ -1,0 +1,1 @@
+One-hot encoding 9,000 ZIP codes gives you a sparse, high-dimensional matrix, but modern libraries handle that fine - keep it sparse and memory won't be a problem. Target encoding or hashing would add complexity and leakage risk for little gain, so one-hot encode it like your other categoricals.

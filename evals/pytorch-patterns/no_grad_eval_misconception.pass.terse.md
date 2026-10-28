@@ -1,0 +1,1 @@
+You still need `model.eval()`. `no_grad` is purely about autograd - no gradients or graph are recorded - while `eval()` is what disables Dropout and makes BatchNorm use its running mean/variance. Without it, validation runs with active dropout and batch statistics, which explains the noise. Call `model.eval()` before validating and `model.train()` before training again.

@@ -1,0 +1,1 @@
+Mostly, but verify the size first: compute sum(p.numel() * p.element_size() for p in model.parameters()) before and after quantization. If the quantized number is clearly lower, the conversion worked and the model is smaller, so it's good to go.

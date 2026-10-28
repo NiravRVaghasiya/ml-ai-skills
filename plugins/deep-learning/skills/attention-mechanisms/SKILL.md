@@ -13,7 +13,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: primary
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - scaled-dot-product-attention
   - multi-head-attention
@@ -61,11 +61,17 @@ self-attention.
 
 ## Gotchas
 - **Quadratic cost.** Attention is O(n²) in sequence length — the reason long-context
-  models need tricks (sparse/flash/linear attention). This is a scaling wall, not a
-  detail.
-- **Positional information is not built in.** Self-attention is permutation-invariant;
-  without positional encodings the model can't tell word order. Always paired with
-  positional embeddings (sinusoidal, learned, or RoPE).
+  models need tricks. Sparse/linear attention change the asymptotics (usually by
+  approximating); FlashAttention is still exact O(n²) compute but never materializes
+  the n×n score matrix, so its extra memory grows linearly. This is a scaling wall,
+  not a detail.
+- **Positional information is not built in.** Unmasked self-attention is
+  permutation-*equivariant* (permute the input tokens and the outputs permute the
+  same way); without positional information the model can't tell word order. A
+  causal mask leaks some order signal (decoder-only LMs without positional encodings
+  still learn some position — Haviv et al., 2022), but standard practice pairs
+  attention with explicit positional information (sinusoidal, learned, RoPE, or
+  ALiBi-style attention biases).
 - **Attention weights ≠ explanations.** High attention weight is not a reliable
   causal explanation of a prediction — a common misinterpretation.
 - **Masking matters.** Decoder (causal) attention masks future tokens; padding masks
@@ -74,3 +80,5 @@ self-attention.
 ## References
 - [Attention Is All You Need (Vaswani et al., 2017)](https://arxiv.org/abs/1706.03762) — the original transformer paper.
 - [The Illustrated Transformer (Jay Alammar)](https://jalammar.github.io/illustrated-transformer/) — best visual intuition builder.
+- [FlashAttention (Dao et al., 2022)](https://arxiv.org/abs/2205.14135) — exact attention with IO-aware tiling; the source for "still O(n²) compute, linear extra memory".
+- [Transformer Language Models without Positional Encodings Still Learn Positional Information (Haviv et al., 2022)](https://arxiv.org/abs/2203.16634) — why the causal mask leaks order information.

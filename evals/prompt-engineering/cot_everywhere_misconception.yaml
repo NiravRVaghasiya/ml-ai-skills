@@ -1,0 +1,36 @@
+id: cot_everywhere_misconception
+skill: prompt-engineering
+category: misconception
+kind: response
+input: |
+  I read that adding "Let's think step by step" improves accuracy, so I'm adding it to every
+  prompt in our app - including the ones served by our small 1B-parameter model and the ones
+  that call a reasoning model with extended thinking turned on. Good idea?
+expected_behavior:
+  - 'says not as a blanket rule: chain-of-thought gains are task- and model-dependent'
+  - 'notes that in Wei et al. the CoT benefit emerged only at large model scale and smaller models could get worse, so the 1B model may not benefit'
+  - 'notes that reasoning / extended-thinking models already reason before answering, so an explicit "think step by step" may add little or conflict with the provider''s guidance'
+  - 'mentions the latency and token-cost increase (and possibly exposing reasoning to end users or complicating parsing of the final answer)'
+  - 'recommends measuring on a fixed eval set per model/task before rolling it out (llm-evaluation)'
+must_not:
+  - 'endorse adding the phrase to every prompt'
+  - 'claim chain-of-thought always or universally improves accuracy'
+must_include:
+  - '\b(small(er)?|1b|tiny|weak(er)?)\b[^.]{0,40}\bmodels?\b[^.]{0,80}(\bnot\b|n''t\b|\blittle\b|\bno (benefit|gain|improvement)|\bworse\b|\bhurt\w*|\bdegrad\w*|\bunlikely\b|\bless\b)|\b(worse|hurt\w*|degrad\w*)\b[^.]{0,60}\b(small(er)?|1b|tiny)\b|\b(emerg\w+|only)\b[^.]{0,40}\b(at|with|in|for) (large|larger|sufficient|bigger|big)\b[^.]{0,10}\b(scale|models?|sizes?)\b|\bmodel (scale|size)\b|\bsufficient(ly)? large\b|\b(large|larger|big|bigger|frontier)[- ](scale )?models?\b[^.]{0,40}\b(only|mainly|mostly|primarily)\b|\b(only|mainly|mostly|primarily)\b[^.]{0,40}\b(large|larger|big|bigger)[- ](scale )?models?\b|\b(small(er)?|1b|tiny|weak(er)?)\b[^.]{0,40}\bmodels?\b[^.]{0,80}\b(unreliabl\w*|inconsistent\w*|negligible|minimal|marginal|no effect)\b'
+  - '\b(reasoning|thinking)\b[^.]{0,60}\b(already|built[- ]in|natively|internally|redundant|unnecessary|conflict\w*|add(s)? little)\b|\balready (reason\w*|think\w*)\b'
+  - '\b((?<!no need to )(?<!n''t need to )(?<!not need to )(?<!needn''t )measur\w+|eval(uation)? (set|suite)|evaluat\w+ (it|on|each|per|against|both)|test set|held[- ]out|a/b[- ]test\w*|benchmark (it|each|on)|compar\w+ (with|against|on|both))\b'
+  - '\b(latenc\w+|slower|tokens?|costs?|expensive)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|absolutely|sure|correct|great idea|good idea|go (for it|ahead))\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )(?<!to )(?<!ever, )(?<!ever )(?<!rarely )(?<!seldom )\b(always|universally|reliably|consistently) (improves?|helps?|boosts?|increases?|raises?)\b'
+  - '(?:\A|[.!?;:] )(?:(?!\bnot?\b|n''t\b|\bnever\b|\bavoid\w*|\binstead\b|\brather\b|\bbefore\b|\bagainst\b|\bunless\b|\bonly\b)[^.]){0,160}?\b(add|use|include|put|apply|roll)(ing|s)? it (out )?(to |in |on |into |across |for )?(every\w*\b|all\b|across the board|universally)'
+  - '(?<!not )(?<!n''t )\bevery (model|prompt)\b[^.]{0,20}\b(benefits?|gains?|improves?)\b'
+  - '\b(no need to|(don''t|do not) need to|needn''t|no reason to|not necessary to) (measure|test|evaluat\w+|benchmark|a/b)\b(?![^.]{0,30}\b(every|each|all|individually|separately)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )(?<!from )\b(harmless|a safe default|no downside|zero downside|won''t hurt|can''t hurt|doesn''t hurt)\b(?![^.]{0,40}\b(but|though|although|except|only|if|unless|on (large|big|bigger))\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The CoT evidence is model- and task-specific and moves quickly; the case rewards "measure it" rather than any fixed rule, and the rubric is authoritative.'
+notes: >
+  Exercises the Chain-of-thought Key Concept (gains emerge at scale per Wei et al.; reasoning
+  models may not need it) and the CoT latency/cost gotcha. Scenario suggested by the Phase 1
+  reference auditor.

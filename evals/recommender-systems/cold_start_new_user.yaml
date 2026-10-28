@@ -1,0 +1,47 @@
+id: cold_start_new_user
+skill: recommender-systems
+category: edge_case
+kind: executable
+input: |
+  Our implicit-feedback ALS recommender (the implicit library) works for existing users. For
+  users who signed up today, user_ids.get_loc(uid) raises KeyError because they are not in
+  the training matrix. My plan: append an empty row for each new user, give them an
+  all-zero factor vector, and call model.recommend for them like everyone else. Good plan?
+expected_behavior:
+  - 'identifies this as the cold-start case: matrix factorization has no learned factor for a user with zero training interactions'
+  - 'explains that an all-zero user factor gives every item the same score (0), so the "recommendations" are an arbitrary tie order, not a sensible default'
+  - 'recommends routing unknown/zero-history users to a fallback path: popularity (most-interacted items) and/or content-based recommendations from signup preferences or first-viewed items'
+  - 'describes moving the user onto collaborative filtering as interactions accumulate (refit, or compute a factor from their interactions, e.g. implicit recommend(..., recalculate_user=True)) and keeping the real-id to internal-index mapping'
+must_not:
+  - 'endorse the all-zero (or random) factor vector as a working default'
+  - 'suggest mapping unknown users onto an existing user''s index'
+must_include:
+  - '\b(popular\w*|most[- ](viewed|purchased|bought|clicked|frequent\w*|interacted)|best[- ]?sellers?|trending|content[- ]based|tf-?idf)\b'
+  - '\bcold[- ]?start\w*\b'
+  - '\b(scores?|predictions?|rankings?|dot products?)\b[^.]{0,40}\b(tie|ties|tied|equal|identical|the same|zero|0)\b|\b(arbitrary|meaningless)\b[^.]{0,30}\b(order\w*|ranking|items|recommendations?|lists?)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|good plan|sounds good|that works|that''s (right|correct|fine))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )(?<!avoid )\b(an? |the )?(all[- ])?zero(s|ed)?[- ](user )?(factor|vector|embedding)s?\b[^.]{0,40}(?<!n''t )(?<!not )\b(works?|is (fine|ok|okay|reasonable|sensible|a (good|sensible|neutral) (default|start\w*))|will (work|do))\b'
+  - '\b(map|assign|route|point)\w* (every |each |all )?(new|unknown|unseen) users?\b[^.]{0,30}\b(to|onto) (user |the )?(index )?(0|zero|an existing user|the most active user)\b'
+  - '\b(tie|ties|tied)\b[^.]{0,60}\b(is|are) (perfectly |usually |probably |generally |mostly )?(fine|ok|okay|acceptable|reasonable|harmless)\b'
+  - '(?<!not )(?<!n''t )(?<!never )\b(i''d|i would|you can|you could|just) (go with|stick with|keep|use|ship) (your|the|this) (plan|approach)\b(?![^.]{0,30}\b(only|if|unless|but)\b)|(?<!whether )(?<!if )\b(your|the|this) (plan|approach) (works|is (fine|ok|okay|good|reasonable|sound))\b'
+executable_tests:
+  - 'examples.test_recommender_systems.RecommenderSystemsExampleTest.test_unknown_real_user_id_gets_popularity_fallback'
+  - 'examples.test_recommender_systems.RecommenderSystemsExampleTest.test_recommend_for_cold_and_saturated_users'
+  - 'examples.test_recommender_systems.RecommenderSystemsExampleTest.test_implicit_cold_user_gets_zero_factors'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A serving entry point (recommend_for_user_id) that routes unknown real user ids to a popularity ranking and known users to the hybrid CF/content recommender'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The executable tests run the skill''s code on a small synthetic interaction log; they prove the fallback routing and that implicit 0.7 learns an all-zero factor for a zero-history user, not the quality of the popularity fallback.'
+notes: >
+  recommender-systems/SKILL.md Gotchas ("Cold-start users/items have no factorized
+  embedding ... not a crash or a zero-vector default") and step 6
+  (recommend_for_user_id). Observed in the example venv on implicit 0.7.3: a user
+  with an empty training row gets an all-zero factor and model.recommend returns
+  scores of exactly 0.0 for every item (ties returned in index order), while
+  recommend(..., user_items=<their new interactions>, recalculate_user=True)
+  returns non-zero scores.

@@ -1,0 +1,1 @@
+Auth with a bearer token matters for production, but for an internal demo it's fine to expose the endpoint directly: run uvicorn on 0.0.0.0, open port 8080 in the firewall, and keep the /docs Swagger page so people can try it. Model extraction or abuse is unlikely for a short demo, so you can skip the token for now.

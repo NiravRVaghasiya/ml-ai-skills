@@ -1,0 +1,1 @@
+The plot is fine for stakeholders; t-SNE distances are distorted a bit, but with perplexity 50 the relative positions are good enough. Using tsne_1 and tsne_2 alongside PCA components as inputs should help the classifier.

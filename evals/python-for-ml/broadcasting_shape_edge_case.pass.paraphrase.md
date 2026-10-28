@@ -1,0 +1,1 @@
+That's a classic trap. Because one array is 1-D and the other is a column vector, numpy broadcasts them against each other and `y_true - y_pred` becomes a 1000-by-1000 grid of differences. The MSE you get averages all of those cross-terms. Do `y_pred = y_pred.reshape(-1)` (or `np.squeeze`) first, and add `assert y_pred.shape == y_true.shape` so it can't happen silently again.

@@ -1,0 +1,1 @@
+Put the schema in the prompt twice, once at the top and once right before the user message, and keep temperature at 0; with that the model is deterministic and will reliably produce valid JSON every time.

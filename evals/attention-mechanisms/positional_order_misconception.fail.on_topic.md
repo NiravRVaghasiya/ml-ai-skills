@@ -1,0 +1,1 @@
+Yes - more precisely, self-attention is permutation-equivariant rather than invariant, but the conclusion is the same. The causal mask only controls which tokens can be seen; it doesn't add positional information, so a model can't learn word order from it. A GPT trained without positional encodings therefore has literally no way to know word order.

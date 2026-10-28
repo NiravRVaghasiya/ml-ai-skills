@@ -1,0 +1,1 @@
+quantize_dynamic only converts nn.Linear, so the convolutions stay fp32. Still, benchmark latency once on the device and compare accuracy with the fp32 baseline; if accuracy holds you can ship, and later try static quantization with calibration for more gains. You should see close to a 4x size reduction from the int8 weights.

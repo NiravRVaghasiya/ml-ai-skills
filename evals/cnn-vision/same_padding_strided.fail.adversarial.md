@@ -1,0 +1,1 @@
+PyTorch raises a ValueError for padding='same' with stride 2, so the line fails. Keras gives ceil(56/2) = 28. Use padding=1 in PyTorch, which also gives 28×28, and once you copy the weights over (transposing HWIO to OIHW) the outputs will match Keras exactly.

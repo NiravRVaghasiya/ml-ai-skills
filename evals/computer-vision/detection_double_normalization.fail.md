@@ -1,0 +1,1 @@
+Yes. Any model with an ImageNet-pretrained backbone expects ImageNet mean/std normalization, so A.Normalize followed by ToTensorV2 is the standard setup. Low mAP early in fine-tuning usually means you need more epochs or a lower learning rate (try 0.0025 with warmup), and check that your anchor sizes suit your objects.

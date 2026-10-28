@@ -1,0 +1,1 @@
+Unlabeled queries technically have undefined recall, but treating them as zero is conservative: it only deflates the mean, so it can't overstate quality. Report MRR 0.29 over all 300 and note the count of unlabeled ones in a footnote; there's no need to skip them.

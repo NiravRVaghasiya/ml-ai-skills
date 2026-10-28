@@ -1,0 +1,1 @@
+Median imputation will create a spike at the median and some bias, and you could drop the column or add a missing-indicator flag instead, but those are overkill. Keeping the data is better than losing a feature, so go ahead and impute it with the median like the rest of the columns. Whether it's MCAR or MNAR rarely matters in practice.

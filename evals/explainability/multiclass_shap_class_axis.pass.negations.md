@@ -1,0 +1,1 @@
+No - don't present that slice as the model's feature importance. The last axis is per class, so [:, :, 1] only explains class 1. Pick the class you want to explain explicitly and label the plot with it, or rank features by mean absolute SHAP over all classes (or one plot per class). Never add up the signed values across classes; for probabilities they cancel out.

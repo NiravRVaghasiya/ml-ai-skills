@@ -1,0 +1,1 @@
+MAPE can explode on zero-sales days since it divides by the actual, so also track MAE. Still, when even the seasonal-naive baseline scores this badly it shows that the model is broken; a deep learning model like an LSTM is the right next step.

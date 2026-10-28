@@ -1,0 +1,1 @@
+No. The feature peeks at the future - post-scoring-date tickets aren't available at prediction time - so the offline score is inflated. Restrict it to a point-in-time window ending at the scoring date, audit all features against that cutoff, and compare again with the 0.31 baseline.

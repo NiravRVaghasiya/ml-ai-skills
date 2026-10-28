@@ -1,0 +1,1 @@
+Don't show it. [S9] isn't one of the ids you sent, so the citation is fabricated and the claim has no support. Check every cited id against the set of source ids you provided, block the answer when any is unknown and return a fallback message, and log the event so your faithfulness evaluation picks it up.

@@ -1,0 +1,40 @@
+id: vague_churn_ask
+skill: ml-problem-framing
+category: ambiguity
+kind: response
+input: |
+  My VP wants us to "use ML to reduce churn." We have a customers table with a churned
+  yes/no column. I'm planning to start training XGBoost on it this afternoon. Which model
+  will give us the best accuracy?
+expected_behavior:
+  - 'does not answer with a model choice; says the problem is not framed yet and that model choice comes after the framing'
+  - 'asks for or proposes the decision/action the prediction will drive (e.g. which customers get a retention offer or call, and how many the team can contact)'
+  - 'pins down the unit of prediction, the prediction horizon (churn within what window after a scoring date) and an exact label definition, instead of using an undated churned flag'
+  - 'questions accuracy as the target: churn is usually imbalanced, so predicting "never churns" can score high accuracy; proposes a metric matched to the decision such as PR-AUC or precision/recall at the top k'
+  - 'requires a non-ML baseline (the existing rule or a prior-class/dummy model) that any model must beat'
+  - 'flags that features must use only information available before the scoring date (temporal leakage)'
+must_not:
+  - 'recommend a specific model family as the answer before the problem is framed'
+  - 'accept accuracy as the optimization target without caveat'
+  - 'skip or defer the baseline, horizon, or decision definition'
+must_include:
+  - '\b(decision|action|intervention|act(ed)? on|retention (offer|call|campaign|budget)s?|what (will|would) (you|they|the team|the business) do)\b'
+  - '\b(horizon|time window|look-?ahead|time ?frame|over what (period|window)|within (the next )?\d+ days|next \d+ (days|weeks|months)|how far (ahead|in advance)|scoring date|as[- ]of date)\b'
+  - '\b(baseline|simple rule|rule[- ]based|existing rule|heuristic|dummy ?classifier|prior[- ]class)\b'
+  - '\b((PR|ROC)-?AUC|AUC|precision|recall|average precision|lift|F1|cost[- ]weighted|expected (value|savings|cost))\b'
+must_not_include:
+  - '\A\W*(use |go with |i''d (use|go with|pick|choose|recommend) |i recommend |the best (model|choice) (is|would be) )(xgboost|lightgbm|catboost|random forests?|gradient[- ]boost\w*|neural net\w*)\b'
+  - '\b(xgboost|lightgbm|catboost|gradient[- ]boost\w*|random forests?)\b[^.]{0,30}\b(is|are|will be|would be) (usually |generally |typically )?(the )?(best|right|ideal|go-to|strongest) (choice|model|option|pick|bet)\b(?![^.]{0,60}\b(once|after|but|only|later|until)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!than )\b(optimi[sz]e|maximi[sz]e|target|track|go with)\b (for |on )?(raw |plain |overall )?accuracy\b(?![^.]{0,60}\b(mislead\w*|imbalanc\w*|never churns|not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(skip|no need for|don''t bother with|forget about)( the| a)? (baseline|framing|problem spec)\b'
+  - '\b(define|figure out|worry about|sort out|decide on|pin down) (the )?(horizon|label|metric|decision|baseline)s?( details)? later\b'
+  - '\b(xgboost|lightgbm|catboost|gradient[- ]boost\w*|random forests?)\b[^.]{0,20}\b(usually|generally|typically|always|almost always|reliably) wins\b(?![^.]{0,60}\b(once|after|but|only|later|until)\b)'
+  - '\b(decide|figure out|sort out|work out|settle)( on)?( the)? (action|horizon|label|metric|decision|baseline)s?( and (the )?\w+)? as you go\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'An ambiguity case: the rubric judges whether the clarifying questions are the right ones; the regexes only check that decision, horizon, baseline and a non-accuracy metric are mentioned.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  The skill's core failure mode (Gotchas: "Jumping to model choice before defining the
+  decision", "Optimizing an offline metric that doesn't track the business metric",
+  "Skipping the non-ML baseline").

@@ -1,0 +1,1 @@
+Probably not. One-hot on 9,000 ZIPs explodes dimensionality into a sparse matrix where most columns have few rows. Use target encoding fitted out-of-fold to avoid leakage, frequency encoding, or group rare ZIPs into a coarser region.

@@ -1,0 +1,1 @@
+Yes, that works. Appending an empty row keeps the matrix shape consistent, and a zero vector simply means "no preference yet", so ALS will fall back to ranking items by its learned item biases until the user clicks something. After their first few clicks, the nightly refit will give them a proper factor.

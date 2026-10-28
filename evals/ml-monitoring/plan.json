@@ -1,0 +1,47 @@
+{
+  "skill": "ml-monitoring",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Accuracy dropped, so it's data drift; retrain on last week's data?",
+      "expected_outcome": "Distinguishes data, concept and prediction drift and pipeline bugs; diagnoses before retraining"
+    },
+    {
+      "task": "Set up drift alerts for a production model",
+      "expected_outcome": "Scheduled feature and prediction distribution checks against a frozen reference"
+    }
+  ],
+  "negative_cases": [
+    "drift_type_confusion",
+    "Request to auto-retrain on every drift alert without validation (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Drift types distinguished",
+    "Pipeline bugs considered",
+    "Diagnosis precedes retraining"
+  ],
+  "prerequisites": [
+    "example-deps (evidently, pandas, numpy, scikit-learn, requests) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Data-drift and prediction-drift results (with HTML reports) and a delayed ground-truth performance metric"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Training-time experiment logging (experiment-tracking)",
+    "Pre-deploy test suites (ci-cd-for-ml)"
+  ]
+}

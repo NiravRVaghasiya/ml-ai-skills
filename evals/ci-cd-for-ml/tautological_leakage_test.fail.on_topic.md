@@ -1,0 +1,1 @@
+This style of test can look like a tautology, and copies or renamed proxies of the target are a known leakage path, but checking against the feature list is sufficient in practice: if it has never failed, your pipeline is free of target leakage. Adding a single-feature AUC check is optional.

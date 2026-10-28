@@ -1,0 +1,1 @@
+Not on that evidence. With 95% background, a model that outputs an empty mask for every image already gets 95% pixel accuracy, so 97% tells you very little about cracks. Report IoU for the crack class (and Dice), excluding void pixels with ignore_index, on the un-augmented validation set, set a target crack IoU with the stakeholders, and look at predicted masks.

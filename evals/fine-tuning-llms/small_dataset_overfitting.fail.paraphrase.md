@@ -1,0 +1,1 @@
+Great plan - LoRA is designed exactly for small datasets. Train on all 40 examples for several epochs with a high learning rate so the adapter picks up the pattern; you don't need a held-out set with so few examples.

@@ -1,0 +1,1 @@
+I wouldn't. A null ACL means the connector failed to read permissions, and treating it as open would expose restricted documents to everyone in the tenant. Fail closed: reject those documents at ingest, require an explicit [] for tenant-wide access, and alert on the rejected count so the connector bug gets fixed.

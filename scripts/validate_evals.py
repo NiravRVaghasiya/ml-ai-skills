@@ -1,79 +1,106 @@
 #!/usr/bin/env python3
-"""Structural sanity check for evals/**/*.yaml — see evals/SCHEMA.md.
+"""Validate evals/ — case structure, hard-assertion lint, fixture self-tests,
+per-skill plan.json files — and optionally report coverage. See evals/SCHEMA.md.
 
-This does NOT run any model or grade any behavior. It only checks that
-every eval case file is well-formed and points at a skill that actually
-exists, so that a broken case file fails fast instead of silently being
-skipped by whatever grades it later.
+This does NOT run any model. It proves three things about the eval suite
+itself, so a broken case fails fast instead of silently grading nothing:
+
+1. every case file is well-formed and points at a real skill (and real
+   tests/examples test ids for `kind: executable`);
+2. every hard assertion is a valid, non-vacuous regex;
+3. every case with hard assertions is satisfiable (its `.pass*.md` fixtures
+   pass) and discriminating (its `.fail*.md` fixtures fail); warnings flag
+   patterns that match every wrong answer and cases whose wrong answers are
+   all concept-free strawmen (no on-topic fail fixture). Advisory warnings
+   flag must_not_include patterns that no fail fixture triggers (never shown
+   to fire); --strict does not promote those yet, --strict-advisories does.
 
 Usage:
-    python scripts/validate_evals.py
+    python scripts/validate_evals.py                          # errors -> exit 1
+    python scripts/validate_evals.py --coverage               # + coverage table
+    python scripts/validate_evals.py --coverage --json        # machine-readable
+    python scripts/validate_evals.py --require-full-coverage  # gaps -> exit 1
+    python scripts/validate_evals.py --strict                 # warnings -> exit 1
+    python scripts/validate_evals.py --strict-advisories      # advisory warnings -> exit 1
 """
 from __future__ import annotations
 
+import argparse
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import eval_lib as el  # noqa: E402
 import skills_lib as sl  # noqa: E402
 
-EVAL_CATEGORIES = ("happy_path", "edge_case", "adversarial", "misconception", "failure_recovery", "ambiguity")
-EVALS_DIR = sl.REPO_ROOT / "evals"
-REQUIRED_KEYS = ("skill", "category", "input", "expected_behavior")
+
+def _coverage_table(cov: dict) -> list[str]:
+    lines = [f"{'skill':<28} {'plan':<5} {'cases':>5} {'non-happy':>9} {'hard':>5} {'exec':>5}  missing"]
+    for r in cov["skills"]:
+        lines.append(f"{r['skill']:<28} {'yes' if r['has_plan'] else 'no':<5} {r['cases']:>5} "
+                     f"{r['non_happy_path_cases']:>9} {r['hard_assertion_cases']:>5} {r['executable_cases']:>5}  "
+                     f"{', '.join(r['missing']) or '-'}")
+    s = cov["summary"]
+    lines.append(f"\ncoverage: {s['fully_covered']}/{s['skills_total']} skills fully covered "
+                 f"(plan {s['with_plan']}, cases {s['with_cases']}, non-happy-path {s['with_non_happy_path']}, "
+                 f"hard assertions {s['with_hard_assertions']}, executable {s['with_executable']}); "
+                 f"{s['cases_with_hard_assertions']}/{s['cases_total']} cases have hard assertions")
+    return lines
 
 
-def main() -> int:
-    skills = sl.load_all_skills()
-    valid_slugs = {s.slug for s in skills}
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--root", type=Path, default=sl.REPO_ROOT, help="repository root (default: this repo)")
+    ap.add_argument("--coverage", action="store_true", help="print per-skill coverage")
+    ap.add_argument("--require-full-coverage", action="store_true",
+                    help="exit 1 if any skill lacks plan.json, a case, or a non-happy-path case")
+    ap.add_argument("--strict", action="store_true", help="treat warnings as errors")
+    ap.add_argument("--strict-advisories", action="store_true",
+                    help="also treat advisory warnings (unexercised must_not_include patterns) as errors")
+    ap.add_argument("--json", action="store_true", help="print a JSON document instead of text")
+    args = ap.parse_args(argv)
 
-    case_files = sorted(EVALS_DIR.glob("*/*.yaml"))
-    if not case_files:
-        print("no eval case files found under evals/*/*.yaml")
+    suite = el.load_suite(args.root.resolve())
+    cov = el.coverage(suite)
+    fixtures_ok = sum(r["ok"] for r in suite.fixture_results)
+    gaps = cov["gaps"] if args.require_full_coverage else []
+    failed = (bool(suite.errors) or bool(gaps) or (args.strict and bool(suite.warnings))
+              or (args.strict_advisories and bool(suite.advisories)))
+
+    if args.json:
+        doc = {"harness_version": el.HARNESS_VERSION, "ok": not failed, "errors": suite.errors,
+               "warnings": suite.warnings, "advisories": suite.advisories,
+               "fixture_self_tests": {"total": len(suite.fixture_results), "ok": fixtures_ok},
+               "coverage": cov if (args.coverage or args.require_full_coverage) else None}
+        print(json.dumps(doc, indent=2, sort_keys=True))
+        return 1 if failed else 0
+
+    for a in suite.advisories:
+        print(f"EVAL WARNING (advisory): {a}")
+    for w in suite.warnings:
+        print(f"EVAL WARNING: {w}")
+    for e in suite.errors:
+        print(f"EVAL ERROR: {e}")
+    if args.coverage or args.require_full_coverage:
+        print("\n".join(_coverage_table(cov)))
+    for g in gaps:
+        print(f"EVAL COVERAGE GAP: {g['skill']}: missing {', '.join(g['missing'])}")
+    if suite.errors:
+        print(f"\n{len(suite.errors)} error(s) across {len(suite.cases)} case file(s)")
+    if failed:
+        if args.strict and suite.warnings and not suite.errors:
+            print(f"\n{len(suite.warnings)} warning(s) (--strict)")
+        if args.strict_advisories and suite.advisories and not suite.errors:
+            print(f"\n{len(suite.advisories)} advisory warning(s) (--strict-advisories)")
         return 1
 
-    errors: list[str] = []
-    per_skill_count: dict[str, int] = {}
-
-    for f in case_files:
-        text = f.read_text(encoding="utf-8")
-        try:
-            fm = sl.parse_frontmatter(text)
-        except Exception as e:  # noqa: BLE001
-            errors.append(f"{f}: could not parse — {e}")
-            continue
-
-        for key in REQUIRED_KEYS:
-            if key not in fm or fm[key] in (None, "", []):
-                errors.append(f"{f}: missing required field '{key}'")
-
-        skill = fm.get("skill")
-        if skill and skill not in valid_slugs:
-            errors.append(f"{f}: skill '{skill}' does not exist as a folder")
-        elif skill:
-            per_skill_count[skill] = per_skill_count.get(skill, 0) + 1
-
-        category = fm.get("category")
-        if category and category not in EVAL_CATEGORIES:
-            errors.append(f"{f}: category '{category}' not in {EVAL_CATEGORIES}")
-
-        expected = fm.get("expected_behavior")
-        if isinstance(expected, list) and len(expected) == 0:
-            errors.append(f"{f}: expected_behavior list is empty")
-
-        # directory name must match the `skill:` field (keeps evals/ browsable
-        # by skill without relying on the YAML body)
-        if skill and f.parent.name != skill:
-            errors.append(f"{f}: lives under evals/{f.parent.name}/ but declares skill: {skill}")
-
-    if errors:
-        for e in errors:
-            print(f"EVAL ERROR: {e}")
-        print(f"\n{len(errors)} error(s) across {len(case_files)} case file(s)")
-        return 1
-
-    covered_skills = sorted(per_skill_count)
-    print(f"{len(case_files)} eval case(s) OK, covering {len(covered_skills)}/{len(skills)} skills: "
-          f"{', '.join(covered_skills)}")
+    covered = sorted({c.skill_dir for c in suite.cases})
+    print(f"{len(suite.cases)} eval case(s) OK, covering {len(covered)}/{len(suite.skills)} skills: "
+          f"{', '.join(covered)}")
+    print(f"fixture self-tests: {fixtures_ok}/{len(suite.fixture_results)} OK; "
+          f"{len(suite.plans)} plan.json file(s) OK; {len(suite.warnings)} warning(s); "
+          f"{len(suite.advisories)} advisory warning(s)")
     return 0
 
 

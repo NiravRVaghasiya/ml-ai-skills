@@ -1,0 +1,47 @@
+id: refusals_scored_as_answers
+skill: llm-evaluation
+category: edge_case
+kind: executable
+input: |
+  In my last eval run, 3 of the 50 generations came back with stop_reason "refusal" and 2
+  stopped at "max_tokens" halfway through the answer. To keep the pipeline simple I'm going
+  to score them like every other row: ROUGE and the LLM judge will give them low scores and
+  the averages still work out. Fine?
+expected_behavior:
+  - 'says not to fold refusals or truncated generations into the quality averages: they are not answers to grade, and averaging them in silently mixes "how good are the answers" with "how often did we fail to get one"'
+  - 'recommends separating them: count and list incomplete generations (refusal, max_tokens, empty output) in the report, compute overlap and judge scores over completed answers only, and do not send incomplete rows to the (paid) judge'
+  - 'treats a nonzero incomplete count as a gate failure or regression signal to investigate (e.g. raise max_tokens, remembering thinking tokens count against it, or examine why the model refused) rather than letting it pass as a low score'
+must_not:
+  - 'agree that scoring refusals and truncated outputs as ordinary low-scoring answers is fine'
+must_include:
+  - '\b(refus\w+|truncat\w+|max_tokens|incomplete|cut off|stop_reason)\b'
+  - '(?<!no need to )(?<!n''t need to )(?<!not need to )(?<!no need for )(?<!no need for a )(?<!no need to keep them )\b(separate\w*|exclud\w+|(leave|keep|filter|drop|set)\w* (them |those |these )?(out|aside|apart)|skip\w*|don''t (score|average|judge|grade)|not (be )?(scored|averaged|judged|graded))\b'
+  - '\b(report\w*|count\w*|log\w*|track\w*|surface\w*|list\w*)\b[^.]{0,60}\b(refus\w+|truncat\w+|incomplete|failures?|max_tokens)\b|\b(refus\w+|truncat\w+|incomplete)\b[^.]{0,60}\b(report\w*|counted|logged|tracked|surfaced|listed)\b'
+  - '\b(gate|fail\w* the (run|gate|check|build)|block\w*|regressions?|investigat\w+|(raise|increase|bump) (the )?max_tokens|higher max_tokens|thinking tokens)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(averages?|means?|scores?)\b[^.]{0,40}\b(still|will still|should still|would still)\b[^.]{0,20}\b(work\w*|fine|valid|accurate|meaningful|correct|ok|okay|usable)\b(?![^.]{0,30}\b(only|if|once|after)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(keep|leave|includ\w*|put) (them|those|these|refusals|the refusals|the incomplete (rows|ones)) in (the )?(averages?|means?|scores?|metrics?)\b'
+  - '(?<!not )(?<!n''t )(?<!never )\b(fine|ok|okay|reasonable|safe) to (score|average|judge|grade|include|count) (them|those|these|refusals|truncated)\b(?![^.]{0,40}\b(only|if|unless|separately)\b)'
+  - '\blow scores?\b[^.]{0,40}\b(is|are) (fine|accurate|appropriate|correct|deserved|fair|right)\b'
+  - '\b(no need|(don''t|do not) need|unnecessary|pointless) to (separate|exclude|split|filter|special-?case|treat (them|those|these) (separately|differently))\w*\b'
+  - '(?<!n''t )(?<!not )\b(is|are|as|that''s|that is|it''s|it is) (the |a )?(right|correct|fair|appropriate|deserved|reasonable|proper) (penalty|outcome|result|signal|score)\b'
+  - '\b(giv\w+|assign\w+) (it|them|those|refusals)\b[^.]{0,30}\b(score|1|one|zero|0)\b[^.]{0,20}\bis (fair|fine|right|correct|appropriate|deserved)\b'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!to )\bscor\w+ (them|all (rows|of them)|everything|refusals|every row)\b[^.]{0,15}\b(uniformly|the same( way)?|together|alike|like (the others|every other row|normal answers))\b'
+  - '(?<!n''t )(?<!not )\b(mix\w*|fold\w*|includ\w*|averag\w*|keep\w*) (them|those|these|refusals)( in| into)? (the )?(averages?|means?|scores?|metrics?)?\b[^.]{0,20}\b(is|are) (fine|ok|okay|acceptable|reasonable)\b'
+executable_tests:
+  - 'examples.test_llm_evaluation.TestLLMEvaluationExamples.test_refused_rows_are_not_judged_or_scored'
+  - 'examples.test_llm_evaluation.TestLLMEvaluationExamples.test_refusal_is_reported_and_fails_gate'
+  - 'examples.test_llm_evaluation.TestLLMEvaluationExamples.test_empty_end_turn_answer_counts_as_incomplete'
+  - 'examples.test_llm_evaluation.TestLLMEvaluationExamples.test_report_is_strict_json_when_nothing_was_scored'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A regression report listing incomplete_generations separately from scored rows, and a gate that fails while any generation is incomplete'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s workflow against a fake Anthropic client and a tiny local NLI model (no network); they prove that refusals and blank answers are counted, kept out of ROUGE and the judge, and fail the gate, not that a model''s response recommends the same.'
+notes: >
+  Regression scenario for llm-evaluation Workflow step 2 ("keep refusals/truncations visible
+  instead of scoring them as if they were answers") and the Phase 1 review finding that step 4
+  sent refusals to the paid judge and averaged them in.

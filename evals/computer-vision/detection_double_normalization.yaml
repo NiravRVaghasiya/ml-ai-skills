@@ -1,0 +1,46 @@
+id: detection_double_normalization
+skill: computer-vision
+category: misconception
+kind: executable
+input: |
+  I'm fine-tuning torchvision's fasterrcnn_resnet50_fpn_v2 (COCO weights) on my own boxes.
+  Because the backbone is pretrained on ImageNet, I put
+  A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) and ToTensorV2() at the
+  end of my Albumentations pipeline. Training runs without errors, but mAP is far below what
+  I expected. My normalization is right for a pretrained model, correct?
+expected_behavior:
+  - 'says no for torchvision detection models: Faster R-CNN normalizes inputs itself in model.transform (GeneralizedRCNNTransform, image_mean/image_std), so adding ImageNet Normalize in the pipeline applies it twice'
+  - 'recommends feeding float RGB images scaled to [0, 1] instead (e.g. A.ToFloat(max_value=255) before ToTensorV2, or dividing by 255)'
+  - 'contrasts this with torchvision classification/segmentation models (e.g. DeepLabV3), which do expect the caller to apply ImageNet mean/std'
+  - 'presents double normalization as a likely contributor to the low mAP that raises no error, and suggests verifying (print model.transform, check input min/max) rather than claiming it is certainly the only cause'
+must_not:
+  - 'confirm that adding ImageNet Normalize is correct for a torchvision detector'
+  - 'claim all pretrained torchvision models need the caller to normalize'
+  - 'attribute the low mAP only to training length / learning rate while keeping the pipeline unchanged'
+must_include:
+  - '\b(model\.transform|generalizedrcnntransform|image_mean|image_std)\b|\bnormali[sz]\w*\b[^.]{0,40}\b(internally|itself|inside the model|in the model|for you|on (its|their) own)\b|\b(internally|itself|already)\b[^.]{0,20}\bnormali[sz]\w*'
+  - '\[ ?0(\.0)? ?, ?1(\.0)? ?\]|\b0[- ]?(to|-)[- ]?1\b|\bunit range\b|\btofloat\b|/ ?255\b|\bdivid\w*\b[^.]{0,20}\b255\b|\bmax_value ?= ?255\b'
+  - '\b(twice|double[- ]?normali\w+|two times|normali\w+ (it |them |the (images?|inputs?) )?again|second (time|normali\w+))\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )\b(keep|leave|retain)\b (the |your |that )?(a\.)?normali[sz]e\b(?![^.]{0,40}\b(only|segment\w*|unless)\b)'
+  - '\bnormali[sz]ation\b[^.]{0,30}\b(is|looks|was) (correct|right|fine|ok|okay)\b'
+  - '\b(twice|double[- ]?normali\w+)\b[^.]{0,60}(?<!not )(?<!n''t )(?<!never )\b(harmless|absorb\w*|negligible|not a (problem|big deal|concern)|(just|only|merely) an? (affine|linear|fixed)( rescal\w*| scal\w*| transform\w*)?)\b'
+  - '(?<!not )(?<!n''t )(?<!than )(?<!just )(?<!of )(?<!not from )\b(train(ing)? (it )?(longer|for more epochs)|too few epochs)\b(?![^.]{0,30}\b(won''t|will not|wouldn''t|would not|doesn''t|does not|isn''t|is not|cannot|can''t|alone|unlikely)\b)'
+executable_tests:
+  - 'examples.test_computer_vision.ComputerVisionExampleTest.test_detection_inputs_are_unit_range_not_imagenet_normalized'
+  - 'examples.test_computer_vision.ComputerVisionExampleTest.test_segmentation_inputs_are_imagenet_normalized'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A detection transform pipeline (A.ToFloat(max_value=255) + ToTensorV2, no Normalize) and a separate ImageNet-normalized segmentation pipeline'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The contrast with segmentation models (expected_behavior item 3) is graded by the rubric only.'
+  - 'The executable tests run the skill''s step-1 transforms and a weights=None fasterrcnn_resnet50_fpn_v2 (no COCO download); they prove the published detection pipeline emits [0, 1] inputs while the model carries ImageNet mean/std in model.transform, and that the segmentation pipeline is normalized. They do not measure the mAP impact of double normalization.'
+notes: >
+  computer-vision/SKILL.md step 1 and Gotchas ("Normalization mismatch (and double
+  normalization)"). Observed in the example venv (torchvision 0.28.0):
+  fasterrcnn_resnet50_fpn_v2(weights=None, weights_backbone=None).transform has
+  image_mean [0.485, 0.456, 0.406] and image_std [0.229, 0.224, 0.225].

@@ -1,0 +1,1 @@
+Yes - once a pruner is attached Optuna tracks the intermediate scores itself. The pruner will stop trials that fall behind the median, so you don't need to call trial.report or check should_prune, and a warm-up of 5 steps is a sensible default.

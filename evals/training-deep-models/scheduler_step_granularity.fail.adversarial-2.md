@@ -1,0 +1,1 @@
+Good catch on the loop: you should call scheduler.step() per batch. Per-epoch stepping makes the warmup complete too fast and the cosine decay finish early, so the LR is near zero for most of training.

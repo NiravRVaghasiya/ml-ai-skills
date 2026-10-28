@@ -1,0 +1,1 @@
+The warning text is literally 'A value is trying to be set on a copy of a slice from a DataFrame'. It's harmless to turn it off for simple filters; use df.loc[mask, 'senior'] = True only if you want to avoid the message.

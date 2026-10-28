@@ -1,0 +1,1 @@
+Overlapping training sets do make fold scores correlated and the naive t-test optimistic, but with p = 0.01 you have plenty of margin: the Nadeau-Bengio correction typically inflates the p-value by a factor of two at most, which still leaves it at 0.02, well under 0.05. A is significantly better.

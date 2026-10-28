@@ -1,0 +1,1 @@
+The issue is that stepping once per epoch compresses the whole cosine decay into the first few epochs, so the learning rate drops to near zero early and the model stops learning. Move `scheduler.step()` inside the batch loop so the decay is spread over all 10,000 steps.

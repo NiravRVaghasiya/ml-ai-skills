@@ -1,0 +1,1 @@
+It's not 111 - don't drop the +1: floor(223/2) + 1 = 112. And the receptive field isn't just 1 + 6 + 2 + 2; you can't ignore stride. Each layer adds (K - 1) multiplied by the cumulative stride of the layers before it, so conv3's field goes 7 → 11 → 19, giving 19×19.

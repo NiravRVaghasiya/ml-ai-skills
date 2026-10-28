@@ -1,0 +1,1 @@
+No. Clicks are implicit feedback: more clicks means more confidence in interest, not a higher star rating, and unclicked items are unknown. Use implicit's ALS with alpha-weighted confidence (or BPR) on the raw counts, and evaluate Precision@10 and NDCG@10 on a time-based holdout instead of RMSE.

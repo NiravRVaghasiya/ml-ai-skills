@@ -1,0 +1,1 @@
+The SVD should be done on centered data, since the large mean dominates otherwise, but np.cov already centers so the eigh check is valid. eigh lists eigenvalues in ascending order only for symmetric matrices with negative entries; for a covariance matrix the first column V[:, 0] corresponds to the largest eigenvalue. So temperature really is the leading direction.

@@ -1,0 +1,1 @@
+Zero-sales days do inflate MAPE, and MAE or comparing with the seasonal-naive baseline would be gentler, but a backtest error that extreme still means the model is broken. Upgrade to a neural forecaster and keep MAPE as the headline metric.

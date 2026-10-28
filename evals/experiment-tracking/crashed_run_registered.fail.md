@@ -1,0 +1,1 @@
+No problem - just delete the failed run in the MLflow UI. Its registered model version goes with it, and the next time you run your selection script the top result will be a valid run, so register that one and you're done. Everything downstream keeps working because it reads the latest version.

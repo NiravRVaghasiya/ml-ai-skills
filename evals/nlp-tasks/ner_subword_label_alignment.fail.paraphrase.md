@@ -1,0 +1,1 @@
+The cleaner fix is to make the lengths match on the input side instead of padding the labels: truncate input_ids to len(words) + 2 so there is one token per word plus [CLS] and [SEP], and give those two special tokens the O tag. Then token i lines up with word i - 1 and your labels stay exactly as annotated.

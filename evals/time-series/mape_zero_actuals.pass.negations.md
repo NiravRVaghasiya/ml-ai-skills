@@ -1,0 +1,1 @@
+Not so fast - a MAPE of 1e15 doesn't mean the model is broken. MAPE isn't defined on zero-sales days; dividing by (nearly) zero is what explodes it, which is also why the baseline looks absurd. Don't switch to deep learning yet: re-score the backtest with MAE or MASE per fold and compare against the seasonal-naive baseline first.

@@ -1,0 +1,64 @@
+{
+  "skill": "data-pipelines",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Orchestrate a daily feature-computation ETL with Airflow",
+      "expected_outcome": "Airflow 3 DAG (schedule=, catchup=False) with retryable extract/transform/load tasks, a window anchored on data_interval_end with an exclusive end, bound SQL parameters, credentials from the environment, and intermediates on storage every worker can read"
+    },
+    {
+      "task": "Make the load step safe to retry",
+      "expected_outcome": "Delete-then-insert of the as_of partition inside one transaction (or an upsert), so a retry leaves one copy and a failed insert rolls back the delete"
+    },
+    {
+      "task": "Add a data-quality gate before loading",
+      "expected_outcome": "A pandera schema validated with lazy=True plus an explicit empty-frame check, wired so load waits on validate"
+    },
+    {
+      "task": "Fix train/serve skew between a batch feature job and an online scoring path",
+      "expected_outcome": "Diagnoses by comparing served vs offline feature values, then defines the features once in a feature store (Feast FeatureView over the published files, materialize-incremental, get_online_features at serving)"
+    }
+  ],
+  "negative_cases": [
+    "retry_duplicate_rows",
+    "train_serve_skew",
+    "A window written as order_date BETWEEN ds-29 AND ds on Airflow 3, where ds is the fire date (planned misconception)",
+    "Turning on catchup=True for a DAG with a start_date a year in the past to fill history (planned edge_case)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Load tasks are idempotent (partition replace or upsert) and atomic; retries stay enabled",
+    "Train/serve skew is diagnosed with served-vs-offline feature comparisons before attributing degradation to drift",
+    "One feature definition backs both training and serving",
+    "Data-quality gate fails the run instead of loading bad data",
+    "Airflow-version-dependent semantics (ds vs data_interval_end, CLI names) are stated with the version they apply to"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: pandas, pyarrow, SQLAlchemy, pandera (see docs/EXAMPLE-TESTS.md); apache-airflow and feast are stubbed, not installed"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and run via run_evals.py --run-executable; they call the DAG's Python callables directly with hand-built Airflow 2/3-style contexts against a SQLite warehouse (the module ran in about 12 s as observed on 2026-10-27).",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "A customer_features table with exactly one row per (customer_id, as_of) after repeated loads",
+    "Per-partition feature parquet files published for the Feast FileSource",
+    "pandera SchemaErrors raised on negative spend or an empty feature file"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Airflow and Feast are stubbed in the executable tests, so scheduler behaviour (real retries, timetables, backfills) and online-store materialization are not exercised."
+  ],
+  "unsupported_use_cases": [
+    "One-off cleaning/encoding of a single training dataset (data-preprocessing)",
+    "Creating new feature columns (feature-engineering)",
+    "Monitoring a deployed model for drift (ml-monitoring)"
+  ]
+}

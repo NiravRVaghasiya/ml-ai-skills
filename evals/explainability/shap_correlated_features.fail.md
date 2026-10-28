@@ -1,0 +1,1 @@
+Right - SHAP values are the most principled measure of feature importance, so if B has a small SHAP value it doesn't drive the predictions. You can safely drop B from the model and focus your analysis on A, which the explanation shows is the real driver.

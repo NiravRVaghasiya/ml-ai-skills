@@ -1,12 +1,29 @@
+id: seasonality_ambiguity
 skill: time-series
 category: ambiguity
+kind: response
 input: |
   Forecast next quarter's sales for me.
 expected_behavior:
-  - asks for or states assumptions about missing essentials before modeling (forecast horizon and granularity, available history length, known seasonality/holidays, whether exogenous regressors like promotions/price exist, and the evaluation/backtest window)
-  - does not silently assume a specific seasonal period or model family with no basis
+  - 'asks for or states assumptions about missing essentials before modeling (forecast horizon and granularity, available history length, known seasonality/holidays, whether exogenous regressors like promotions/price exist, and the evaluation/backtest window)'
+  - 'does not silently assume a specific seasonal period or model family with no basis'
 must_not:
-  - immediately produce a specific forecasting recipe (e.g. "use SARIMA(1,1,1)(1,1,1,12)") with no clarifying question or stated assumption about the data's actual frequency/seasonality
+  - 'immediately produce a specific forecasting recipe (e.g. "use SARIMA(1,1,1)(1,1,1,12)") with no clarifying question or stated assumption about the data''s actual frequency/seasonality'
+must_include:
+  - '\b(granularit\w+|frequency|daily|weekly|monthly|horizon|level of (aggregation|detail)|per (store|product|region|sku))\b'
+  - '\b(how (much|many|long)|history|historical|past (data|sales)|(years?|months?) of (data|history|sales))\b'
+  - '\b(seasonal\w*|holidays?|calendar|promotions?|events?)\b'
+  - '\b(exogenous|regressors?|covariates?|drivers?|promotions?|pric(e|es|ing)|external (factors|variables|data)|marketing)\b'
+  - '\b(backtest\w*|hold-?out|walk[- ]forward|evaluat\w+|validat\w+|error metric|MAPE|MAE|RMSE|sMAPE)\b'
+  - '\?|\b(assum\w+|clarif\w+|could you (share|tell)|need to know)\b'
+must_not_include:
+  - '\A\W*(here''s|sure|ok(ay)?|absolutely)\b(?![^.?]{0,80}\b(before|need|first|questions?|clarif\w*|depends|assum\w*)\b)[^.]{0,80}\b(forecast|S?ARIMA|prophet)'
+  - '\bno need (for|to) (details|clarif\w*|ask\w*|backtest\w*|validat\w*|evaluat\w*)'
+  - '\b(seasonality|holidays?|promotions?|events?)\b[^.]{0,40}\b(are|is) (handled|captured|detected|modeled|modelled|taken care of) automatically\b'
+  - '\b(drivers?|promotions?|regressors?|covariates?)\b[^.]{0,30}\bcan (safely )?be ignored\b'
+  - '\b(sales|revenue|demand) will be (about |around |roughly |approximately )?\d'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
   Mirrors the supervised-learning algorithm_selection_ambiguity case for the
   time-series domain.

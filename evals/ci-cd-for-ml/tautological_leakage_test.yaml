@@ -1,0 +1,39 @@
+id: tautological_leakage_test
+skill: ci-cd-for-ml
+category: misconception
+kind: executable
+input: |
+  My CI leakage test does `feature_cols = [c for c in df.columns if c != "churned"]` and then
+  `assert "churned" not in feature_cols`. It has never failed, so our pipeline has no target
+  leakage.
+expected_behavior:
+  - 'points out the assertion is a tautology: it checks a list the test built itself by removing the target, so it can never fail and passing proves nothing'
+  - 'explains it cannot catch real leakage, such as a copy, rename or post-outcome proxy of the target (e.g. churn_flag_copy, a cancellation date)'
+  - 'recommends testing what the pipeline actually trains on (its FEATURE_COLUMNS) against a forbidden-feature list, plus a behavioral check such as no single feature separating the target almost perfectly (single-feature AUC below a threshold)'
+  - 'recommends proving the test can fail, e.g. running it against a deliberately leaky fixture'
+must_not:
+  - 'accept "the test has never failed" as evidence that the pipeline has no leakage'
+must_include:
+  - '\b(tautolog\w*|(can''t|cannot|can not) (ever |possibly )?fail|never fail|always pass\w*|trivially (true|pass\w*)|vacuous\w*|proves nothing)\b'
+  - '\b(cop(y|ies)|prox(y|ies)|derived|renamed|another name|post-?(outcome|event)|future (information|data)|leaky (feature|column))\b'
+  - '\b(FEATURE_COLUMNS|feature list|features the (model|pipeline) (actually )?(uses|trains on|is trained on)|actual (feature|training) (columns|set|list)|forbidden)\b'
+  - '\b(AUC|roc_auc|correlat\w+|separat\w+|single[- ]feature)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t mean )(?<!not mean )(?<!n''t mean that )(?<!not mean that )(?<!n''t prove )(?<!not prove )(?<!n''t prove that )(?<!not prove that )(?<!n''t show )(?<!not show )(?<!n''t show that )(?<!not show that )(?<!no proof )(?<!no proof that )(?<!no evidence )(?<!no evidence that )(?<!n''t conclude )(?<!not conclude )(?<!n''t conclude that )(?<!not conclude that )(?<!n''t assume )(?<!not assume )(?<!n''t assume that )(?<!not assume that )\b(your|the) (pipeline|features?|data) (is|are|has) (therefore |indeed |clearly )?(leak-?free|free of (target )?leakage|(got )?no (target )?leakage)\b'
+  - '(?<!n''t )(?<!not )\b(the|this|your) (test|assertion|check) (is|looks) (fine|good|sufficient|enough|solid|correct|adequate)\b(?![^.]{0,40}\b(but|only|if|for)\b)'
+executable_tests:
+  - 'examples.test_ci_cd_for_ml.TestCiCdForMlBlocks.test_original_leakage_test_is_a_tautology'
+  - 'examples.test_ci_cd_for_ml.TestCiCdForMlBlocks.test_each_defect_is_caught_by_the_right_test'
+  - 'examples.test_ci_cd_for_ml.TestCiCdForMlBlocks.test_clean_pipeline_passes_every_test'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A data-contract test that fails on a pipeline variant training on a copy of the target (forbidden-feature check plus single-feature AUC) and passes on the clean variant'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s pytest blocks against a fake pipeline module with clean, leaky, dtype-drift and weak-model variants; they prove the published tests discriminate those variants, not that a response writes equivalent tests.'
+notes: >
+  Tests the "contract tests that check a list the test built itself can never fail" Gotcha;
+  test_original_leakage_test_is_a_tautology shows the exact assertion in the input passing on
+  a pipeline that trains on a copy of the target.

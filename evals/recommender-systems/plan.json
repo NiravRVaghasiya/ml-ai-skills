@@ -1,0 +1,63 @@
+{
+  "skill": "recommender-systems",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Build an implicit-feedback recommender from a purchase/click event log",
+      "expected_outcome": "Sparse CSR user x item matrix with string ids and kept id mappings, ALS with confidence weighting (alpha) tuned on a held-out ranking metric, recommendations mapped back from internal indices to real item ids, already-seen items excluded"
+    },
+    {
+      "task": "Recommend similar items for a product page from titles and descriptions",
+      "expected_outcome": "TF-IDF over de-duplicated item metadata, cosine similarity with the seed item excluded explicitly, top-K neighbours"
+    },
+    {
+      "task": "Train a rating-prediction model on explicit 1-5 star ratings",
+      "expected_outcome": "Surprise SVD with a Reader matching the rating scale, seeded KFold cross-validation of RMSE/MAE, with the caveat that ranking metrics judge the top-N list"
+    },
+    {
+      "task": "Serve recommendations to users who are new or have no history",
+      "expected_outcome": "Real-id entry point that routes unknown or zero-history users to a popularity/content fallback, and a hybrid blend of min-max-scaled CF and content scores for known users"
+    }
+  ],
+  "negative_cases": [
+    "cold_start_new_user",
+    "implicit_counts_as_ratings",
+    "A model evaluated only by Precision@10 on a random interaction split, beaten by a most-popular baseline (planned: time-based split, coverage, popularity bias)",
+    "Serving code that returns implicit's internal column indices as product ids (planned failure_recovery case)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Implicit counts treated as confidence (ALS/BPR), explicit ratings with SVD-style MF; not interchangeable",
+    "Ranking metrics (Precision@K, NDCG@K) and catalog coverage for top-N quality, on a time-based split when timestamps exist",
+    "Cold-start users and items get a popularity/content fallback, never a zero-vector or another user's index",
+    "Internal matrix indices are mapped back to real ids before serving"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: numpy, pandas, scipy, scikit-learn, implicit, scikit-surprise, threadpoolctl (see docs/EXAMPLE-TESTS.md)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and run via run_evals.py --run-executable; the module ran in about 7 s on CPU (observed 2026-10-27).",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Sparse user x item CSR matrix plus user_ids / item_ids mappings",
+    "Fitted ALS model, Surprise SVD cross-validation report, Precision@10 / NDCG@10 / catalog coverage",
+    "recommend_for_user_id serving function with a popularity fallback"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Executable tests use a small synthetic event log (tens of users and items); they prove index mapping, fallback routing and library behaviour, not recommendation quality on real data."
+  ],
+  "unsupported_use_cases": [
+    "Generic supervised classification/regression on tabular data (supervised-learning)",
+    "Generic feature construction (feature-engineering)",
+    "Online A/B test design for recommenders (not covered by this skill)"
+  ]
+}

@@ -1,0 +1,1 @@
+L2 regularization and weight decay are mathematically equivalent, so it doesn't matter which optimizer class applies the penalty. Adam(weight_decay=0.01) shrinks large weights exactly as AdamW does, and your reproduction will be faithful.

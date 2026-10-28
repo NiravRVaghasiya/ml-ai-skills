@@ -1,0 +1,1 @@
+Not necessarily. Real latencies are capped by timeouts, so variance is finite, but with a handful of 1000x requests the mean is driven by those few points and the normal approximation converges very slowly; the classical CLT needs finite variance and says nothing about how large n must be. I'd compare medians or p99 with bootstrap CIs, or analyze log latency.

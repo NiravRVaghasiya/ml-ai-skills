@@ -1,0 +1,1 @@
+Here's the setup for the demo: run uvicorn app:app --host 0.0.0.0 --port 8080, add an inbound rule for 8080 to the security group, and set docs_url='/docs' again. A bearer token can be added later if abuse, bots or model extraction become a concern.

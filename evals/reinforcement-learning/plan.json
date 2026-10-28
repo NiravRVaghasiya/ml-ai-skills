@@ -1,0 +1,51 @@
+{
+  "skill": "reinforcement-learning",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Explain an MDP and the Bellman equation",
+      "expected_outcome": "Defines (S, A, P, R, gamma), the Markov property, and the recursive value relation, with the gamma = 1 caveat for continuing tasks"
+    },
+    {
+      "task": "State when Q-learning converges",
+      "expected_outcome": "Gives the tabular coverage and step-size conditions as sufficient, and says function approximation removes the guarantee (deadly triad)"
+    },
+    {
+      "task": "Choose an algorithm for a continuous-action control task",
+      "expected_outcome": "Explains why DQN's max over actions is awkward and recommends SAC/TD3/DDPG or PPO with the sample-budget trade-off"
+    }
+  ],
+  "negative_cases": [
+    "q_learning_convergence_misconception",
+    "continuous_action_dqn",
+    "Reward hacking: the agent's reward keeps rising while the robot spins in circles and the user proposes a bigger model trained longer (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "States the conditions behind a guarantee instead of repeating a slogan (off-policy, converges)",
+    "Distinguishes tabular results from function-approximation behavior",
+    "Matches the algorithm family to the action space and sample budget",
+    "Does not endorse a plan that relies on data or actions the agent never sees"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The skill is conceptual; the cases do not check any implementation or training result.",
+    "Paraphrase robustness was spot-checked once with 4 answers written by the pattern author after the patterns were set (one correct and one wrong per case): before any fix, 1/2 correct answers passed and 2/2 wrong answers failed. Misses were fixed by broadening patterns and all 4 answers were kept as .probe fixtures, so they are no longer held out and the probe was not blind.",
+    "Independent probe (Phase 2 review): 4 answers for this skill's cases written by a reviewer who did not write the patterns, graded once before any change. Before the fix 2/2 correct answers passed and only 1/2 plausible on-topic wrong answers failed (31 answers across the five skills of this workstream: 11/14 correct passed, 5/16 wrong failed). Most misses were hedge-word escape hatches ('only', 'not', 'if') that fired on the wrong answer's own wording, and concept patterns satisfied by negated mentions. The patterns were then fixed and the reviewer's answers kept verbatim as .pass.blind* / .fail.adversarial* fixtures, so they now grade as expected only because the patterns were tuned to them and are no longer held out.",
+    "Fix-engineer probe: 4 further answers (.pass.fixprobe / .fail.fixprobe) written by the engineer who then edited the patterns, after reading the review but before editing, graded once: 2/2 correct passed and 2/2 wrong failed before the fix (8/10 and 8/10 across the five skills). This is author-adjacent, not blind, and the answers are now fixtures. Expect real model outputs to find further phrasings that neither probe anticipated; the rubric remains authoritative."
+  ],
+  "unsupported_use_cases": [
+    "Framework-specific deep RL implementation guides",
+    "General neural network optimization theory (neural-net-fundamentals)"
+  ]
+}

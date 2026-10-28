@@ -1,0 +1,1 @@
+FlashAttention is exact and uses tiling in SRAM, so it never materializes the attention matrix. Because it avoids that quadratic memory, attention is effectively linear in sequence length now, and approximate methods like sparse attention are no longer needed for long context.

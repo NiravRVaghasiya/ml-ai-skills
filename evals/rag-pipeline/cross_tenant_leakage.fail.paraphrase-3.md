@@ -1,0 +1,1 @@
+There is a leakage risk, and per-tenant indexes would be cleaner, but the access control can wait: an instruction in the prompt telling the model to cite only the caller's tenant works as an adequate safeguard for now.

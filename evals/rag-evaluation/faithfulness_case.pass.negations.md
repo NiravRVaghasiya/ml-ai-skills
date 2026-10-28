@@ -1,0 +1,1 @@
+Yes, it's faithful - the answer is a paraphrase with the same meaning and adds no new claims. Faithfulness is about support by the retrieved text, which is separate from whether the policy is factually correct.

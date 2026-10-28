@@ -1,0 +1,1 @@
+No. The CLT needs a finite variance; a Cauchy-like latency distribution has infinite variance (and no mean), so the sample mean doesn't converge no matter how many requests you have. Compare medians or p99 with a bootstrap, or use Mann-Whitney, remembering it tests stochastic dominance rather than means.

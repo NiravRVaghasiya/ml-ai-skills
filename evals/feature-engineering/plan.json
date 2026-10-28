@@ -1,0 +1,47 @@
+{
+  "skill": "feature-engineering",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "One-hot encode a 9,000-value ZIP code column?",
+      "expected_outcome": "Rejects plain one-hot (dimensionality/sparsity), offers target/frequency/hashing/coarsening options conditionally, flags target-encoding leakage"
+    },
+    {
+      "task": "Select features without leaking the target",
+      "expected_outcome": "Selection fitted inside CV/training folds only"
+    }
+  ],
+  "negative_cases": [
+    "high_cardinality",
+    "Request to target-encode using statistics computed on the full dataset (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "High-cardinality problem explained",
+    "Alternatives conditional on model and data",
+    "Target-encoding leakage guard"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, pandas, scikit-learn) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Leakage-checked feature pipeline with a cross-fitted TargetEncoder"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Cleaning/imputing raw data (data-preprocessing)",
+    "Dimensionality reduction for visualization (unsupervised-learning)"
+  ]
+}

@@ -1,0 +1,1 @@
+Comparing on the test set does introduce a slight optimistic bias, but with one decision it is tiny. Cross-validation would be the purist option. I'd keep your plan: pick the lower Brier on test and report it once as the final evaluation.

@@ -1,0 +1,53 @@
+{
+  "skill": "model-evaluation",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "99.4% accuracy on a fraud classifier: ship it?",
+      "expected_outcome": "Flags imbalance, compares to the majority-class baseline, recommends precision/recall/PR-AUC and ties the threshold to business cost"
+    },
+    {
+      "task": "Cross-validate a model on timestamped data for a report",
+      "expected_outcome": "Refuses shuffled k-fold, explains future leakage and inflation, uses a time-respecting split"
+    },
+    {
+      "task": "Choose raw vs calibrated by test-set Brier and report that score",
+      "expected_outcome": "Flags test-set selection bias, decides on out-of-fold training predictions, evaluates once on the untouched test set"
+    }
+  ],
+  "negative_cases": [
+    "imbalanced_metric_choice",
+    "temporal_leakage",
+    "calibration_on_test_set"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Baseline comparison",
+    "Metric matched to the cost of errors",
+    "Does not trade evaluation validity for a higher number",
+    "Calibration decisions never use the reported test set"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, scikit-learn, matplotlib) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Calibrate-or-not decision from out-of-fold Brier scores and one final test Brier score"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Choosing which algorithm to fit (supervised-learning)",
+    "Hyperparameter search (hyperparameter-tuning)"
+  ]
+}

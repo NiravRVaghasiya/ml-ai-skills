@@ -1,0 +1,1 @@
+Refusals and max_tokens truncations are failures, and a low score is what they deserve, so mixing them into the averages is acceptable. Report the refusal count in the summary if you want, and investigate later.

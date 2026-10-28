@@ -1,0 +1,60 @@
+{
+  "skill": "agents-and-tools",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Strict tool mode is enabled for delete_file/run_sql; can server-side argument validation be removed?",
+      "expected_outcome": "No: strict mode guarantees argument shape and types only; keep value and authorization checks (path canonicalization against an allowed root, scoped/read-only DB credentials) with the sandbox as the boundary"
+    },
+    {
+      "task": "Connect a popular third-party MCP server; are its tools and outputs trusted?",
+      "expected_outcome": "MCP standardizes discovery/transport, not trust; tool descriptions and results are untrusted (prompt injection); least-privilege token and tool set, confirmation for side effects"
+    },
+    {
+      "task": "An agent retried a rate-limited search 40 times; is a 'do not retry' prompt line enough?",
+      "expected_outcome": "No: harness-enforced max-iteration cap and cost budget, repeated-call/consecutive-error detection, backoff in the tool layer, fail loudly"
+    },
+    {
+      "task": "Design the tool set for an agent that reads and edits files in a repository",
+      "expected_outcome": "A small set of narrowly scoped tools with non-overlapping descriptions, typed (strict where available) schemas plus value checks, sandboxed execution, and an iteration cap"
+    }
+  ],
+  "negative_cases": [
+    "strict_mode_argument_validation",
+    "mcp_server_trust",
+    "runaway_tool_loop",
+    "Two tools with overlapping descriptions (search_docs vs search_kb) are picked inconsistently; expect tightening or merging the descriptions rather than prompt tweaks (planned)",
+    "Request to add a multi-agent supervisor for a task a single agent already passes in evals; expect start-simple advice backed by evaluation (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Termination is enforced by code (caps, budgets, loop detection), not by prompt instructions",
+    "Schema conformance (strict mode) is distinguished from value safety and authorization",
+    "Third-party tool descriptions and tool results are treated as untrusted input",
+    "Least privilege and the sandbox are named as the safety boundary"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Paraphrase robustness was first spot-checked by the pattern author, not blind: two rounds of answers were written after the patterns were set (one correct and one wrong answer per case per round) and graded once before any tuning; 0/6 correct answers passed and 6/6 wrong answers failed - the original concept patterns were over-fitted to the author's own phrasing. The patterns were then broadened/sharpened; the three missed round-1 correct answers are kept as .pass.paraphrase fixtures and all round-2 answers as .pass.probe / .fail.probe fixtures, so they are no longer held out. These pre-tuning figures cannot be reproduced from this repository: the probe scripts were scratch files outside it, and re-grading the kept fixtures now uses the tuned patterns.",
+    "Second, independent check (review round): an independent reviewer wrote correct and wrong answers per case without tuning anything; against the patterns as first shipped, 3/6 correct answers passed and 6/6 wrong answers failed for this skill (15/24 and 23/24 across the four skills reviewed together). The reviewer also wrote targeted on-topic wrong answers aimed at gaps in the patterns (13 across the four skills); all 13 passed every hard assertion. The fix engineer then wrote a further held-out set (one correct and one wrong answer per case) before reading the patterns: against the first-shipped patterns 1/3 correct passed and 3/3 wrong failed for this skill (10/12 and 11/12 overall). After the patterns were revised, every reviewer answer and 23/24 held-out answers graded as expected; the one remaining miss (a correct agents-and-tools answer) was then fixed. The post-fix figure is not blind: the person revising the patterns had written the held-out answers. Every reviewer answer that was mishandled, plus the 13 targeted wrong answers, is kept verbatim as .pass.blind* / .fail.adversarial* fixtures and every held-out answer as .pass.holdout / .fail.holdout, so they are no longer held out; recall on real model outputs remains unmeasured.",
+    "Patterns that use [^.] to keep a match inside one sentence stop at any period, including those in 'et al.', 'e.g.', 'F.pad' and decimals such as '111.5'. A wrong claim that crosses such a period escapes the pattern; the rubric still covers it.",
+    "agents-and-tools is a reference card with no runnable code, so there is no executable case; no case runs a real agent loop, tool server, or MCP server.",
+    "Cases check reasoning about the design; they cannot check that a proposed cap, budget, or token scope suits a particular workload."
+  ],
+  "unsupported_use_cases": [
+    "Retrieval pipeline mechanics (rag-pipeline)",
+    "Single-call prompt wording and few-shot design (prompt-engineering)",
+    "Scoring agent trajectories (agent-evaluation)",
+    "The full prompt-injection / excessive-permission threat model (ai-ml-security)"
+  ]
+}

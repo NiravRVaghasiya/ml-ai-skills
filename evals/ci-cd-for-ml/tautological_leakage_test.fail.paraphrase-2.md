@@ -1,0 +1,1 @@
+That assertion is admittedly close to a tautology, but combined with it never failing in CI it demonstrates that the pipeline is leak-free. You could add a single-feature AUC check and a FEATURE_COLUMNS comparison some day for proxies or copies.

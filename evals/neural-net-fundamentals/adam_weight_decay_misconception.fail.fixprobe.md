@@ -1,0 +1,1 @@
+Close enough. Adam's weight_decay is the coupled L2 version, where the penalty is rescaled by the adaptive denominator, while AdamW is decoupled; in practice people rarely see a measurable gap at 0.01, so keeping Adam with weight_decay=0.01 is a reasonable approximation and you can skip AdamW.

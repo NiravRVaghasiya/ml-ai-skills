@@ -1,0 +1,1 @@
+Relative to the most-selected group, C would be 0.70, which is below the 0.8 threshold, but the average is an acceptable comparator too, and the four-fifths rule is just a rule of thumb, so I'd say there is no adverse impact here.

@@ -3,6 +3,7 @@ temp directory and assert on the filesystem. Requires `bash` on PATH (present
 on Linux/macOS by default; Windows via Git Bash/WSL) — skipped otherwise."""
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -45,8 +46,10 @@ class InstallerTestBase(unittest.TestCase):
         )
 
     def manifest_slugs(self) -> set[str]:
+        # Format 2 lines are 'slug<TAB>sha256' (docs/INSTALLER.md); format 1 was bare slugs.
         text = (self.target / MANIFEST_NAME).read_text(encoding="utf-8")
-        return {ln.strip() for ln in text.splitlines() if ln.strip() and not ln.startswith("#")}
+        return {ln.split("\t", 1)[0].strip() for ln in text.splitlines()
+                if ln.strip() and not ln.startswith("#")}
 
 
 class TestHelp(InstallerTestBase):
@@ -182,6 +185,91 @@ class TestUninstall(InstallerTestBase):
         self.assertEqual(self.manifest_slugs(), before)
         remaining = {d.name for d in self.target.iterdir() if d.is_dir()}
         self.assertEqual(remaining, ALL_SLUGS)
+
+
+class TestWrapper(InstallerTestBase):
+    """bin/ml-ai-skills must run the scripts of the checkout it really lives
+    in, even when reached through a symlink or a linked bin/ folder."""
+
+    def setUp(self):
+        super().setUp()
+        self._links: list[Path] = []
+        # A fake checkout whose install.sh only echoes: nothing real is ever run,
+        # and no link ever points into this repository.
+        self.fake = self.tmp / "checkout"
+        (self.fake / "bin").mkdir(parents=True)
+        (self.fake / "schema").mkdir()
+        (self.fake / "INDEX.md").write_text("# index\n", encoding="utf-8")
+        (self.fake / "schema" / "allowed_values.py").write_text("", encoding="utf-8")
+        (self.fake / "install.sh").write_text('echo "REAL install.sh: $*"\n', encoding="utf-8", newline="\n")
+        shutil.copy2(REPO_ROOT / "bin" / "ml-ai-skills", self.fake / "bin" / "ml-ai-skills")
+        # Next to every link: a decoy that must never run.
+        self.elsewhere = self.tmp / "elsewhere"
+        self.elsewhere.mkdir()
+        (self.elsewhere / "install.sh").write_text('echo "DECOY install.sh ran"\n', encoding="utf-8", newline="\n")
+        (self.elsewhere / "INDEX.md").write_text("", encoding="utf-8")
+
+    def tearDown(self):
+        for link in reversed(self._links):  # before the recursive cleanup
+            if os.path.lexists(link):
+                try:
+                    os.unlink(link)
+                except OSError:
+                    os.rmdir(link)
+        super().tearDown()
+
+    def wrapper(self, path: Path, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([BASH, str(path), *args], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+
+    def test_wrapper_reached_through_a_linked_bin_dir_uses_the_real_checkout(self):
+        link = self.elsewhere / "bin2"
+        try:
+            os.symlink(self.fake / "bin", link, target_is_directory=True)
+        except OSError:
+            if os.name != "nt":
+                raise
+            import _winapi  # junctions need no privilege on Windows
+            _winapi.CreateJunction(str(self.fake / "bin"), str(link))
+        self._links.append(link)
+        r = self.wrapper(link / "ml-ai-skills", "install", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("REAL install.sh: --dry-run", r.stdout)
+        self.assertNotIn("DECOY", r.stdout)
+
+    def test_symlinked_wrapper_uses_the_real_checkout(self):
+        link = self.elsewhere / "bin" / "ml-ai-skills"
+        link.parent.mkdir()
+        try:
+            # Relative target: resolved against the link's own directory.
+            os.symlink(os.path.relpath(self.fake / "bin" / "ml-ai-skills", link.parent), link)
+        except OSError as e:
+            self.skipTest(f"cannot create file symlinks here ({e})")
+        self._links.append(link)
+        r = self.wrapper(link, "install", "--dry-run")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("REAL install.sh: --dry-run", r.stdout)
+        self.assertNotIn("DECOY", r.stdout)
+
+    def test_exported_cdpath_does_not_redirect_the_wrapper(self):
+        # Regression: `cd -P -- bin` (relative $0) went through CDPATH and the
+        # echoed directory ended up inside SCRIPT_DIR.
+        (self.elsewhere / "bin").mkdir()
+        r = subprocess.run([BASH, "bin/ml-ai-skills", "install", "--dry-run"], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace", cwd=self.fake,
+                           env={**os.environ, "CDPATH": "../elsewhere"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout.strip(), "REAL install.sh: --dry-run")
+
+    def test_wrapper_outside_a_checkout_refuses_to_run_anything(self):
+        lonely = self.tmp / "lonely"
+        (lonely / "bin").mkdir(parents=True)
+        shutil.copy2(REPO_ROOT / "bin" / "ml-ai-skills", lonely / "bin" / "ml-ai-skills")
+        (lonely / "install.sh").write_text('echo "DECOY install.sh ran"\n', encoding="utf-8", newline="\n")
+        r = self.wrapper(lonely / "bin" / "ml-ai-skills", "install")
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("does not look like an ml-ai-skills checkout", r.stderr)
+        self.assertNotIn("DECOY", r.stdout)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+Technically it's permutation-equivariant, and the causal mask does differ per position, but the mask carries no usable positional signal. Without RoPE or learned embeddings the model cannot learn position at all, so in practice it can't know word order.

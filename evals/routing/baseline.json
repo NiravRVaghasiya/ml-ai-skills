@@ -1,0 +1,112 @@
+{
+  "note": "POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in 'history', plus corrected negation scoping - a negated state/symptom ('is not training', \"isn't learning\", 'never predicts') and an avoided problem ('without leakage', 'no data leakage') are no longer exclusions, 'no idea'/'not sure'/\"don't know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under 'history' (pre-improvement keyword router first).",
+  "date": "2026-10-27",
+  "command": "python scripts/eval_router.py --top-k 5 --write-baseline evals/routing/baseline.json --baseline-date 2026-10-27 --baseline-note 'POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in '\"'\"'history'\"'\"', plus corrected negation scoping - a negated state/symptom ('\"'\"'is not training'\"'\"', \"isn'\"'\"'t learning\", '\"'\"'never predicts'\"'\"') and an avoided problem ('\"'\"'without leakage'\"'\"', '\"'\"'no data leakage'\"'\"') are no longer exclusions, '\"'\"'no idea'\"'\"'/'\"'\"'not sure'\"'\"'/\"don'\"'\"'t know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under '\"'\"'history'\"'\"' (pre-improvement keyword router first).'",
+  "top_k": 5,
+  "benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+  "metrics": {
+    "dev": {
+      "precision": 0.7547,
+      "recall": 0.9286,
+      "top1_accuracy": 0.8936,
+      "task_accuracy": 0.8729,
+      "false_activation_rate": 0.0769,
+      "mean_unnecessary_activations": 0.3305,
+      "forbidden_selection_rate": 0.1481
+    },
+    "test": {
+      "precision": 0.625,
+      "recall": 0.8701,
+      "top1_accuracy": 0.7879,
+      "task_accuracy": 0.8,
+      "false_activation_rate": 0.0,
+      "mean_unnecessary_activations": 0.5294,
+      "forbidden_selection_rate": 0.2273
+    },
+    "all": {
+      "precision": 0.6989,
+      "recall": 0.9048,
+      "top1_accuracy": 0.85,
+      "task_accuracy": 0.8424,
+      "false_activation_rate": 0.0455,
+      "mean_unnecessary_activations": 0.4138,
+      "forbidden_selection_rate": 0.1837
+    }
+  },
+  "history": [
+    {
+      "note": "PRE-IMPROVEMENT KEYWORD ROUTER baseline: scripts/router.py unmodified from git HEAD 8328c60 (capabilities/name/description keyword scoring, min_score=1.0, top_k=5); skill metadata as in the working tree on 2026-10-27. Re-measured after the review fixes (203 cases; top-1 skips prerequisite hits). tests/test_eval_router.py enforces these numbers as a regression floor; re-baseline deliberately after an intentional router change.",
+      "date": "2026-10-27",
+      "command": "python scripts/eval_router.py --top-k 5 --write-baseline evals/routing/baseline.json --baseline-date 2026-10-27 --baseline-note 'PRE-IMPROVEMENT KEYWORD ROUTER baseline: scripts/router.py unmodified from git HEAD 8328c60 (capabilities/name/description keyword scoring, min_score=1.0, top_k=5); skill metadata as in the working tree on 2026-10-27. Re-measured after the review fixes (203 cases; top-1 skips prerequisite hits). tests/test_eval_router.py enforces these numbers as a regression floor; re-baseline deliberately after an intentional router change.'",
+      "top_k": 5,
+      "benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+      "metrics": {
+        "dev": {
+          "precision": 0.209,
+          "recall": 0.8214,
+          "top1_accuracy": 0.5106,
+          "task_accuracy": 0.5339,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.1695,
+          "forbidden_selection_rate": 0.8148
+        },
+        "test": {
+          "precision": 0.1978,
+          "recall": 0.8442,
+          "top1_accuracy": 0.5,
+          "task_accuracy": 0.5529,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.2471,
+          "forbidden_selection_rate": 0.7273
+        },
+        "all": {
+          "precision": 0.2043,
+          "recall": 0.8307,
+          "top1_accuracy": 0.5062,
+          "task_accuracy": 0.5419,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.202,
+          "forbidden_selection_rate": 0.7755
+        }
+      },
+      "label": "pre-improvement keyword router (git HEAD 8328c60)"
+    },
+    {
+      "note": "POST-IMPROVEMENT ROUTER (current regression floor): scripts/router.py rewritten in the Phase 2 routing workstream - Porter stemming + small synonym map, IDF-weighted field scoring (name/capabilities/trigger phrases/description/Overview), fraction-based capability-tag and trigger-phrase matching, negation and NOT-for negative evidence, compound-sense conflict discount, intent bonus only on lexical evidence, MIN_SCORE=5.0 (x2 without an ML-domain anchor), RELATIVE_CUTOFF=0.6, residual-coverage selection (RESIDUAL_MIN=10), no-skill fallback. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. The pre-improvement keyword-router baseline is kept under 'history'.",
+      "date": "2026-10-27",
+      "command": "python scripts/eval_router.py --top-k 5 --write-baseline evals/routing/baseline.json --baseline-date 2026-10-27 --baseline-note 'POST-IMPROVEMENT ROUTER (current regression floor): scripts/router.py rewritten in the Phase 2 routing workstream - Porter stemming + small synonym map, IDF-weighted field scoring (name/capabilities/trigger phrases/description/Overview), fraction-based capability-tag and trigger-phrase matching, negation and NOT-for negative evidence, compound-sense conflict discount, intent bonus only on lexical evidence, MIN_SCORE=5.0 (x2 without an ML-domain anchor), RELATIVE_CUTOFF=0.6, residual-coverage selection (RESIDUAL_MIN=10), no-skill fallback. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. The pre-improvement keyword-router baseline is kept under '\"'\"'history'\"'\"'.'",
+      "top_k": 5,
+      "benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+      "metrics": {
+        "dev": {
+          "precision": 0.7692,
+          "recall": 0.9286,
+          "top1_accuracy": 0.8936,
+          "task_accuracy": 0.8729,
+          "false_activation_rate": 0.0769,
+          "mean_unnecessary_activations": 0.3051,
+          "forbidden_selection_rate": 0.1481
+        },
+        "test": {
+          "precision": 0.625,
+          "recall": 0.8701,
+          "top1_accuracy": 0.7879,
+          "task_accuracy": 0.8,
+          "false_activation_rate": 0.0,
+          "mean_unnecessary_activations": 0.5294,
+          "forbidden_selection_rate": 0.2273
+        },
+        "all": {
+          "precision": 0.7065,
+          "recall": 0.9048,
+          "top1_accuracy": 0.85,
+          "task_accuracy": 0.8424,
+          "false_activation_rate": 0.0455,
+          "mean_unnecessary_activations": 0.399,
+          "forbidden_selection_rate": 0.1837
+        }
+      },
+      "label": "post-improvement router, first revision (before negation-scope review fix)"
+    }
+  ]
+}

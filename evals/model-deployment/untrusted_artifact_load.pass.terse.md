@@ -1,0 +1,1 @@
+That endpoint would let anyone who can POST a file run code on the server, because joblib deserializes with pickle. Keep model changes on the deploy path: register the model, record its SHA-256, review and promote it, and have the server verify the hash before loading. Where possible use a format that can't run code on load, such as skops with trusted types or ONNX.

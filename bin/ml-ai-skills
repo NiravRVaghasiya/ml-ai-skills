@@ -9,15 +9,39 @@
 #   ml-ai-skills list [list_skills.py args...]
 #   ml-ai-skills help
 #
+# Exit codes are passed through unchanged from the underlying script (see
+# docs/INSTALLER.md). Scripts are run via `bash` explicitly so a checkout
+# that lost its executable bits (zip download, some Windows tools) still works.
+#
 # Not installed anywhere by default — run it from this checkout via
 # ./bin/ml-ai-skills, or put bin/ on your PATH.
 set -euo pipefail
+# An exported CDPATH would redirect `cd bin` (relative $0) and echo the new
+# directory into SCRIPT_DIR.
+unset CDPATH
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Resolve the real location first: through a symlinked wrapper (e.g.
+# ~/bin/ml-ai-skills -> checkout/bin/ml-ai-skills) or a linked bin/ folder,
+# "$(dirname "$0")/.." would be the link's parent, and we would run whatever
+# install.sh/uninstall.sh happens to sit there.
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  LINK_DIR="$(cd -P -- "$(dirname -- "$SELF")" && pwd)"
+  SELF="$(readlink -- "$SELF")"
+  case "$SELF" in /*) ;; *) SELF="$LINK_DIR/$SELF" ;; esac
+done
+SCRIPT_DIR="$(cd -P -- "$(dirname -- "$SELF")" && pwd)"
+REPO_ROOT="$(cd -P -- "$SCRIPT_DIR/.." && pwd)"
+
+require_checkout() {
+  if [ ! -f "$REPO_ROOT/INDEX.md" ] || [ ! -f "$REPO_ROOT/schema/allowed_values.py" ]; then
+    echo "ERROR: $REPO_ROOT does not look like an ml-ai-skills checkout (missing INDEX.md / schema/allowed_values.py); refusing to run scripts from it." >&2
+    exit 1
+  fi
+}
 
 usage() {
-  sed -n '2,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 PY_BIN=""
@@ -29,11 +53,15 @@ cmd="${1:-help}"
 [ $# -gt 0 ] && shift || true
 
 case "$cmd" in
+  install|update|uninstall|validate|list) require_checkout ;;
+esac
+
+case "$cmd" in
   install|update)
-    exec "$REPO_ROOT/install.sh" "$@"
+    exec bash "$REPO_ROOT/install.sh" "$@"
     ;;
   uninstall)
-    exec "$REPO_ROOT/uninstall.sh" "$@"
+    exec bash "$REPO_ROOT/uninstall.sh" "$@"
     ;;
   validate)
     [ -n "$PY_BIN" ] || { echo "ERROR: python3/python not found on PATH" >&2; exit 1; }

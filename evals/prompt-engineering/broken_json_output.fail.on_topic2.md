@@ -1,0 +1,1 @@
+Parse every response with json.loads and retry on failure, and check whether the failures are truncations at max_tokens. Beyond that, repeating the instruction at the end of the prompt and adding a JSON example should fix the remaining cases, so you do not need structured outputs.

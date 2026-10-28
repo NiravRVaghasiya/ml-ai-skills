@@ -1,0 +1,1 @@
+The four-fifths check uses the maximum selection rate as the reference, not the mean. With A at 50% as the reference, B is 0.9 and C is 0.7, which falls short of 0.8 - so on these numbers C shows potential adverse impact. Treat the 0.8 line as a rule of thumb: look at sample sizes and significance before drawing conclusions, and remember other jurisdictions use different tests.

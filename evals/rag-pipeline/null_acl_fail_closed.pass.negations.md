@@ -1,0 +1,1 @@
+No - don't treat a null ACL as public. It isn't a safe default: a connector error would expose restricted documents to the whole tenant. Reject documents with a missing, None or empty-string ACL as malformed, require an explicit empty list for tenant-wide access, and log the rejected ids so you can fix the connector.

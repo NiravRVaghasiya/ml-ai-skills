@@ -1,0 +1,1 @@
+That makes access fail open: whenever the connector can't read permissions, the document leaks to everyone in the tenant. Reject documents with a null or missing ACL at ingest, make "visible to the whole tenant" an explicit [] instead, and count the rejections so the connector bug gets fixed.

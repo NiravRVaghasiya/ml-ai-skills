@@ -1,0 +1,38 @@
+id: truncated_bptt_retain_graph
+skill: rnn-sequence
+category: failure_recovery
+kind: response
+input: |
+  I'm training an LSTM language model with truncated BPTT: I split each long sequence into 35-token chunks and pass the (h, c) returned by one chunk into the next. On the second chunk, loss.backward() raised "Trying to backward through the graph a second time". The message suggested retain_graph=True, so I changed it to loss.backward(retain_graph=True). Now the second chunk fails with "one of the variables needed for gradient computation has been modified by an inplace operation". How do I fix this new error?
+expected_behavior:
+  - 'diagnoses the root cause: the carried (h, c) still references the previous chunk''s autograd graph, so backward tries to go through earlier chunks'
+  - 'fixes it by detaching the carried state at each chunk boundary (e.g. hidden = tuple(t.detach() for t in hidden)) and removing retain_graph=True'
+  - 'explains why retain_graph=True was the wrong fix: backprop then runs through every earlier chunk (cost and memory grow, so it is no longer truncated BPTT), and after optimizer.step() modified the weights in place the saved tensors are stale, which produces the in-place error'
+  - 'backs out the earlier wrong step (retain_graph) instead of stacking further workarounds on top of it'
+  - 'may note that detaching keeps the state values, so forward context still flows across chunks; only the gradient is truncated'
+must_not:
+  - 'keep retain_graph=True and work around the in-place error (cloning weights, delaying optimizer.step to the end of the sequence, disabling autograd version checks)'
+  - 'present resetting the hidden state to zeros every chunk as the fix, which discards the carried context'
+must_include:
+  - '\bdetach\w*'
+  - '\b(hidden|carried|recurrent|lstm) (state|states)\b|\(h, ?c\)|\bh_n\b'
+  - '\b(previous|earlier|prior|preceding|past|older)\b[^.]{0,30}\b(chunks?|segments?|windows?|batch(es)?|graphs?)\b|\b(chunks?|segments?|windows?)\b[^.]{0,30}\b(boundar\w+|before)\b'
+must_not_include:
+  - '(?<!n''t )(?<!not )(?<!never )(?<!of )\b(keep|use|leave|add|set|pass)\w*\b[^.]{0,30}\bretain_graph\s*=\s*true\b(?![^.]{0,80}\b(not|isn''t|wasn''t|won''t|wrong|unnecessary|remove|drop|only (hid|hides|masked|masks|kept|keeps)|hid|hides|mask\w*)\b)'
+  - '(?<!n''t )(?<!not )(?<!no )\b(clone|copy|deepcopy)\w*\b[^.]{0,40}\b(weights?|parameters?|params)\b'
+  - '(?<!n''t )(?<!not )\b(call|move|run|do)\w*\b[^.]{0,20}\boptimizer\.step\(\)[^.]{0,40}\b(once|only) (at the end|after (all|every|the (last|final)))(?! of (each|every|the current|this) (chunk|segment|window|iteration))'
+  - '(?<!n''t )(?<!not )\b(only|once)\b[^.]{0,20}\b(call|run|do|take|apply)\w*\b[^.]{0,10}\boptimizer\.step\b(?:[^.]|\.(?=\w)){0,50}\b(end|last|final|all (the )?(chunks|segments)|whole|full|entire|finished)\b(?! of (each|every|the current|this) (chunk|segment|window|iteration))'
+  - '(?<!n''t )(?<!not )\b(step|backward)\b[^.]{0,30}\bonce at the end\b(?! of (each|every|the current|this) (chunk|segment|window|iteration))'
+  - '(?<!n''t )(?<!not )\b(delay\w*|defer\w*|postpon\w+|hold\w* off on)\b[^.]{0,10}\boptimizer\.step\b(?:[^.]|\.(?=\w)){0,40}\b(until|till|to) (the )?(end|last|final|sequence|whole|full|entire)\b'
+  - '\b(could|can|might)( also)?( just)? detach\w*\b[^.]{0,40}\bbut\b(?![^.]{0,40}\b(that''s|that is|which is) (the point|intended|exactly|fine|what)|[^.]{0,30}\b(both|too|as well|also)\b)'
+  - '\bdetach\w*\b[^.]{0,30}\b(would|will)\b[^.]{0,10}\b(throw away|lose|cut off|destroy|kill)\b[^.]{0,30}\b(long[- ]range|gradient flow)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The detach pattern confirms the word appears, not that the response detaches the right tensors at the right point (both h and c, before the next chunk''s forward).'
+notes: >
+  Phase 1 audit scenario: retain_graph=True is not a fix for an undetached hidden state.
+  Reproduced in torch 2.13 (CPU) with a 1-layer LSTM over 3 chunks: no detach raises
+  "Trying to backward through the graph a second time" on chunk 2; retain_graph=True
+  raises "one of the variables needed for gradient computation has been modified by
+  an inplace operation" on chunk 2 (after optimizer.step()); detaching (h, c) runs
+  all chunks.

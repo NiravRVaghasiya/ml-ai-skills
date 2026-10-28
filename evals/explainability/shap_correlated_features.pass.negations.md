@@ -1,0 +1,1 @@
+I'd hold off. When features are correlated, SHAP can give most of the attribution to one of them, so B's low value doesn't show it has no causal role. Check their correlation, then compare with grouped permutation importance or retrain without A before you drop B.

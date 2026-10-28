@@ -1,0 +1,1 @@
+Yes, DQN is a solid choice since you already know it well. Use a replay buffer, a target network and epsilon-greedy exploration with epsilon annealed from 1.0 to 0.05, and train in simulation for a few million steps. Familiarity with the algorithm usually matters more than picking the theoretically ideal one.

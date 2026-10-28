@@ -1,0 +1,35 @@
+id: broken_json_output
+skill: prompt-engineering
+category: edge_case
+kind: response
+input: |
+  About 2% of our model's responses fail json.loads(). The system prompt already says
+  "Respond ONLY with valid JSON matching this schema" in capital letters, and temperature
+  is 0. How do I get the failure rate to zero?
+expected_behavior:
+  - 'explains that stronger wording, capital letters, or temperature 0 do not guarantee valid JSON: prompt-only instructions leave a residual failure rate'
+  - 'recommends the provider''s native schema-constrained output mode where available (e.g. Anthropic structured outputs or strict tool use, OpenAI Structured Outputs with strict: true) rather than only asking for JSON'
+  - 'keeps a parse-and-validate step (JSON parse plus schema validation) with a bounded retry/repair or fallback path either way'
+  - 'notes the cases even constrained modes do not cover - a refusal, or output cut off by the max-token limit (check the stop reason) - and that they constrain shape, not the correctness of the values, so "zero" means zero unhandled failures rather than a guarantee'
+must_not:
+  - 'claim that more emphatic wording, all-caps, or temperature 0 will eliminate the failures'
+  - 'claim that a constrained/strict mode removes the need for any validation or error handling'
+must_include:
+  - '\b(structured[- ]outputs?|strict(: ?true| mode| schema| tool use)|json[- ]schema mode|(schema|grammar)[- ]constrained|constrained (decoding|generation|sampling)|response_format|tool[- ](use|calling)|function[- ]calling)\b|\bjson[- ]schema (response )?format\b|\binput[_ ]schema\b|\bjson mode\b|\bresponse schema\b|\bforc\w+ (a |the )?tool (call|use)\b'
+  - '\b(validat\w+|pars\w+)\b[^.]{0,80}\b(retr(y|ies|ying)|re-?ask\w*|repair\w*|re-?prompt\w*|regenerat\w+|fall ?back)\b|\b(retr(y|ies|ying)|repair\w*)\b[^.]{0,40}\b(on|after|when|if)\b[^.]{0,20}\b(fail\w*|errors?|invalid)\b|\b(on|after|if)\b[^.]{0,20}\b(fail\w*|errors?|invalid)\b[^.]{0,30}\b(retr(y|ies|ying)|re-?ask\w*|repair\w*|re-?prompt\w*|regenerat\w+|fall ?back)\b'
+  - '\b(refus\w+|truncat\w+|cut off|max_tokens|max[- ]tokens|token limit|stop_reason|stop reason|length limit)\b'
+must_not_include:
+  - '(?<!no amount of )\b(caps|capital letters|all[- ]caps|uppercase|stronger wording|more emphatic|repeat\w* the instruction)\b[^.]{0,60}\b(will|should|would) (fix|solve|eliminate|get (it|you) to zero|work)\b'
+  - '\btemperature (of )?(0|zero)\b(?:(?!\bnot\b|n''t\b|\bno\b|\bnever\b|\bonly\b)[^.]){0,40}\b(guarantees?|ensures?|eliminates?|fixes|will fix|makes? (it|the output) (valid|deterministic|reliable))\b'
+  - '\b(no (longer )?need|(don''t|do not|won''t|will not|no longer) need)\b (to |for )?(any |a |the |your )?(validat\w+|pars\w+[- ]checks?|retr(y|ies)|error handling|fallbacks?)\b'
+  - '\b(strict mode|structured outputs?|constrained decoding|json mode|schema enforcement)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bexcept\b|\bunless\b|\bbut\b|\balmost\b|\bnearly\b)[^.]){0,50}\b(guarantees?|ensures?|gives you) (100 ?%|zero (failures|errors)|perfect\w*|every (response|output)|always|(that )?(the |every |each )?(output|response|json|result|completion)s? (parses|is valid|will (always )?(parse|be valid)))(?![^.]{0,40}\b(as long as|unless|if|except|provided|only|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!mean )(?<!means )\bevery (response|output|call|reply) (is|will be) (valid|well[- ]formed|parseable|schema[- ]valid)\b|\bjson\.loads\b[^.]{0,20}\b(will never|never|won''t ever) fail\b|(?<!n''t )(?<!not )(?<!never )\b(can|could|should) (safely |now |just )*(drop|remove|delete|skip) (the |your |all )?(validation|retr(y|ies)|error handling|json\.loads error handling|parse checks)\b'
+  - '\b(refusals?|truncation)\b[^.]{0,30}\b(are not|aren''t|is not|isn''t|won''t be|will not be) (an? )?(issue|problem|concern|possible)\b(?![^.]{0,30}\b(if|unless|as long as|provided)\b)|\b(refusals?|truncation)\b[^.]{0,20}\b(won''t|will not|can''t|cannot) happen\b|\b(refusals?|truncation|max_tokens)\b[^.]{0,40}\b(don''t|do not|doesn''t|does not|won''t|will not|can''t|cannot) (apply|occur|happen|matter)\b(?![^.]{0,30}\b(if|unless|as long as|provided|only)\b)|\b(can|may|could) (safely )?ignore (them|refusals?|truncation|those|stop_reason|the stop reason)\b'
+  - '(\b2 ?%|\b(failure rate|failures?|error rate|the rate)\b)[^.]{0,20}\b(drops?|goes|falls?|will (drop|go|fall)|is reduced) to (zero|0)\b(?![^.]{0,40}\b(but|except|unless|if|only|as long as)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'Provider feature names (structured outputs, strict tool use, response_format) change over time; the pattern accepts several names and generic phrasings, and the rubric is authoritative.'
+notes: >
+  Exercises the Structured output Key Concept and the "Respond only in JSON without a schema"
+  gotcha: only schema-constrained modes give a format guarantee, and even they do not cover
+  refusals or token-limit truncation. Scenario suggested by the Phase 1 reference auditor.

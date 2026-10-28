@@ -1,0 +1,1 @@
+Probably not everywhere. Chain-of-thought helps mainly on multi-step reasoning tasks with sufficiently large models; for a 1B model the effect is unreliable. For the extended-thinking model you're paying for thinking already. Every extra reasoning token adds cost and latency. A/B test it per model and task.

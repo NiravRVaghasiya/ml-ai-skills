@@ -1,0 +1,1 @@
+Mostly, but log-transform first: use log1p(count) scaled into 1-5 so the heavy clickers don't dominate, then train SVD on those pseudo-ratings. Pick the model by MAE rather than RMSE, since MAE is less sensitive to the few users with huge counts.

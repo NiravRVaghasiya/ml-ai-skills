@@ -1,0 +1,1 @@
+That's not OK. Being unsupervised doesn't mean there's no need to scale: KMeans is not scale-invariant, and without standardizing, income will dominate the distance. The units don't stop mattering just because there are no labels. Don't just pick k=6 from a fuzzy elbow either - check silhouette scores for each k.

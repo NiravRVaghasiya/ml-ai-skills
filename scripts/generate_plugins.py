@@ -120,7 +120,10 @@ def render_marketplace_json(plan: "dict[str, dict]", version: str) -> dict:
         "name": MARKETPLACE_NAME,
         "owner": AUTHOR,
         "metadata": {
-            "description": "38 self-contained ML/AI Agent Skills, packaged as one all-in-one plugin and one plugin per domain.",
+            "description": (
+                f"{len(plan[ALL_PLUGIN_NAME]['slugs'])} self-contained ML/AI Agent Skills, packaged as one "
+                "all-in-one plugin and one plugin per domain."
+            ),
             "version": version,
         },
         "plugins": plugins,

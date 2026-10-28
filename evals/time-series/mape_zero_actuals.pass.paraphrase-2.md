@@ -1,0 +1,1 @@
+I'd fix the metric first. A MAPE of 1e15 is what you get when some actuals are zero: the percentage error divides by them, so those days blow the average up, and the seasonal-naive baseline suffers the same way. Use MAE or MASE per walk-forward fold and check the model against the seasonal-naive baseline before considering a different model.

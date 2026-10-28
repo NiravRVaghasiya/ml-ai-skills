@@ -1,0 +1,1 @@
+Technically there is a difference: Adam's weight_decay is coupled L2 (it's added to the gradient and goes through the adaptive scaling), while AdamW uses decoupled decay. In practice, though, at weight_decay=0.01 the difference is negligible for most models, so you can safely use Adam with weight_decay=0.01 and keep the paper's learning rate.

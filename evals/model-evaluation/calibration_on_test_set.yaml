@@ -1,0 +1,42 @@
+id: calibration_on_test_set
+skill: model-evaluation
+category: misconception
+kind: executable
+input: |
+  To decide whether to calibrate, I fit CalibratedClassifierCV, compare the Brier score of the
+  raw and the calibrated model on my test set, keep whichever is lower, and report that test
+  Brier score as the final number.
+expected_behavior:
+  - 'flags that choosing raw vs calibrated by comparing them on the test set, then reporting that same test score, makes the test set part of model selection, so the reported number is optimistically biased'
+  - 'recommends making the decision on out-of-fold training predictions (cross_val_predict on the training split) or on a separate validation/calibration split, then evaluating the chosen model once on the untouched test set'
+  - 'notes the calibrator must be fit on data the base model was not trained on (CalibratedClassifierCV with internal CV, or FrozenEstimator plus a separate calibration split), and conditionally prefers sigmoid over isotonic on small calibration sets'
+must_not:
+  - 'endorse selecting the calibration choice on the test set and reporting that same score as unbiased'
+must_include:
+  - '\b(optimistic\w*|biased|bias|leak\w*|overfit\w*|inflat\w+|data snooping|no longer (unbiased|held[- ]out|untouched)|contaminat\w+)\b'
+  - '\b(out-of-fold|oof|cross_val_predict|cross-validat\w+|validation (set|split|fold)s?|calibration (set|split)|held[- ]out (validation|calibration)|separate (split|set|holdout|hold-out))\b'
+  - '\b(untouched|once|a single time|one time|only at the end|at the (very )?end|final (report|evaluation|check)|never (used|touched|seen)|held back)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )\b(that''s|that is|this is|it''s|it is)( a)? (fine|reasonable|sound|valid|correct|good|standard) (approach|way|plan|method|practice)\b(?![^.]{0,40}\b(but|except|only|if)\b)'
+  - '\btest[- ]set\b[^.]{0,60}\b(is|remains|stays) (still )?(unbiased|untouched|a fair|a valid|fine)\b'
+  - '\bonly (a|one) (single |binary )?(choice|decision)\b[^.]{0,60}\b(negligible|harmless|doesn''t matter|does not matter|won''t matter|fine)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(keep|stick with|go with|go ahead with|proceed with)\w* (with )?(your|the|this) (current |original )?(plan|approach|setup|procedure)\b(?![^.]{0,40}\b(but|except|only|if|once|after)\b)'
+  - '\b(your|the|this) (approach|plan|setup|procedure|method)\b[^.]{0,20}\b(is|looks|seems) (fine|ok|okay|sound|valid|reasonable|acceptable)\b(?![^.]{0,40}\b(but|except|only|if)\b)'
+  - '\b(bias|leak\w*|effect|impact|optimism)\b[^.]{0,40}\b(is|it''s|it is|would be|will be|stays|remains) (tiny|negligible|minimal|insignificant|immaterial|trivial)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(pick|choos|select|keep)\w* (the |whichever )?(one with the )?(lower|lowest|better|best)\b[^.]{0,30}\bon (the )?test\b'
+executable_tests:
+  - 'examples.test_model_evaluation.TestModelEvaluationExamples.test_calibration_decision_never_looks_at_the_test_labels'
+  - 'examples.test_model_evaluation.TestModelEvaluationExamples.test_calibration_is_kept_when_it_helps_out_of_fold'
+  - 'examples.test_model_evaluation.TestModelEvaluationExamples.test_calibration_uses_sigmoid_on_small_calibration_folds'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A calibrate-or-not decision computed from out-of-fold training Brier scores (invariant to the test labels) and one final test Brier score for the chosen model'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s step 6 decides on out-of-fold train predictions (inverting y_test does not change the decision), not that a response recommends the same.'
+notes: >
+  Regression scenario from the Phase 1 model-evaluation review: step 6 used to pick raw vs
+  calibrated by Brier on y_test and then report on that same y_test. See the calibration
+  Gotcha ("never on the test set you report").

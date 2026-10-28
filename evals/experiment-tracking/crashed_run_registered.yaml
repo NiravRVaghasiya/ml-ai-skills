@@ -1,0 +1,45 @@
+id: crashed_run_registered
+skill: experiment-tracking
+category: failure_recovery
+kind: executable
+input: |
+  I picked our best model with
+  mlflow.search_runs(experiment_names=["churn-prediction"], order_by=["metrics.f1_macro DESC"], max_results=1)
+  and registered it as churn-rf-classifier with the alias @staging. I just noticed that run's
+  status is FAILED - it crashed after logging an f1_macro from a partial evaluation. How do I
+  fix this?
+expected_behavior:
+  - 'identifies the cause: the query ranked every run, including crashed ones whose last logged metric is not a valid result'
+  - 'fixes the selection by filtering on run status (filter_string="attributes.status = ''FINISHED''") and re-selecting the best finished run'
+  - 'repairs the registry by moving the @staging alias to a good version (register the correct run as a new version, or point the alias back at the previous good version) with set_registered_model_alias'
+  - 'notes that moving the alias is enough for consumers that load models:/churn-rf-classifier@staging, but that aliases are metadata - anything already deployed or cached from the bad version must be checked separately'
+  - 'does not recommend the deprecated stage API (transition_model_version_stage) and does not claim deleting the run moves the alias'
+must_not:
+  - 'claim that deleting the failed run or its model version makes the alias move automatically to the next best version'
+  - 'recommend transition_model_version_stage for new automation'
+must_include:
+  - '\bfilter\w*\b[^.]{0,60}\b(status|finished|failed|crashed)\b|\battributes\.status\b|\bstatus ?= ?''?finished\b'
+  - '\bset_registered_model_alias\b|\b(move|repoint|re-point|point|reassign|update|switch)\w*\b[^.]{0,40}\b(the )?(@?staging )?alias\b|\balias\b[^.]{0,40}\b(to|at) (the )?(new|previous|correct|good|finished|last good|right)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|sure|absolutely|no problem|easy|good news)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|avoid\w*|deprecat\w*|instead|rather|replac\w*|migrat\w*|legacy|old|stop|no longer|used to|without)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\btransition_model_version_stage\b(?![^.]{0,60}\b(deprecat\w*|don''t|do not|avoid|legacy|removed|instead|no longer)\b)'
+  - '\balias\w*\b[^.]{0,40}(?<!not )(?<!n''t )(?<!never )\b(automatically|auto-?matically)\b[^.]{0,20}\b(move|update|follow|point|switch|fall)\w*|(?<!not )(?<!n''t )(?<!never )\b(automatically|auto-?matically) (moves?|updates?|re-?points?|falls? back|switch\w*)\b[^.]{0,30}\balias'
+executable_tests:
+  - 'examples.test_experiment_tracking.TestExperimentTrackingSkill.test_best_run_ignores_failed_runs'
+  - 'examples.test_experiment_tracking.TestExperimentTrackingSkill.test_best_model_registered_under_alias_not_deprecated_stage'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A search_runs query restricted to FINISHED runs and a registered model version reachable as models:/churn-rf-classifier@staging'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The executable tests are opt-in slow tests: tests/examples/test_experiment_tracking.py skips them unless ML_AI_SKILLS_SLOW_EXAMPLES=1 is set (about 100 s of MLflow setup), so run_evals.py --run-executable reports them as skipped by default.'
+  - 'The executable tests prove the skill''s status filter excludes a crashed run that logged f1_macro=1.0 and that registration uses an alias, on a local SQLite store; they do not exercise a shared tracking server.'
+notes: >
+  experiment-tracking/SKILL.md step 3 (filter_string="attributes.status = 'FINISHED'"),
+  step 4 (set_registered_model_alias) and Gotchas ("Registry aliases and stage labels
+  are just metadata"; stage API deprecated since MLflow 2.9). Observed in the example
+  venv (MLflow 3.16.1, SQLite store): after MlflowClient.delete_run on the run behind
+  @staging, get_model_version_by_alias still returned that version (status READY);
+  only set_registered_model_alias moved it.

@@ -1,0 +1,1 @@
+Xavier initialization is designed to keep gradients well-scaled, so the init is probably fine. With 40 layers, the issue is more likely that Adam's lr=1e-3 is too small for the early layers. Try a layer-wise learning rate that is larger for early layers, and add gradient clipping; increasing the learning rate for the first layers should fix it.

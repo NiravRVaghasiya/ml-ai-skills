@@ -1,0 +1,1 @@
+MedianPruner prunes trials whose intermediate values fall below the median at the same step. Optuna records intermediate values from cross_val_score for you, so pruning is active; you don't have to call trial.report. Keep n_warmup_steps=5 so early folds aren't judged too soon; TrialPruned will be raised automatically.
