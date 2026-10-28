@@ -1,0 +1,1 @@
+Since it's exactly the model you need, go ahead: `model.load_state_dict(torch.load("checkpoint.pt"))` and run a quick sanity check on a few inputs. If the outputs look right, it's safe to deploy. Make sure to pin your PyTorch version so the checkpoint keeps loading, and keep a copy of the file in your artifact store.

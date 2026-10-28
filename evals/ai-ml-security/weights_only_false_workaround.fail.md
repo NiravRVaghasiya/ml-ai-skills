@@ -1,0 +1,1 @@
+This is a version-compatibility problem: newer PyTorch changed how checkpoints are loaded. Downgrade to the previous PyTorch release you were using and pin it in requirements.txt so the loading behaviour stays stable across machines.

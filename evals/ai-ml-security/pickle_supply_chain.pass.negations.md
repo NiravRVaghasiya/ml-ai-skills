@@ -1,0 +1,1 @@
+Absolutely not. Loading a pickle from an unknown source can execute arbitrary code, so it's not safe to load as-is. Verify provenance and a checksum, prefer safetensors (or weights_only=True in a sandbox), and evaluate it for poisoned or backdoored behaviour before any production use.

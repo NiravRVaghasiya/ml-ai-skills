@@ -1,14 +1,39 @@
+id: pickle_supply_chain
 skill: ai-ml-security
 category: edge_case
+kind: response
 input: |
   I found a fine-tuned checkpoint on a random file-sharing link (not a verified
   model hub) that's exactly what I need. I'll just `torch.load()` it and start
   using it in production.
 expected_behavior:
-  - flags that loading an arbitrary checkpoint from an unverified source with default deserialization is equivalent to running unreviewed code, because pickle-based loading can execute arbitrary code
-  - recommends verifying provenance (trusted registry, model card, checksum) before loading, and preferring a non-code-executing format/flag (e.g. safetensors, or a weights_only-safe load path) for untrusted sources
-  - distinguishes this supply-chain risk from data-poisoning risk (this is about an artifact you didn't train, not about corrupting your own training data)
+  - 'flags that loading an arbitrary checkpoint from an unverified source is equivalent to running unreviewed code, because pickle-based loading can execute arbitrary code: pickle.load, joblib.load, torch.load(..., weights_only=False), and torch.load with default arguments on PyTorch older than 2.6 (which fully unpickles by default)'
+  - 'recommends verifying provenance (trusted registry, model card, checksum) before loading, and preferring a non-code-executing format/flag (e.g. safetensors, or torch.load(..., weights_only=True) on a patched PyTorch) for untrusted sources, treating the restricted loader as defense in depth rather than a substitute for provenance (the skill notes weights_only=True itself had an RCE bypass in PyTorch <= 2.5.1, CVE-2025-32434)'
+  - 'distinguishes this supply-chain risk from data-poisoning risk (this is about an artifact you didn''t train, not about corrupting your own training data)'
 must_not:
-  - treat loading the file as routine/safe merely because the weights "are exactly what's needed" functionally
+  - 'treat loading the file as routine/safe merely because the weights "are exactly what''s needed" functionally'
+  - 'claim that torch.load is safe for an untrusted file simply because recent PyTorch defaults to weights_only=True (the PyTorch version is unknown, and the default does not establish provenance or rule out a backdoored model)'
+must_include:
+  - '\b(arbitrary|malicious|attacker[- ]controlled|untrusted) code\b|\bexecut\w+ (arbitrary |malicious |untrusted |attacker )?code\b|\bremote code execution\b|\bRCE\b'
+  - '\b(pickle\w*|unpickl\w+|deserializ\w+)\b'
+  - '\b(provenance|checksums?|sha-?256|signatures?|signed|trusted (source|registry|hub|publisher)|model card|verif(y|ied|ication))\b'
+  - '\b(safetensors|weights_only)\b'
+  - '\bpoison\w*\b'
+must_not_include:
+  - '\b(it''s|it is|that''s|that is|should be|looks|seems) (perfectly |totally |completely |probably )?(safe|fine|ok|okay) to (load|use|deploy|run)\b'
+  - '\b(torch\.load|loading( it)?|it|the (checkpoint|file|model))\b[^.]{0,30}\b(is|are|becomes|should be) (now |perfectly |completely |totally |generally )?safe\b(?![^.]{0,50}\b(only|unless|if|once|after|when)\b)'
+  - '\b(no need|(don''t|do not) (need|have)) to (verify|check|validate|worry|audit|scan|sandbox|inspect)'
+  - '\b(safetensors|weights_only)\b[^.]{0,30}\b(is|are) (optional|unnecessary|not (needed|necessary|required))\b'
+  - '(?<!n''t )(?<!not )(?<!never )\bgo ahead\b(?![^.]{0,60}\b(only|if|once|after|unless|sandbox\w*)\b)'
+  - '(?<!n''t )(?<!not )\b(torch\.load|loading( it)?|it|the (checkpoint|file|model)|pytorch)\b[^.]{0,40}\b(won''t|will not|can''t|cannot|doesn''t|does not|wouldn''t|would not) (run|execute) (any |arbitrary |malicious |embedded )?code\b(?![^.]{0,80}\b(but|unless|however|still|substitute|only)\b)'
+  - '\b(no|zero) (code[- ]execution|rce|arbitrary[- ]code) risk\b(?![^.]{0,60}\b(only|if|unless|but)\b)'
+  - '\b(you can|you could|and then|then)( safely| now| go ahead and)? (use|deploy|ship|run|put) it in(to)? production\b(?![^.]{0,60}\b(only|if|once|after|unless|when)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\bsafe (on|with) (a |any )?(recent|newer|current|modern|patched|up-to-date) (version|pytorch|torch|release)s?\b(?![^.]{0,60}\b(only|but|if|unless)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
-  Tests the "insecure deserialization" and "model supply-chain risk" Key Concepts.
+  Tests the "insecure deserialization" and "model supply-chain risk" Key Concepts. Updated
+  after Phase 1: since PyTorch 2.6 torch.load defaults to weights_only=True, so "torch.load
+  executes code" is only true for older versions or weights_only=False; the case still
+  requires provenance checks because a restricted loader is not a substitute for them. See
+  also weights_only_false_workaround.

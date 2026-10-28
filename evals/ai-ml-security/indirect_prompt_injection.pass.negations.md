@@ -1,0 +1,1 @@
+This is indirect prompt injection; the email is untrusted data, not instructions. Don't assume the model will ignore it because you told it to - a system prompt alone is not sufficient. Restrict the agent's tools (no bulk export), and require human approval for refunds outside policy.

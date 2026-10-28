@@ -1,0 +1,1 @@
+The restricted loader is refusing a custom class. Spin up a Docker container, call torch.load with weights_only=False there, and save the state_dict as safetensors; that keeps any arbitrary code away from your machine.

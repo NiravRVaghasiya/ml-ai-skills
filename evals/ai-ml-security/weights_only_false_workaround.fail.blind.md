@@ -1,0 +1,1 @@
+The error comes from PyTorch 2.6 switching torch.load to weights_only=True. Pickle can execute arbitrary code, but since you've decided to trust the forum post, passing weights_only=False is acceptable. Afterwards re-save it as safetensors and verify the checksum of your re-saved file.

