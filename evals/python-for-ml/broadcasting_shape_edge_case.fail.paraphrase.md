@@ -1,0 +1,1 @@
+Looks right to me. Numpy only raises when shapes are incompatible, and these are compatible, so the subtraction is element-wise. The MSE being high most likely reflects your model's predictions rather than the code.

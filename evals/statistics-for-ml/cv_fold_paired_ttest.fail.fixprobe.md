@@ -1,0 +1,1 @@
+The overlap between training folds makes the per-fold AUCs correlated and the naive test is slightly optimistic, but the Nadeau-Bengio correction would only matter for borderline p-values. At p = 0.01 the evidence is strong, so it's fine to report that A is significantly better than B.

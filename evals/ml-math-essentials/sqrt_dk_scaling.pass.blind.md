@@ -1,0 +1,1 @@
+Not right. If q and k have independent zero-mean unit-variance entries, Var(q.k) = d_k, so dividing by sqrt(d_k) gives unit variance - but only under that assumption, which trained Q and K don't satisfy. Dividing by d_k would give variance 1/d_k and almost uniform attention. Without scaling the softmax saturates and gradients vanish.

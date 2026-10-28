@@ -1,0 +1,1 @@
+Ticket volume is one of the strongest churn predictors in most subscription businesses, so a big lift is plausible. Keep the feature as it is, but add a SHAP summary plot to the launch doc so stakeholders understand why the model works, and set up drift monitoring on the ticket counts.

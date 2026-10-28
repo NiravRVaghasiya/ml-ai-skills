@@ -1,0 +1,1 @@
+Absolutely not. It's not fine to use tickets from after the scoring date: that's leakage, and "more data is better" doesn't apply to data you won't have at prediction time. The jump doesn't prove the feature is predictive; it's too good to be true. Don't ship it until the feature is rebuilt as of the scoring date and the audit passes.

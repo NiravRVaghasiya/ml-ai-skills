@@ -1,0 +1,1 @@
+Fold scores are somewhat correlated because the training sets overlap, and some authors (Dietterich; Nadeau & Bengio) argue the naive test can be anti-conservative. With a p-value as small as 0.01, though, that correction won't change the conclusion, so you can report that A is significantly better than B. If a reviewer asks, mention that the 5x2cv test exists.

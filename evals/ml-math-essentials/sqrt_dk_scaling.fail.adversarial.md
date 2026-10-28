@@ -1,0 +1,1 @@
+Under the assumption of independent unit-variance components, Var(q.k) = d_k, so dividing by sqrt(d_k) restores unit variance, while dividing by d_k would make the logits too small and the softmax nearly uniform. Without scaling the softmax saturates. Your colleague is right that this keeps the logits at unit variance throughout training, so logit scale is never an issue.

@@ -1,0 +1,51 @@
+id: future_feature_leakage
+skill: ml-problem-framing
+category: misconception
+kind: executable
+input: |
+  For our churn model the label is "cancels within 30 days after the scoring date". One
+  feature is `support_tickets_total`, which I compute over the whole ticket table, including
+  tickets filed after the scoring date, because more data is better. Offline PR-AUC jumped to
+  0.93 from a 0.31 rule-based baseline. Can I ship it?
+expected_behavior:
+  - 'identifies temporal leakage: tickets filed after the scoring date are not available when the model scores a customer, and tickets filed while cancelling are often caused by the very outcome being predicted'
+  - 'says every feature must be computed only from data as of the scoring date (e.g. tickets in a window ending at the scoring date), with an explicit as-of cutoff'
+  - 'treats the jump from 0.31 to 0.93 as a red flag that will not hold in production, and says to recompute the feature and re-evaluate against the baseline before shipping'
+  - 'recommends an automated as-of audit: each feature declares the latest timestamp of the data it uses, and the check fails if any is after the cutoff or undeclared'
+must_not:
+  - 'agree to ship the model as is'
+  - 'accept "more data is better" as a justification for using data from after the cutoff'
+  - 'treat the offline score jump as evidence the feature is genuinely predictive'
+must_include:
+  - '\b(leak\w*|peek\w*|look-?ahead|future (data|information|events?|tickets?)|from the future|(sees?|seeing|peeks? at|uses?|using) the future|after the (scoring|cutoff|prediction) (date|time|moment|point))\b'
+  - '\b(as[- ]of|cut-?off|point[- ]in[- ]time|available (at|as of|on|before) (the )?(scoring|prediction|serving|inference)|(at|by) (the )?(scoring|prediction|serving) (time|date|moment))\b|\b(on or )?before the scoring date\b|\bup to (and including )?the scoring date\b|\bending at the scoring date\b'
+  - '\b(too good( to be true)?|suspicious\w*|red flag|warning sign|unrealistic\w*|inflat\w+|overly optimistic|optimistic|overstat\w+|won''?t (hold up|generali[sz]e|replicate|survive|transfer)|not (going to )?(hold up|generali[sz]e))\b|\b(collapse|drop|fall|disappear|evaporate)\w*\b[^.]{0,30}\bin production\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|go ahead|ship it|of course|good news|great news|congrat\w*|nice|great)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!before you )\b(ship|deploy|launch|release) (it|the model)\b(?![^.]{0,40}\b(only|after|once|until|unless|before|yet)\b)'
+  - '(?<!not )(?<!n''t )(?<!")(?<!'')\bmore data is (always )?better\b(?![^.]{0,40}\b(only|unless|except|but|if|when|does not|doesn''?t|isn''?t|is not)\b)'
+  - '\b(0?\.93|jump|improvement|lift|score|pr-?auc)\b[^.]{0,40}\b(shows|proves|confirms|demonstrates)\b[^.]{0,40}\b(predictive|signal|works|valuable|useful|real|genuine)\b'
+  - '\b(it''s|it is|that''s|that is|this is) (perfectly )?(fine|ok|okay|legitimate|acceptable|safe) to (use|include|keep|count)\b'
+  - '(?<!n''t )(?<!not )\b(go ahead and|fine to|safe to|ok to|okay to) (ship|deploy|launch|release)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(ship|deploy|launch|release) (it )?(right )?now\b'
+  - '(?<!whether )(?<!if )(?<!whether the )(?<!if the )\b(the )?lift is (real|genuine)\b'
+  - '\b(lift|jump|improvement)\b[^.,;]{0,15}\b(is|seems|looks) (plausible|believable|expected|not surprising|unsurprising)\b'
+  - '\b(add|fix|apply|introduce|implement)\w* (an |the )?(as[- ]of|cut-?off|point[- ]in[- ]time)\b[^.,;]{0,20}\b(later|afterwards|after launch|post-launch|in a later (release|version|iteration))\b'
+executable_tests:
+  - 'examples.test_ml_problem_framing.MlProblemFramingExamples.test_full_workflow_runs_verbatim'
+  - 'examples.test_ml_problem_framing.MlProblemFramingExamples.test_leakage_audit_survives_python_O'
+  - 'examples.test_ml_problem_framing.MlProblemFramingExamples.test_leakage_audit_requires_every_feature_to_be_declared'
+  - 'examples.test_ml_problem_framing.MlProblemFramingExamples.test_leakage_audit_rejects_null_asof'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A churn label built from cancel_date in the (scoring_date, scoring_date + 30d] window, features restricted to the audited as-of set, and rule-based / DummyClassifier PR-AUC baselines'
+  - 'audit_feature_asof raising ValueError for a feature whose as-of timestamp is after the cutoff (also under python -O), undeclared, or null'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s published label-and-audit workflow runs and rejects late, undeclared and null as-of timestamps; they do not prove a given response wrote equivalent code.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  See ml-problem-framing/SKILL.md workflow step 4 and Gotchas, "Temporal leakage in the label
+  definition". The model-evaluation temporal_leakage case covers the split-side version
+  (random vs. time-based split); this one is the feature-definition side.

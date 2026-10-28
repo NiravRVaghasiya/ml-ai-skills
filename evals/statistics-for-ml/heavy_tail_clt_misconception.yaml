@@ -1,0 +1,40 @@
+id: heavy_tail_clt_misconception
+skill: statistics-for-ml
+category: misconception
+kind: response
+input: |
+  We're A/B testing a backend change on per-request latency. The data has extreme outliers - a handful of requests take 1000x the median, and the histogram looks Cauchy-like. We have n = 10,000 requests per arm, so the CLT makes a two-sample t-test on mean latency fine, right?
+expected_behavior:
+  - 'states that the CLT requires finite variance, so without it no sample size justifies the t-test''s normal approximation; for genuinely Cauchy-like data (no finite mean, hence no finite variance) the sample mean never settles down at all, while with a finite mean but infinite variance it converges only slowly and with non-normal fluctuations'
+  - 'notes that even if the variance is technically finite (e.g. latencies bounded by timeouts), tails this heavy make the normal approximation converge slowly, so n = 10,000 is not automatically enough; a few extreme requests can dominate the mean and its standard error'
+  - 'suggests inspecting the tail (log-scale histogram, Q-Q plot) and choosing the estimand deliberately (median or p95/p99 latency vs the mean)'
+  - 'recommends methods suited to that estimand: bootstrap CIs on quantiles or trimmed means, a log-scale analysis, or a rank-based test such as Mann-Whitney while noting it tests stochastic ordering, not means; warns that bootstrapping the raw mean inherits the infinite-variance problem'
+must_not:
+  - 'assert that a large n alone makes the CLT and the t-test valid regardless of the tails'
+  - 'present Mann-Whitney as a test of a difference in means'
+must_include:
+  - '\b(finite|bounded|well-defined) (variance|second moment)|\bvariance\b[^.]{0,40}\b(infinite|undefined|does not exist|doesn''t exist|isn''t finite|is not finite|not finite)\b|\binfinite[- ]variance\b|\bno (finite )?variance\b'
+  - '\b(medians?|quantiles?|percentiles?|p9[59]|trimmed|winsori[sz]\w*|rank[- ]based|mann[- ]whitney|wilcoxon|robust|log[- ](scale|transform\w*)|bootstrap\w*)\b'
+  - '\b(sample )?means?\b[^.]{0,60}\b(never|doesn''t|does not|won''t|will not|fails to)\b[^.]{0,20}\b(settle|converge|stabili[sz]e)\w*|\b(dominat\w+|driven by|swamp\w*)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right|definitely|of course)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!no )\b(n|sample size|samples?|10,000|10k)\b[^.]{0,20}\b(is|are)\b(?! not)[^.]{0,15}(?<!not )(?<!n''t )\b(large|big) enough\b(?![^.]{0,60}\b(only|if|unless|provided|but|as long as)\b)'
+  - '\b(clt|central limit theorem)\b[^.]{0,30}(?<!not )(?<!n''t )(?<!never )\b(will |still |always )?(applies|holds|works|kicks in|rescues|guarantees|ensures|takes care|covers)\b(?![^.]{0,60}\b(only|if|unless|provided|but|as long as|finite)\b)'
+  - '\bmann[- ]whitney\b[^.]{0,60}(?<!not )(?<!n''t )\b(tests|compares|checks)\b[^.]{0,20}\b(the )?(difference in |differences in )?(?<!not )(?<!not the )(?<!than )(?<!not a difference in )means\b'
+  - '(?<!n''t )(?<!not )\b(go ahead|proceed|stick|go|carry on) with\b[^.]{0,30}\bt-test\b'
+  - '\bt-test\b[^.]{0,20}\b(is|remains|stays|will be|should be)( still)? (robust|valid|fine|appropriate|ok|okay|reliable)\b(?![^.]{0,40}\b(only|if|unless|not|on (the )?log\w*)\b)'
+  - '\bmeans?\b[^.]{0,40}(?<!n''t )(?<!not )(?<!never )\b(will be|is|are|will|should be|becomes?)( already)? (close enough to|approximately|roughly|nearly|effectively)? ?normal\b(?![^.]{0,40}\b(only|if|unless|when|given|provided|as long as|assum\w+|for (large|big) n)\b)'
+  - '(?<!n''t )(?<!not )\b(plenty|more than enough|easily enough|sufficient)\b[^.]{0,40}\b(clt|normal\w*|t-test|sampling distribution)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The robust-alternative pattern is satisfied by naming any one method; the rubric checks that the method matches the chosen estimand.'
+notes: >
+  Phase 1 audit scenario (the CLT needs finite variance). Checked with numpy: means of
+  standard-Cauchy samples of size 100, 10,000 and 1,000,000 stay spread out on the order
+  of 1 across repeats (a standard-Cauchy sample mean is itself standard Cauchy).
+  The Phase 2 review pointed out that infinite variance alone does not stop the sample
+  mean converging: with numpy, Pareto(alpha = 1.5) samples (true mean 3, infinite
+  variance) gave sample means 3.015, 3.005, 2.995, 2.985, 2.981 at n = 10^7, but one
+  repeat at n = 10^5 was 5.5 - convergence by the LLN, slow and with non-normal
+  fluctuations. Only a nonexistent mean (Cauchy) prevents convergence; the fixtures
+  and the first expected_behavior item were reworded accordingly.

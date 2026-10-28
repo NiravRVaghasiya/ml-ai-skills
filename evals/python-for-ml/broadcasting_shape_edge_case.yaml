@@ -1,0 +1,34 @@
+id: broadcasting_shape_edge_case
+skill: python-for-ml
+category: edge_case
+kind: response
+input: |
+  I compute MSE as `np.mean((y_true - y_pred) ** 2)`. `y_true` has shape (1000,) and
+  `y_pred` comes from `model.predict(X)` with shape (1000, 1). It runs with no error and
+  returns a number, so the calculation is correct, right? The value looks a bit high.
+expected_behavior:
+  - 'says no: shapes (1000,) and (1000, 1) are broadcast-compatible (trailing dimensions 1000 vs 1), so the subtraction silently produces a (1000, 1000) matrix of every y_true minus every y_pred instead of 1000 residuals'
+  - 'explains that the mean is therefore over 1,000,000 pairwise differences, which is why the value is inflated, and that numpy raises no error for this'
+  - 'fixes it by making the shapes match (y_pred.ravel() / .squeeze() / .reshape(-1) / y_pred[:, 0]) or by using sklearn.metrics.mean_squared_error'
+  - 'recommends checking or asserting .shape after broadcasted operations whose shapes might differ'
+must_not:
+  - 'say the result is correct because no error was raised'
+  - 'claim broadcasting pairs the arrays element-wise here'
+  - 'attribute the high value to model quality without finding the shape bug'
+must_include:
+  - '\(\s*1000\s*,\s*1000\s*\)|\b1000\s*([x*]|-?by-?)\s*1000\b|\b(1,?000,?000|one million|a million|1e6)\b|\b(n\s*[x,]\s*n)\b|\b(outer|pairwise|all[- ]pairs|every (pair|combination)|cross[- ]terms?|against every|with every)\b'
+  - '\b(ravel|squeeze|flatten|reshape)\b|\[\s*:\s*,\s*0\s*\]|\bmean_squared_error\b'
+  - '\b(check|assert|verify|print|inspect|confirm|compare)\w*\b[^.]{0,40}\bshapes?\b|\.shape\b|\bshapes?\b[^.]{0,30}\b(check|assert|verif|match)\w*'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|looks (right|correct|good))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(so|therefore|thus|hence|which means)\b[^.]{0,30}\b(calculation|result|mse|value|number|computation|it)(''s| is) (correct|right|fine|valid|accurate)\b'
+  - '\bbroadcast\w*\b[^.]{0,60}(?<!n''t )(?<!not )\b(aligns?|matches|pairs|lines up)\b[^.]{0,30}\b(element-?wise|each (element|row|value|prediction)|one[- ]to[- ]one)\b'
+  - '\b(high|large|inflated|big) (value|mse|number|error)\b[^.]{0,40}\b(just|simply|probably|likely) (means|reflects|indicates|comes from)\b[^.]{0,30}\b(model|predictions?|fit|noise|outliers?)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The case uses n = 1000 in the prompt; the first assertion accepts the concrete (1000, 1000) shape or a generic "(n, n) / pairwise" description, not other paraphrases of the shape.'
+notes: >
+  Checked in the example venv (numpy): with y_true = arange(1000) and y_pred = y_true + 0.1
+  reshaped to (1000, 1), np.mean((y_true - y_pred) ** 2) is about 166666.5 while the
+  flattened version (and sklearn mean_squared_error) is 0.01. See python-for-ml/SKILL.md
+  Gotchas, "Unintended broadcasts fail silently, not loudly".

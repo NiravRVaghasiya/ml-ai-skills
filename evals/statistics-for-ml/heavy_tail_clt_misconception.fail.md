@@ -1,0 +1,1 @@
+Yes. With 10,000 requests per arm you're well into large-sample territory, so the sampling distribution of the mean is approximately normal and Welch's t-test is appropriate. Just remove requests more than 3 standard deviations from the mean first so they don't distort the result, then run the test.

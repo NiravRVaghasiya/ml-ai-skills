@@ -1,0 +1,51 @@
+{
+  "skill": "ml-math-essentials",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Explain what a gradient is and why gradient descent subtracts it",
+      "expected_outcome": "Defines the gradient as the vector of partial derivatives pointing toward steepest increase and writes the update theta <- theta - eta * grad"
+    },
+    {
+      "task": "Do PCA by hand with numpy SVD/eigh",
+      "expected_outcome": "Centers the columns, reads the top component from Vt[0] or eigh's last column, and notes sign ambiguity"
+    },
+    {
+      "task": "Explain the sqrt(d_k) factor in scaled dot-product attention",
+      "expected_outcome": "Derives Var(q.k) = d_k under independence, ties the scale to softmax saturation, and states the assumption"
+    }
+  ],
+  "negative_cases": [
+    "pca_centering_eigh_order",
+    "sqrt_dk_scaling",
+    "Misconception that L1 and L2 penalties are interchangeable for feature selection, where the answer must explain that L1's kink at zero produces exact zeros while L2 only shrinks weights (planned; Adam vs AdamW is covered by neural-net-fundamentals/adam_weight_decay_misconception)",
+    "Edge case where (n, 1) - (n,) silently broadcasts to (n, n) (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Separates the mathematical object from its numpy implementation detail (centering, eigh ordering, broadcasting)",
+    "States the assumptions under which a derivation holds (independence, unit variance, finite moments)",
+    "Corrects a wrong premise instead of building on it"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Numeric claims inside responses (variances, explained-variance ratios) are not recomputed by the grader.",
+    "Paraphrase robustness was spot-checked once with 4 answers written by the pattern author after the patterns were set (one correct and one wrong per case): before any fix, 2/2 correct answers passed and 2/2 wrong answers failed. Misses were fixed by broadening patterns and all 4 answers were kept as .probe fixtures, so they are no longer held out and the probe was not blind.",
+    "Independent probe (Phase 2 review): 6 answers for this skill's cases written by a reviewer who did not write the patterns, graded once before any change. Before the fix 2/2 correct answers passed and only 2/4 plausible on-topic wrong answers failed (31 answers across the five skills of this workstream: 11/14 correct passed, 5/16 wrong failed). Most misses were hedge-word escape hatches ('only', 'not', 'if') that fired on the wrong answer's own wording, and concept patterns satisfied by negated mentions. The patterns were then fixed and the reviewer's answers kept verbatim as .pass.blind* / .fail.adversarial* fixtures, so they now grade as expected only because the patterns were tuned to them and are no longer held out.",
+    "Fix-engineer probe: 4 further answers (.pass.fixprobe / .fail.fixprobe) written by the engineer who then edited the patterns, after reading the review but before editing, graded once: 2/2 correct passed and 1/2 wrong failed before the fix (8/10 and 8/10 across the five skills). This is author-adjacent, not blind, and the answers are now fixtures. Expect real model outputs to find further phrasings that neither probe anticipated; the rubric remains authoritative."
+  ],
+  "unsupported_use_cases": [
+    "Hypothesis testing, confidence intervals and distributions (statistics-for-ml)",
+    "Writing the numpy/pandas implementation itself (python-for-ml)"
+  ]
+}

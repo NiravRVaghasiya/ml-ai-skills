@@ -1,0 +1,1 @@
+Yes, a paired t-test is exactly the right tool because the folds are matched across models, and p = 0.01 means there's only a 1% chance the difference is due to luck. Report: "A significantly outperforms B (paired t-test over 10 folds, p = 0.01)." 

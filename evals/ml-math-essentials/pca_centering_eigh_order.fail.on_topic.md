@@ -1,0 +1,1 @@
+You'd normally center before an SVD, but here it doesn't matter much since np.cov already subtracts the mean and eigh agrees, even though the large mean dominates the uncentered SVD. eigh returns eigenvalues sorted in descending order, so V[:, 0] is the top component, and it matches Vt[0]: temperature is the dominant direction of variation in your data.

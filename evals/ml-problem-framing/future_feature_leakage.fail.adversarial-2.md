@@ -1,0 +1,1 @@
+Tickets after the scoring date are technically future data, but since support tickets correlate with churn regardless of timing, the lift is real. Keep the feature and add an as-of cutoff later; the jump may be a bit inflated, but it's still valuable to deploy now.

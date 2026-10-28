@@ -1,0 +1,38 @@
+id: chained_assignment_misconception
+skill: python-for-ml
+category: misconception
+kind: response
+input: |
+  I'm flagging seniors with `df[df["age"] > 65]["senior"] = True` and pandas throws a
+  SettingWithCopyWarning. It's only a warning, so I'll silence it with
+  `pd.options.mode.chained_assignment = None` and move on. That's fine, right?
+expected_behavior:
+  - 'says no: the warning flags a chained assignment that writes into an intermediate object returned by df[mask], so df itself may not be updated at all (for a boolean-mask selection it is a copy, so the column is not set)'
+  - 'notes the behaviour is version-dependent: in pandas 2.x without Copy-on-Write whether df changes depends on whether the intermediate is a view, and under Copy-on-Write (the only mode from pandas 3.0) chained assignment never changes df'
+  - 'gives the fix as a single indexing call that mutates df: df.loc[df["age"] > 65, "senior"] = True'
+  - 'advises against silencing the warning because that hides a real bug rather than fixing it'
+must_not:
+  - 'agree that silencing the warning is an acceptable fix'
+  - 'claim the chained assignment still updates df and the warning is only cosmetic'
+must_include:
+  - '\bloc\s*\['
+  - '\b(intermediate|temporary|throwaway)\b[^.]{0,30}\b(object|copy|frame|dataframe|result|selection)\b|\b(never|not|n''t)\b[^.]{0,30}\b(writes?|written|propagat\w*|reach\w*|land\w*|mak\w* it) back\b|\b(df|original|dataframe|senior column)\b[^.]{0,30}\b(is|was|stays|remains|may be|might be|can be|will be|would be|ends up|is left)\b[^.]{0,10}\b(not |never |un)(changed|modified|updated|touched|set)\b|\b(rather than|instead of) (into |in |to |on )?(the original |your |the )?(df|dataframe|original)\b|\b(does|do|did|will|would)( not|n''t) (update|modify|change|touch)\b[^.]{0,20}\b(df|original|dataframe)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|that''s (right|correct|fine)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )\b(fine|safe|ok|okay|harmless|reasonable)\b[^.]{0,15}\bto (silence|suppress|ignore|disable|turn off)\b'
+  - '\b(the warning|this warning|that warning|it)(''s| is) (just |only |merely |basically |usually |mostly )?(a )?(false positive|harmless|cosmetic|noise|spurious|overly cautious)\b'
+  - '\b(assignment|it|the column|the value|the flag)\b[^.]{0,20}\bstill (works|worked|goes through|applies|takes effect|gets (set|written|updated)|updates (df|the (original|dataframe)))\b'
+  - '(?<!not )(?<!n''t )\b(silencing|disabling|suppressing|ignoring|turning off|turning it off)( it| the warning| this warning| that warning)?( globally)? is (an? )?(acceptable|fine|reasonable|ok|okay|safe)( choice| option| fix| move)?\b'
+  - '(\A|[.!?] )(?!(?:(?![.!?] ).)*\bloc\b)(?:(?![.!?] ).)*?(?<!n''t )(?<!not )(?<!never )\b(df|your (dataframe|df|column|flag)|the (original|dataframe|senior column|column|flag))\b (will|would|does|should) (still )?(be|get) (updated|modified|changed|set|populated|filled( in)?)\b'
+  - '(?<!n''t )(?<!not )\byour (code|assignment|original code|version|line) (is|works|is working) (fine|ok|okay|correct|as intended)\b'
+  - '\bin practice,? (it|this|that|the assignment) works\b(?![^.]{0,30}\b(only|by accident|sometimes|until)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'Whether a response gets the pandas 2.x vs 3.0 (Copy-on-Write) distinction right is rubric-only.'
+  - 'must_include[1] requires the consequence (df not updated / never written back / assigned rather than into df) or an intermediate/temporary object; quoting the warning text ("set on a copy of a slice") alone no longer satisfies it, so a correct answer that only says "you set it on a copy" without the consequence fails.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  Behaviour checked in the example venv on pandas 2.2.3: the chained assignment above leaves
+  df["senior"] unchanged and emits SettingWithCopyWarning. See python-for-ml/SKILL.md Gotchas,
+  "Chained assignment may not write back", and tests/examples/test_python_for_ml.py
+  test_chained_assignment_never_writes_under_copy_on_write.

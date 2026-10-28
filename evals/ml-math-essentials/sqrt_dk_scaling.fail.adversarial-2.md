@@ -1,0 +1,1 @@
+Mostly right. Assuming independent entries, Var(q.k) = d_k, and the sqrt(d_k) factor normalizes the logits to unit variance; dividing by d_k would over-shrink them to 1/d_k and flatten the softmax, while unscaled logits saturate it. Because LayerNorm keeps Q and K standardized in a trained transformer, the factor keeps logits at unit variance in practice too.

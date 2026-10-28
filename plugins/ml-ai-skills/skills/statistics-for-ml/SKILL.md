@@ -15,7 +15,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - hypothesis-testing
   - p-value-interpretation
@@ -48,24 +48,34 @@ metrics — a metric can look better and still be a coin flip.
   the CLT), Exponential (time between Poisson events). Picking the right
   distribution shapes both the model likelihood and which tests are valid.
 - **The Central Limit Theorem (CLT).** The sampling distribution of a sample
-  mean approaches Normal as sample size grows, *regardless of the underlying
-  distribution* — this is why t-tests and z-intervals on averages are
-  broadly applicable even when raw data isn't Gaussian, provided n is large
-  enough (rule of thumb: n ≳ 30, more for heavy-tailed data).
+  mean of i.i.d. draws approaches Normal as sample size grows, whatever the
+  shape of the underlying distribution — *provided it has finite variance*
+  (the Cauchy distribution, for example, has none, and its sample mean never
+  settles down). This is why t-tests and z-intervals on averages are broadly
+  applicable even when raw data isn't Gaussian, provided n is large enough
+  (rule of thumb: n ≳ 30, often far more for skewed or heavy-tailed data).
 - **Maximum Likelihood Estimation (MLE).** Choose the parameter \(\theta\)
   that maximizes \(P(\text{data} \mid \theta)\) — i.e., makes the observed
   data most probable. Minimizing cross-entropy loss *is* MLE for a
   categorical/Bernoulli likelihood; minimizing squared error *is* MLE under a
-  Gaussian-noise assumption. Most standard ML losses are MLE in disguise.
+  Gaussian-noise assumption with constant variance. Many standard ML losses
+  are MLE in disguise (though not all — e.g. the SVM hinge loss is not a
+  negative log-likelihood).
 - **Maximum A Posteriori (MAP).** Adds a prior: maximize
   \(P(\theta\mid\text{data}) \propto P(\text{data}\mid\theta)P(\theta)\).
-  L2 regularization is MAP with a Gaussian prior on weights; L1 is MAP with a
-  Laplace prior. MAP == MLE when the prior is flat (uninformative).
+  L2 regularization is MAP with a zero-mean Gaussian prior on weights (for
+  linear-Gaussian models the ridge strength is noise variance / prior
+  variance); L1 is MAP with a zero-mean Laplace prior. MAP == MLE when the
+  prior is flat — but "flat" depends on the parameterization, so MAP (unlike
+  MLE) can change if you reparameterize the model.
 - **Hypothesis testing.** State a null hypothesis \(H_0\) (e.g. "no
   difference"), compute a test statistic, and get a **p-value** — the
-  probability of seeing data this extreme *if \(H_0\) were true*. A small
-  p-value is evidence against \(H_0\), not proof of the alternative, and not
-  the probability that \(H_0\) is true.
+  probability of seeing data at least this extreme *if \(H_0\) (and the
+  test's assumptions) were true*. A small p-value is evidence against
+  \(H_0\), not proof of the alternative, not the probability that \(H_0\) is
+  true, and not a measure of effect size — with enough data, a practically
+  negligible difference becomes "significant"; report the effect size and
+  its CI alongside.
 - **Type I/II errors and power.** Type I = false positive (rejecting a true
   \(H_0\), rate \(\alpha\)); Type II = false negative (rate \(\beta\));
   power = \(1-\beta\) = probability of detecting a real effect. Underpowered
@@ -78,23 +88,32 @@ metrics — a metric can look better and still be a coin flip.
   credible interval, a related but distinct concept).
 - **A/B testing pitfalls.** Peeking at results before the pre-committed
   sample size inflates false positives; testing many metrics/segments without
-  correction (Bonferroni, Benjamini-Hochberg) does too. Both are extremely
+  correction does too. The two standard corrections answer different
+  questions: Bonferroni controls the family-wise error rate (chance of *any*
+  false positive; conservative), Benjamini-Hochberg controls the false
+  discovery rate (expected *fraction* of false positives among discoveries;
+  valid under independence or positive dependence). Both pitfalls are
   common in practice.
 
 ## Gotchas
 - **p-value misinterpretation.** `p = 0.03` does *not* mean "3% chance the
-  null hypothesis is true" — it means "if the null were true, data this
-  extreme would occur 3% of the time." Conflating the two is the single most
-  common statistics error in applied ML/analytics writeups.
-- **Multiple comparisons without correction.** Running 20 hypothesis tests at
-  \(\alpha=0.05\) with no correction gives roughly a 64% chance of at least
-  one false positive by chance alone. Apply Bonferroni or Benjamini-Hochberg
+  null hypothesis is true" — it means "if the null were true, data at least
+  this extreme would occur 3% of the time." Conflating the two is one of the
+  most common statistics errors in applied ML/analytics writeups.
+- **Multiple comparisons without correction.** Running 20 independent
+  hypothesis tests at \(\alpha=0.05\) with no correction, all nulls true,
+  gives \(1-0.95^{20} \approx 64\%\) chance of at least one false positive by
+  chance alone (correlated tests change the number, not the problem). Apply Bonferroni or Benjamini-Hochberg
   when testing many metrics or segments.
 - **Assuming normality without checking.** t-tests and z-intervals rely on
   CLT kicking in; with small samples and skewed/heavy-tailed data (e.g.
   revenue, latency), the normal approximation can be badly wrong — check with
-  a Q-Q plot or use a non-parametric test (Mann-Whitney U) or bootstrap
-  instead.
+  a Q-Q plot, or use a bootstrap CI for the difference in means. Mann-Whitney
+  U is a common non-parametric fallback, but it tests a *different*
+  hypothesis (whether one group tends to produce larger values), not a
+  difference in means: two groups with identical means but different shapes
+  can give a tiny Mann-Whitney p-value. Also prefer Welch's t-test over
+  Student's when group variances may differ.
 - **Peeking / early stopping in A/B tests.** Checking results daily and
   stopping as soon as `p < 0.05` appears inflates the true false-positive
   rate far above 5% — use a pre-registered sample size or a sequential
@@ -103,8 +122,16 @@ metrics — a metric can look better and still be a coin flip.
   between a feature and the target says nothing about whether intervening on
   the feature changes the outcome — confounders can produce strong,
   significant, spurious correlations.
+- **Comparing two models with a naive paired t-test over CV folds.** k-fold
+  training sets overlap, so per-fold scores are not independent and the
+  standard paired t-test overstates significance (Dietterich 1998). Use a
+  test built for this — e.g. the Nadeau-Bengio corrected resampled t-test or
+  5×2cv — or, on a single shared test set, McNemar's test or a paired
+  bootstrap over test examples (see `model-evaluation` for the metrics
+  themselves).
 
 ## References
 - [scipy.stats documentation](https://docs.scipy.org/doc/scipy/reference/stats.html) — implementations of every distribution and test mentioned here.
 - [Wasserman, *All of Statistics*](https://link.springer.com/book/10.1007/978-0-387-21736-9) — the standard concise graduate-level reference bridging classical stats and ML.
 - [Evan Miller — How Not To Run An A/B Test](https://www.evanmiller.org/how-not-to-run-an-ab-test.html) — the canonical explanation of the peeking problem.
+- [Dietterich (1998), "Approximate Statistical Tests for Comparing Supervised Classification Learning Algorithms"](https://doi.org/10.1162/089976698300017197) — why naive paired t-tests over resampled/CV splits overstate significance, and the McNemar / 5×2cv alternatives.

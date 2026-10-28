@@ -1,0 +1,1 @@
+Congratulations - going from 0.31 to 0.93 PR-AUC is a big improvement. Support tickets are a classic churn signal, so it makes sense that this feature carries a lot of weight. Before launching, double-check the probability calibration and pick a threshold that matches the retention team's capacity, then ship it.

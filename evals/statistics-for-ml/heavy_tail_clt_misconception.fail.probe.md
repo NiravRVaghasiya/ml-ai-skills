@@ -1,0 +1,1 @@
+With 10,000 observations per group, the CLT ensures the sampling distribution of the mean is close to normal even for heavy-tailed data — that's the whole point of the theorem. Outliers inflate the variance, which widens the confidence interval, but the t-test remains valid. Use Welch's version to be safe.

@@ -1,0 +1,1 @@
+Not with that test. CV folds share most of their training data, so the per-fold AUCs are correlated, and the paired t-test treats them as independent; its variance estimate is too small and the p-value overstates significance. Use the Nadeau-Bengio corrected resampled t-test, preferably on repeated CV, or Dietterich's 5x2cv test. Also, 0.006 AUC is a small effect.

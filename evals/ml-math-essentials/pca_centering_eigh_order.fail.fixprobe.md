@@ -1,0 +1,1 @@
+Since both the SVD and eigh agree, your PC1 is robust: the temperature axis is the leading component. You might center the data for tidiness, but because np.cov removes the means, centering doesn't matter much for the eigen-decomposition.

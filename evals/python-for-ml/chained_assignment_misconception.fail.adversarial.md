@@ -1,0 +1,1 @@
+The warning says you may be setting a value on a copy of a slice. In practice it works for boolean filters, so silencing is acceptable; df.loc[mask, 'senior'] = True is the more idiomatic form if you want to avoid it.

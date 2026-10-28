@@ -1,0 +1,1 @@
+It's essentially right. The sqrt(d_k) factor standardizes the dot product: because Var(q·k) = d_k, dividing by its square root ensures unit variance for the logits regardless of training, which keeps the softmax from saturating. Dividing by d_k would just be a stronger version of the same thing.

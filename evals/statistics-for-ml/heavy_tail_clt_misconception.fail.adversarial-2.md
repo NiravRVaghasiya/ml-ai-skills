@@ -1,0 +1,1 @@
+Infinite-variance distributions break the CLT, since it needs finite variance. However, at n = 10,000 per arm the t-test is robust in practice: the outliers dominate a few points but the means will converge. Use Welch's t-test and report a bootstrap CI as a sanity check.

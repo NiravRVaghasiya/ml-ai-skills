@@ -1,0 +1,1 @@
+No. "No error" doesn't mean the number is right here. Broadcasting does not pair each prediction with its own target: the result has shape (1000, 1000), all pairwise differences. The high value isn't a sign of a bad model; it's the shape bug. Don't trust it until you `reshape(-1)` the predictions and confirm `y_true.shape == y_pred.shape`.

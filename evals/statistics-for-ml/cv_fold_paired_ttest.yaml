@@ -1,0 +1,36 @@
+id: cv_fold_paired_ttest
+skill: statistics-for-ml
+category: misconception
+kind: response
+input: |
+  Model A beats model B on 10-fold cross-validation: mean AUC 0.842 vs 0.836. I ran scipy.stats.ttest_rel on the 10 per-fold AUCs and got p = 0.01. Can I report that A is significantly better than B?
+expected_behavior:
+  - 'explains that the folds are not independent: any two training sets in 10-fold CV share about 8/9 of their data and all test folds come from one sample, so the naive paired t-test underestimates the variance and is anti-conservative (Dietterich 1998; Nadeau & Bengio 2003)'
+  - 'recommends an appropriate procedure: the Nadeau-Bengio corrected resampled t-test (ideally with repeated CV), the 5x2cv paired t-test, or, on a single held-out test set, a paired bootstrap over test examples or DeLong''s test for the AUC difference (McNemar''s test compares paired thresholded errors, i.e. accuracy, not AUC)'
+  - 'points out the small effect (0.006 AUC), recommends reporting it with a confidence interval and judging practical relevance, and mentions correcting for multiple comparisons if A was chosen among many candidates'
+  - 'does not endorse p = 0.01 as evidence of significance'
+must_not:
+  - 'affirm that the naive paired t-test''s p = 0.01 shows A is significantly better'
+  - 'propose a permutation test or bootstrap over the 10 dependent fold scores as the fix (it keeps the independence problem)'
+  - 'claim the Nadeau-Bengio correction leaves p well below 0.05 here (with 10-fold CV it moves p = 0.01 to about 0.05)'
+must_include:
+  - '\b(overlap\w*|not independent|non-?independen\w+|dependen\w+|correlat\w+|share\w*)\b'
+  - '\b(nadeau|corrected (resampled )?t-?test|5\s*x\s*2\s*(cv)?|5x2cv|mcnemar\w*|bootstrap\w*|permutation test|delong\w*)\b'
+  - '\b(anti-?conservative|overstat\w+|underestimat\w+ (the )?(variance|standard error|uncertainty)|too (small|optimistic|liberal)|inflat\w+|optimistic\w*|overconfident)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|that''s right|definitely|of course)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )\b(you can|safe to|go ahead and|fine to|okay to|ok to) (report|claim|say|conclude)\b[^.]{0,40}\bsignifican\w+(?![^.]{0,60}\b(only|if|after|once|but|not)\b)'
+  - '\bp\s*=\s*0?\.01\b[^.]{0,50}\b(shows|means|confirms|proves|establishes|indicates)\b(?![^.]{0,80}\b(but|not|overstat\w*|invalid|misleading|anti)\b)'
+  - '(?<!n''t )(?<!not )\b(run|use|do|try|apply|perform)\b[^.]{0,10}\b(permutation|bootstrap)\w*( test)?\b[^.]{0,30}\b(per-?fold|fold[- ]level|fold)\b[^.]{0,10}\b(scores|aucs?|differences|results|metrics)\b|(?<!n''t )(?<!not )\bbootstrap\w*\b[^.]{0,10}\b(the )?(10 )?(per-?fold|fold[- ]level|fold)\b[^.]{0,10}\b(scores|aucs?|differences|results)\b'
+  - '(?:\A|[.;:!?]\s|\bso\s)(model )?A is (still )?(statistically )?significantly better\b(?![^.]{0,40}\b(only|if|not|unless|but)\b)'
+  - '\bcorrection\w*\b[^.]{0,60}\b(won''t|doesn''t|does not|will not|wouldn''t|would not) change (the|your) (conclusion|result|decision|verdict)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The dependence pattern accepts generic words such as ''correlated''; it cannot confirm the response attributes the dependence to overlapping training sets.'
+  - 'The procedure pattern accepts ''permutation test'' and ''bootstrap'' because both are valid over held-out test examples; a permutation test or bootstrap over the fold scores is caught only in the anticipated phrasings.'
+  - 'A miscomputed corrected p-value stated as a number is not detected unless it is followed by an anticipated wrong conclusion ("A is significantly better").'
+notes: >
+  Phase 1 audit scenario (naive paired t-test over CV folds). Worked numbers for the
+  pass fixture, computed with scipy: p = 0.01 with 9 df is t of about 3.25; the
+  Nadeau-Bengio factor for 10-fold CV is (1/10 + 1/9) / (1/10) = 2.11, giving t of about
+  2.24 and a two-sided p of about 0.052.

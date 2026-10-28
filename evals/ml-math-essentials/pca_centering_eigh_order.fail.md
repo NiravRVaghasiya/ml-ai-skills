@@ -1,0 +1,1 @@
+Yes - two independent methods agreeing is strong evidence. Temperature is the dominant direction of variation, so PC1 is essentially the temperature axis and you could even keep it as a single summary feature. The other two features contribute comparatively little variance.
