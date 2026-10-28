@@ -1,0 +1,1 @@
+Can't tell from pixel accuracy. An all-background prediction already gets ~95% on your data, so 97% is barely above that baseline. Compute IoU or Dice for the crack class (per-class, ignoring void pixels) on un-augmented validation images and judge the model on that number plus a visual check.

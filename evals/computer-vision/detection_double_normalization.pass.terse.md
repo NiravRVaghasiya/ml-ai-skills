@@ -1,0 +1,1 @@
+No. Faster R-CNN in torchvision already normalizes with ImageNet mean/std inside the model (GeneralizedRCNNTransform), so your A.Normalize makes the inputs get normalized a second time. Drop it and pass images scaled to 0-1 (A.ToFloat(max_value=255) then ToTensorV2). Only the segmentation/classification models need you to normalize.

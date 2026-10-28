@@ -1,0 +1,1 @@
+No, DQN isn't a good fit, and don't just discretize the torques. DQN is not appropriate for continuous actions because its update maximizes over every action, and naive discretization of 7 joints is exponential in the number of joints. Use SAC, TD3 or PPO instead; DQN works well only for discrete action spaces like Atari.

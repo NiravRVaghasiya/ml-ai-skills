@@ -1,0 +1,1 @@
+No. A zero factor vector makes every item score 0, so the ranking is an arbitrary tie-break, not a recommendation. Treat it as cold start: send unknown or zero-history users to a popularity list (or content-based picks from their signup interests), and switch them to ALS once they have interactions - via the next refit or recalculate_user=True with their new interaction row.

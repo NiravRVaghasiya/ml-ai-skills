@@ -1,0 +1,1 @@
+Appending O tags at the end works in practice for most datasets. If you want to be thorough, use word_ids() and -100 on special tokens, and evaluate entity-level F1 with seqeval, but 96% token accuracy is a solid sign.

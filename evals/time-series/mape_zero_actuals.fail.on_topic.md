@@ -1,0 +1,1 @@
+MAPE does blow up on zero-sales days because it divides by the actual, but since the seasonal-naive baseline is also absurd, the model is clearly broken. Switch to a deep learning model like an LSTM, and report MAE alongside MAPE from now on.

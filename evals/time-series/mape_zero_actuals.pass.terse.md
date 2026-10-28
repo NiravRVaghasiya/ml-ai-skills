@@ -1,0 +1,1 @@
+That's the metric exploding, not proof the model is broken: MAPE divides by actual sales, and the zero-sales days make it meaningless (the baseline blows up for the same reason). Re-score each fold with MAE or MASE and check whether the model beats the seasonal-naive baseline before reaching for a bigger model.

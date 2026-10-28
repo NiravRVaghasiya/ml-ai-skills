@@ -1,0 +1,35 @@
+id: q_learning_convergence_misconception
+skill: reinforcement-learning
+category: misconception
+kind: response
+input: |
+  Q-learning is off-policy, so it converges to Q* no matter how the data is collected - right? I'm training a deep Q-network on logs from a fixed scripted controller that never uses the "brake" action, and I'm assuming the learned Q-values for braking will still be correct.
+expected_behavior:
+  - 'corrects the claim: off-policy means the learned (target) policy can differ from the behavior policy, not that any data suffices'
+  - 'states the tabular convergence conditions (Watkins & Dayan 1992): every state-action pair keeps being visited (infinitely often) and the step sizes satisfy the Robbins-Monro conditions; these are sufficient, not necessary'
+  - 'explains that because braking never appears in the logs, Q(s, brake) gets no direct updates: the network''s values for it are unconstrained extrapolations, and the max in the TD target can latch onto overestimated ones'
+  - 'notes that with a neural-network Q-function there is no convergence guarantee (deadly triad: function approximation + bootstrapping + off-policy data); target networks and replay improve stability but do not restore the guarantee'
+  - 'recommends collecting data that includes braking (exploration, e.g. in simulation) or, if restricted to fixed logs, offline-RL methods that constrain the policy to logged actions, with careful evaluation before deployment'
+must_not:
+  - 'agree that off-policy learning makes the Q-values of a never-taken action reliable'
+  - 'claim the tabular convergence guarantee carries over to deep Q-networks'
+must_include:
+  - '\b(every|all|each)\b[^.]{0,30}\b(state-action|state[- ]action|pairs?)\b|\binfinitely often\b|\b(coverage|covered)\b'
+  - '\b(robbins[- ]monro|(decay\w*|diminish\w*|decreas\w*) (step[- ]sizes?|learning[- ]rates?))\b|\b(step[- ]sizes?|learning[- ]rates?|alpha|α)\w*\b[^.]{0,40}(\b(decay\w*|diminish\w*|decreas\w*|go to zero|sum\w*|satisf\w+|conditions?|schedul\w+)\b|[Σ∑])'
+  - '\b(deadly triad|diverg\w+|no (convergence )?guarantee|not guaranteed|(isn''t|is not) guaranteed|unstable|instabilit\w+)\b'
+  - '\b(no (data|updates?|samples?|signal|experience)|never (updated|trained|corrected)|extrapolat\w+|arbitrary|unconstrained|made up|guess\w*)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|true|that''s right|definitely|of course)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(q-values?|estimates?|values?) for (the )?(brak\w+|that action|the unused action|the missing action)\b[^.]{0,40}(?<!not )(?<!n''t )\b(will|should) (still )?be (correct|accurate|fine|reliable|right|valid|ok)\b'
+  - '\b(same|that|the|this) (convergence )?guarantees? (also |still |then )?(holds?|applies|carr(y|ies) over|extends?)\b(?![^.]{0,20}\b(only|just|not)\b)[^.]{0,40}\b(neural|deep|function approximat\w+|dqn)'
+  - '\b(neural|deep|dqn|function approximat\w+)\b[^.]{0,40}(?<!not )(?<!n''t )(?<!no longer )\b(also|still) (converges?|is guaranteed to converge)\b'
+  - '\bbrak\w*\b[^.]{0,20}\b(q-values?|estimates?|values?)\b[^.]{0,20}(?<!not )(?<!n''t )\b(will|should|would) (still )?be (correct|accurate|fine|reliable|right|valid|ok|reasonable|sensible)\b'
+  - '\bbehaviou?r policy\b[^.]{0,20}\b(doesn''t|does not) matter\b(?![^.]{0,60}\b(only|as long as|if|provided|so long as)\b)'
+  - '(?<!n''t )(?<!not )\b(will|should|would) (still )?converge\b[^.]{0,30}\b(on|from|with|using) (your|these|the|those) (logs|logged data|data|dataset|historical data)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The coverage pattern accepts any ''every/all ... pairs'' phrasing; it cannot check that the response connects coverage to the missing brake action.'
+notes: >
+  Phase 1 audit scenario (Q-learning convergence conditions are sufficient, not
+  necessary; no guarantee with function approximation). The rubric's offline-RL point
+  goes beyond the skill card and is optional for a passing answer.

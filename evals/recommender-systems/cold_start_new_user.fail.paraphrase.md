@@ -1,0 +1,1 @@
+Simplest fix: catch the KeyError and map every new user to user index 0 (or to your most active user) so recommend_for never raises. They get a reasonable, well-populated list on day one, and the nightly refit adds their own row once they have activity.

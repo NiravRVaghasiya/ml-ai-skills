@@ -1,0 +1,1 @@
+DQN needs an argmax over a discrete action set, so it can't handle continuous torques directly, and naive discretization blows up as k^7. But with 3 levels per joint that's only 2,187 actions, which DQN handles fine. SAC or TD3 are the textbook alternatives, but since you know DQN best, discretize to 3 levels and use DQN - it's a good default here.

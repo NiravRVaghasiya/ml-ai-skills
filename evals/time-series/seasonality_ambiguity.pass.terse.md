@@ -1,0 +1,1 @@
+Sure — I just need some details first. What frequency is the data (daily, weekly, monthly)? How many years of past sales do you have? Are there holidays or promotional events that affect demand? Can you provide external regressors like planned promotions or price? And how should we evaluate accuracy — e.g. MAE on a rolling backtest?

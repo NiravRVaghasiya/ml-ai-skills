@@ -1,0 +1,65 @@
+{
+  "skill": "nlp-tasks",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Fine-tune a transformer encoder (e.g. DistilBERT) on a subset of IMDB for sentiment classification",
+      "expected_outcome": "Shuffles with a fixed seed before subsetting so both labels are present, tokenizes with truncation, passes the tokenizer to Trainer (processing_class=) for dynamic padding, uses eval_strategy (not evaluation_strategy) on Transformers 5, and reports macro-F1 alongside accuracy"
+    },
+    {
+      "task": "Train a BERT token-classification (NER) model from word-level BIO tags",
+      "expected_outcome": "Aligns labels to subword tokens with word_ids(), sets -100 on special tokens / continuation pieces, and evaluates with entity-level seqeval F1 rather than token accuracy"
+    },
+    {
+      "task": "Summarize documents longer than BART's 1024-token input limit",
+      "expected_outcome": "Chunks by tokens (not characters) below the limit and summarizes the joined partial summaries (map-reduce), calling generate() directly because Transformers 5 removed the summarization pipeline task; evaluates with ROUGE"
+    },
+    {
+      "task": "Extract entities from a document with a pretrained pipeline",
+      "expected_outcome": "token-classification pipeline with aggregation_strategy='simple', with the caveat that CoNLL-style models tag only PER/ORG/LOC/MISC and domain entities need a fine-tuned model"
+    }
+  ],
+  "negative_cases": [
+    "unshuffled_subset_perfect_accuracy",
+    "ner_subword_label_alignment",
+    "Request to split a long article into 3000-character chunks for BART summarization without checking token counts (planned)",
+    "Copied Transformers 4 code using TrainingArguments(evaluation_strategy=...) and pipeline('summarization') that fails on Transformers 5 (planned failure_recovery case)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "A perfect or implausibly high score is investigated (label distribution of the evaluation subset) before being reported",
+    "Shuffle with a fixed seed (or stratify) before taking a subset of a dataset split",
+    "Macro-F1 / per-class metrics for classification, entity-level F1 (seqeval) for NER, ROUGE for summarization; token accuracy is not treated as an NER quality metric",
+    "Subword label alignment via word_ids() with -100 for positions the loss should ignore",
+    "Version-sensitive Transformers APIs are named with the version they apply to"
+  ],
+  "prerequisites": [
+    "example-deps for executable tests: transformers, tokenizers, datasets, torch, spacy, seqeval, rouge-score, scikit-learn, numpy (see docs/EXAMPLE-TESTS.md)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies and run via run_evals.py --run-executable; they stub load_dataset, AutoTokenizer/AutoModel*.from_pretrained, spacy.load and pipeline with tiny local models, so no Hub download happens (about 75 s on a CPU laptop as observed on 2026-10-27).",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Seeded, shuffled train/test subsets containing both labels",
+    "A Trainer whose evaluate() reports eval_macro_f1 (example test runs max_steps=2 in a temp dir)",
+    "Label-aligned token-classification inputs (word_ids()-based labels with -100)"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "Hard-assertion robustness is spot-checked only: an independent reviewer's held-out probe found most realistic on-topic wrong answers passed the first-draft must_not_include patterns. The patterns were broadened and those answers committed verbatim as .fail.adversarial*/.pass.blind fixtures; later probes were written by the pattern author and are not blind.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The executable tests use a synthetic IMDB-shaped dataset stored sorted by label and tiny randomly initialised models; they prove the skill's code paths and the sorted-split defect, not real-model accuracy.",
+    "No summarization case exists yet; the token-limit chunking behaviour is covered only by the example test test_summarization_chunks_stay_under_model_limit, not by a behavioral case."
+  ],
+  "unsupported_use_cases": [
+    "Open-ended generation or few-shot prompting of large LLMs (prompt-engineering)",
+    "Retrieval-augmented question answering (rag-pipeline)",
+    "Attention/transformer internals (attention-mechanisms)"
+  ]
+}

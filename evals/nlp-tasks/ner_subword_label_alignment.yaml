@@ -1,0 +1,33 @@
+id: ner_subword_label_alignment
+skill: nlp-tasks
+category: edge_case
+kind: response
+input: |
+  I'm fine-tuning bert-base-cased for NER on my own data. Each sentence is a list of words
+  with one BIO tag per word. After tokenizer(words, is_split_into_words=True) the input_ids
+  are longer than my tag lists, so I pad each tag list with "O" at the end until the lengths
+  match. Training runs and token accuracy is 96%. Is that okay?
+expected_behavior:
+  - 'says the padding approach is wrong: subword splitting and the [CLS]/[SEP] special tokens shift every later position, so tags no longer line up with the tokens they describe'
+  - 'recommends aligning labels with the tokenizer''s word_ids() (one label per word, mapped onto its tokens)'
+  - 'sets the label of special tokens (and typically non-first subword pieces) to -100 so the loss ignores them, or labels continuation pieces consistently with the I- tag of the word'
+  - 'warns that token accuracy is dominated by the O class and recommends entity-level (span) precision/recall/F1, e.g. seqeval'
+must_not:
+  - 'say padding the tag list with O is acceptable'
+  - 'treat 96% token accuracy as evidence that the NER model is good'
+must_include:
+  - '\bword_ids\b|\bword[- ]ids?\b|\boffset(s|_mapping)\b'
+  - '(?<![\w-])-100\b|\bignore_index\b|\b(ignored|masked( out)?|excluded|skipped)\b[^.]{0,40}\bloss\b|\bloss\b[^.]{0,40}\b(ignores?|skips?|masks?)\b'
+  - '\bseqeval\b|\b(entity|span)[- ]level\b|\bentity[- ](f1|f-score|precision|recall)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|that''s (fine|ok|okay|right|correct)|looks (fine|good))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )(?<!never )\b(padd?\w*|append\w*|extend\w*|fill\w*|add\w* (extra |trailing )?o)\b[^.]{0,50}\b((is|are|should be) (perfectly |usually |generally |probably )?(fine|ok|okay|correct|acceptable|good enough|harmless)|works (perfectly |just )?(fine|well|ok|okay)\b|works( fine| well)? in practice)\b(?![^.]{0,30}\b(only|if|unless)\b)'
+  - '(\b96 ?%|\btoken[- ]?(level )?accuracy\b)[^.]{0,40}\b(is|looks|seems|shows)( like)? (a |an )?(very |pretty |quite |really )?(good|great|fine|solid|strong|reasonable|healthy|acceptable|encouraging|promising)\b(?![^.]{0,40}\b(but|only|because|since|misleading)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'A response that recommends labelling every subword with its word''s tag (a legitimate alternative to -100) without mentioning -100 or ignore_index fails the second must_include pattern; the rubric accepts it.'
+notes: >
+  nlp-tasks/SKILL.md Gotchas: "Subword/word label misalignment" (re-align with
+  word_ids(); one label per token corrupts the training signal) and "Class
+  imbalance skews accuracy"; step 5 computes entity-level F1 with seqeval.

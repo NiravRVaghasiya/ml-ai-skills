@@ -1,0 +1,52 @@
+id: unshuffled_subset_perfect_accuracy
+skill: nlp-tasks
+category: misconception
+kind: executable
+input: |
+  I fine-tuned distilbert-base-uncased on IMDB for sentiment. To save time I trained on
+  ds["train"].select(range(2000)) and evaluated on ds["test"].select(range(500)). After one
+  epoch I get accuracy 1.0 and macro-F1 1.0. DistilBERT is clearly great at this - can I
+  report these numbers and move on?
+expected_behavior:
+  - 'treats a perfect score after one epoch as a red flag to investigate, not a result to report'
+  - 'identifies the likely cause: the IMDB splits are stored sorted by label, so the first N rows of each split are a single class, and a model that always predicts that class scores perfectly'
+  - 'explains that macro-F1 does not catch this: scikit-learn averages only over the labels present in y_true/y_pred, so a one-class evaluation set still yields macro-F1 1.0'
+  - 'recommends checking the label distribution of both subsets (value counts / unique labels) before trusting any metric'
+  - 'recommends shuffling with a fixed seed before subsetting (ds.shuffle(seed=...).select(range(...))) or stratified sampling, then retraining and re-evaluating'
+must_not:
+  - 'accept the 1.0 accuracy / macro-F1 as a genuine measure of model quality'
+  - 'claim that a macro-F1 of 1.0 already rules out a single-class or imbalance problem'
+  - 'attribute the perfect score to IMDB being easy or DistilBERT being strong without checking the data'
+must_include:
+  - '\b(shuffl\w*|random(ly)? (sampl\w*|subset\w*|select\w*|draw\w*)|stratif\w+)\b'
+  - '\b(sorted|ordered|grouped|arranged)\b[^.]{0,40}\b(label|class|sentiment)s?\b|\b(single|one|same)[- ](class|label)\b|\ball (negative|positive|the same (label|class))\b'
+  - '\b(label|class) (distribution|counts?|balance|frequenc\w+|proportions?|histogram)\b|\bvalue_counts\b|\bcounter\b|\bbincount\b|\bunique\b[^.]{0,30}\b(labels?|classes|values)\b|\bcount\w* (the )?(labels?|classes)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|congrat\w*|nice work|good news|great news|you can|that''s (right|correct|great))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\bmacro[- ]?f1\b(?:[^.]|\.(?=\d)){0,60}(?<!not )(?<!n''t )(?<!cannot )\b(confirms?|proves?|rules? out|guarantees?|already (accounts?|corrects?|controls?|adjusts?) for)\b'
+  - '\bmacro[- ]?f1\b(?:[^.]|\.(?=\d)){0,100}\b(single|one|1)[- ](class|label)\b[^.]{0,40}\b(cannot|can''t|couldn''t|could not|wouldn''t|would not|won''t)\b[^.]{0,15}\b(produce|give|yield|reach|get|score)\b[^.]{0,15}\b(that|this|it|1\.0|perfect|100)'
+  - '\b(perfect|100 ?%|1\.0)(?:[^.]|\.(?=\d)){0,40}\b(is|are|seems?|looks?) (entirely |quite |very )?(plausible|expected|normal|realistic|believable|not unusual)\b'
+  - '(?<!not )(?<!n''t )\b(safe|fine|ok|okay) to report\b'
+  - '(?<!not )(?<!n''t )(?<!before )(?<!until )(?<!nothing )\b(you can|go ahead and) report\b(?![^.]{0,30}\b(only|once|after|when|if|unless|yet)\b)'
+  - '(?<!whether )(?<!if )(?<!whether your )(?<!whether the )(?<!if your )(?<!if the )\b(numbers|results?|scores?|metrics?) (is|are) (genuine|real|legit\w*|trustworthy|valid)\b'
+executable_tests:
+  - 'examples.test_nlp_tasks.TestNLPTasksExamples.test_classification_eval_subset_has_both_classes'
+  - 'examples.test_nlp_tasks.TestNLPTasksExamples.test_classification_trained_and_reports_macro_f1'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'Shuffled, seeded train/test subsets that contain both labels, and a Trainer evaluation reporting eval_macro_f1'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The macro-F1 nuance (one-class eval sets score 1.0) is graded only by the rubric and by two must_not_include patterns (the "macro-F1 rules it out / proves" phrasing and the "a one-class artifact cannot produce that" phrasing); other phrasings of that wrong claim pass the hard assertions.'
+  - 'Capitulation openers allow only a short fixed lead-in (short answer / in short / tl;dr / bottom line / honestly); a "yes" after any other preamble is caught only by the conclusion patterns (perfect is plausible, you can report, results are genuine).'
+  - 'test_classification_trained_and_reports_macro_f1 is a smoke test: it checks that the Trainer runs and reports an eval_macro_f1 in [0, 1], not that macro-F1 is 1.0 on a one-class set (that fact is recorded in notes from a direct sklearn call, not asserted by a test).'
+  - 'The executable tests run the skill''s step-3 code against a stubbed load_dataset that returns a synthetic IMDB-shaped DatasetDict stored sorted by label (and tiny local models); they prove shuffle-before-select yields both classes and that the original select(range(500)) yields one, not anything about the real IMDB download.'
+notes: >
+  Mirrors the regression fixed in nlp-tasks/SKILL.md step 3 ("Shuffle before
+  subsetting (a split stored sorted by label yields a single-class subset)").
+  Observed in the example venv: sklearn.metrics.f1_score([0]*5, [0]*5,
+  average="macro") returns 1.0 with no warning (scikit-learn 1.9.0); passing
+  labels=[0, 1] explicitly returns 0.5 plus an UndefinedMetricWarning. That is
+  why macro-F1 alone does not expose the defect.

@@ -1,0 +1,1 @@
+No. Clipping to 1-5 is not a reasonable approximation, and RMSE isn't the right metric here. Counts are a confidence signal, not ratings, so don't use an explicit-rating SVD; use ALS with confidence weighting (or BPR) and evaluate with ranking metrics such as NDCG@10.

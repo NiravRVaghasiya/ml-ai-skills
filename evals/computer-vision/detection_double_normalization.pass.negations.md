@@ -1,0 +1,1 @@
+No, that's not right for a detector. Don't keep A.Normalize here: the model normalizes itself (image_mean/image_std in model.transform), so your images are normalized twice. It doesn't raise an error; it just hurts mAP. Feed [0, 1] floats via ToFloat. Keep Normalize only in the segmentation pipeline.

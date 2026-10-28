@@ -1,0 +1,35 @@
+id: implicit_counts_as_ratings
+skill: recommender-systems
+category: misconception
+kind: response
+input: |
+  We only have click counts per (user, product), ranging from 1 to 300. Plan: clip the counts
+  to 1-5, treat them as star ratings, train Surprise's SVD, and pick the model with the
+  lowest RMSE. Sound right?
+expected_behavior:
+  - 'explains that click counts are implicit feedback: a confidence signal that the user is interested, not a preference rating, and that unobserved pairs are unknown rather than low ratings'
+  - 'points out that clipping to 1-5 and fitting an explicit-rating SVD on observed pairs only discards the count information and the signal in missing interactions'
+  - 'recommends an implicit-feedback method such as ALS with confidence weighting (alpha, Hu/Koren/Volinsky) or BPR'
+  - 'recommends evaluating with top-K ranking metrics (Precision@K, NDCG@K, recall@K) on a held-out, preferably time-based split, plus catalog coverage, instead of RMSE'
+must_not:
+  - 'endorse clipping counts to a 1-5 scale and fitting an explicit-rating SVD as a sound approach'
+  - 'endorse RMSE as the model-selection metric for a top-N recommender'
+must_include:
+  - '\bconfidence\b'
+  - '\b(als|alternating least squares|bpr|bayesian personali[sz]ed ranking|weighted matrix factori[sz]ation|wmf)\b|\bimplicit[- ]feedback (model|method|algorithm|approach|matrix factori[sz]ation|mf)\b|\bimplicit library\b'
+  - '\b(precision|recall|ndcg|map|hit[- ]?rate|mrr)\s?@\s?(k|\d+)\b|\bndcg\b|\branking metrics?\b|\btop[- ]?(n|k)\b[^.]{0,30}\b(metrics?|evaluat\w+|quality)\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|sounds (right|good)|that''s (right|correct|fine))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(clip\w*|bucket\w*|bin(ning|ned)?|rescal\w*)\b[^.]{0,60}(?<!n''t )(?<!not )\b(is|are|works?)\b (a |an )?(perfectly |pretty |quite )?(fine|ok|okay|reasonable|sensible|good|decent)\b'
+  - '(?<!not )(?<!n''t )\b(rmse|mae)\b(?:(?!\b(ndcg|precision|recall|map|hit|mrr|auc|coverage)\b)[^.:;]){0,40}(?<!n''t )(?<!not )\b(is|are|remains?) (still )?(the |a )?(more |most )?(right|correct|best|good|fine|appropriate|standard|reasonable|stable|reliable|robust|better|safer) (metric|choice|measure|way|criterion|signal)\b'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|instead|rather|avoid\w*|stop|without)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(choose|choosing|pick|picking|select|selecting|tune|tuning|rank|ranking) (the )?(model|models|factors|hyperparameters|alpha|runs?|winner|best)\b(?:(?!\b(rather|than|instead|not|over|versus|vs)\b|n''t)[^.]){0,60}\b(lowest|minimum|smallest|by|on|using|with) (the )?(held-out |validation |test |holdout )?(rmse|mae)\b'
+  - '\bsvd\b[^.]{0,40}(?<!n''t )(?<!not )\b(works? (fine|well)|is (fine|ok|okay|a good (choice|fit|start\w*)))\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
+  - 'The "unobserved pairs are unknown, not negative" point and the time-based split are graded by the rubric only.'
+notes: >
+  recommender-systems/SKILL.md Gotchas ("Treating implicit counts as explicit
+  ratings", "Random train/test splits leak future interactions") and steps 3 and 5;
+  the confidence-weighting formulation is Hu, Koren & Volinsky (2008),
+  "Collaborative Filtering for Implicit Feedback Datasets".

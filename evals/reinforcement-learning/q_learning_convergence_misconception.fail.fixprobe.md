@@ -1,0 +1,1 @@
+Off-policy learning means the behaviour policy doesn't matter, so Q-learning will converge on your logs as long as the learning rate decays (Robbins-Monro). Braking never appears, but the function approximator generalizes and DQN with a target network is stable, so the brake Q-values will still be accurate.

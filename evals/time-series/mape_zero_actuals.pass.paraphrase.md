@@ -1,0 +1,1 @@
+Before swapping models, look at the metric. MAPE divides by the actual sales, and on zero-sales days that division explodes, which is why even the seasonal-naive baseline scores around 1e15. Score each walk-forward fold with MAE or MASE instead and see whether your model actually beats seasonal naive.

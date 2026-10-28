@@ -1,0 +1,1 @@
+You're right to be worried. Zero-sales days inflate MAPE because of the division by the actual, so report MAE too, but an error of 1e15 next to an equally bad seasonal-naive baseline indicates that the model has failed, and moving to a neural network forecaster is reasonable.

@@ -1,0 +1,1 @@
+MAPE explodes on zero-sales days because it divides by the actual, so look at MAE or MASE alongside it. But when even the seasonal-naive baseline is this bad, this shows that the model is broken and needs to be rebuilt from scratch.

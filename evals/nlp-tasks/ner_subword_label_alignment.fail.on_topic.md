@@ -1,0 +1,1 @@
+You could realign the tags with word_ids(), but padding the tag list with O works fine in practice: the extra positions are mostly [SEP] and padding, and the model quickly learns to tag them O. For reporting, seqeval's entity-level F1 would be stricter, but 96% token accuracy is good enough to move on to deployment.

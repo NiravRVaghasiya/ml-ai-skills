@@ -1,0 +1,1 @@
+No - an all-zero factor vector doesn't work; it isn't a neutral default. With zero factors all scores are equal, so the order is arbitrary. This is cold start: don't append fake rows, don't reuse another user's index - fall back to the most popular items (or content-based picks) until they have history.

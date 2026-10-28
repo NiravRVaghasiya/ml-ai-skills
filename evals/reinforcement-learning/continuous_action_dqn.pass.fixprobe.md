@@ -1,0 +1,1 @@
+DQN is a poor fit. Its update and its policy both take a max over actions, which assumes a finite action set; 7 continuous torques don't give you one, and gridding each joint into 7 levels already gives 7^7 = 823,543 actions, a combinatorial explosion. Go with SAC or TD3 (off-policy, replay buffer, sample-efficient) or PPO if your simulator is cheap and parallel.

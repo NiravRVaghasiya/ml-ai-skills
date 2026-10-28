@@ -1,0 +1,1 @@
+Zero-sales days make MAPE blow up, so switch the metric to MAE. Your model is beyond saving with numbers like that though, so it makes sense to move on to an LSTM forecaster and compare against the seasonal-naive baseline afterwards.

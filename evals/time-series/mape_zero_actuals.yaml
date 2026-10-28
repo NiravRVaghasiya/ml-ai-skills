@@ -1,0 +1,37 @@
+id: mape_zero_actuals
+skill: time-series
+category: misconception
+kind: executable
+input: |
+  My walk-forward backtest on daily store sales reports a MAPE of around 1e15, and the
+  seasonal-naive baseline looks just as absurd. The model must be completely broken, so I'm
+  switching to a deep learning model.
+expected_behavior:
+  - 'identifies the metric, not necessarily the model, as the problem: MAPE divides by the actual value, so zero-sales days explode it (scikit-learn''s mean_absolute_percentage_error divides by a tiny epsilon floor there), which is also why the baseline looks absurd'
+  - 'recommends a metric that stays meaningful with zero actuals: MAE (or RMSE), MASE or the ratio to the seasonal-naive baseline''s error (WAPE conditionally), computed per walk-forward fold'
+  - 'suggests comparing the current model against the seasonal-naive baseline on that metric before changing model family'
+must_not:
+  - 'conclude from the MAPE value that the model is broken and recommend switching to a more complex model'
+must_include:
+  - '\b(zero|0)[- ]?(sales|demand|actuals?|values?|days?)\b|\bdivid\w+ by (zero|0|the actual|actuals?|tiny|near-zero|an epsilon)\b|\bnear[- ]zero\b|\bepsilon\b|\b(are|is|equal to|hits?|at|reach\w*) (zero|0)\b'
+  - '\b(MAE|mean absolute error|RMSE|MASE|WAPE|scaled error|relative to (the )?(seasonal[- ])?naive|ratio to (the )?(seasonal[- ])?naive)\b'
+  - '\b(seasonal[- ]naive|naive baseline|baseline)\b'
+  - '\b(metric|MAPE)\b[^.]{0,60}\b(problem|issue|culprit|misleading|blows? up|explod\w+|undefined|unstable|breaks?|meaningless|dominat\w+)\b|\b(blows? up|explod\w+|meaningless|dominat\w+)\b|\b(blows?|blew) [^.]{0,20}\bup\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!before )\b(switch\w*|mov\w+|go\w*|upgrad\w+|jump\w*) (over |on |straight |right )?to (a |an )?(deep[- ]learning|neural|lstm|transformer|bigger|more complex)\b(?![^.]{0,60}\b(only|if|once|after|unless)\b)'
+  - '(?<!n''t )(?<!not )\b(deep[- ]learning|an? lstm|lstms?|neural (net\w*|forecaster)|transformers?)\b[^.]{0,40}\b(is|are|would be) (the )?(right|correct|best|logical|natural|obvious) (next )?(step|move|choice|call|fix)\b'
+  - '(?<!n''t mean )(?<!not mean )(?<!n''t mean that )(?<!not mean that )(?<!necessarily mean )(?<!necessarily mean that )(?<!n''t prove )(?<!not prove )(?<!n''t prove that )(?<!not prove that )(?<!n''t show )(?<!not show )(?<!n''t show that )(?<!not show that )(?<!not proof )(?<!not proof that )(?<!no proof )(?<!no proof that )(?<!no evidence )(?<!no evidence that )(?<!no sign )(?<!no sign that )(?<!n''t conclude )(?<!not conclude )(?<!n''t conclude that )(?<!not conclude that )(?<!n''t assume )(?<!not assume )\b(the|your) (current )?(model|approach|forecaster) (is|has|must be|must have) (completely |clearly |definitely |fundamentally |genuinely )?(broken|useless|failed|beyond (saving|repair)|hopeless)\b'
+executable_tests:
+  - 'examples.test_time_series.TestTimeSeriesSkill.test_walk_forward_metric_is_finite_with_zero_sales_days'
+  - 'examples.test_time_series.TestTimeSeriesSkill.test_seasonal_naive_baseline_is_exact_on_periodic_series'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'Per-fold walk-forward MAE for the model and for a seasonal-naive baseline, finite on a series with weekly zero-sales days'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s walk-forward block reports a finite MAE on a series with zero days (where MAPE was about 1e15) and an exact seasonal-naive baseline on a periodic series, using a recording ARIMA stub; they do not grade the response.'
+notes: >
+  Tests the "MAPE blows up on zero or near-zero actuals" Gotcha in time-series/SKILL.md, which
+  cites the ~1e15 value observed on a toy series with weekly zero days.

@@ -1,0 +1,1 @@
+No - it isn't ready to hand over on this evidence. 97% pixel accuracy is not impressive when predicting only background scores 95%. Don't use pixel accuracy at all here; report the crack-class IoU and Dice (per-class, void ignored), and don't sign off until that number meets an agreed target.

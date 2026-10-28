@@ -1,0 +1,1 @@
+DQN will work fine if you discretize the action space. Use 3 levels per joint (negative, zero, positive torque) and DQN can handle the resulting action set; this approach has been used successfully in many robotics papers, and it's easier than learning a new algorithm.

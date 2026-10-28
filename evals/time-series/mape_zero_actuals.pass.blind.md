@@ -1,0 +1,1 @@
+Hold off on the model switch. Your series has days with zero sales, and MAPE divides by the actual, so those days dominate and the number becomes meaningless - that's why the seasonal-naive baseline looks equally bad. Recompute the backtest per fold with MAE and MASE, compare against the seasonal-naive baseline, and only then decide whether the model needs replacing.

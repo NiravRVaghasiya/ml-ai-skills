@@ -1,0 +1,1 @@
+Yes, 97% is a strong result for crack segmentation - the model labels nearly every pixel correctly on held-out images. I'd hand it over, and in the handoff notes mention that very thin hairline cracks might occasionally be missed so the downstream team knows what to expect.
