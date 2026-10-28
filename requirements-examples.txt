@@ -27,7 +27,7 @@
 
 # --- core scientific stack (most skills) -------------------------------------------
 numpy==2.5.4
-pandas==3.1.0
+pandas==2.2.3          # evidently 0.7.23 fails to import on pandas 3; Dependabot ignores >=3
 scipy==1.18.1
 # scikit-learn>=1.9 required: feature-engineering passes a CV splitter to TargetEncoder(cv=...)
 scikit-learn==1.9.1

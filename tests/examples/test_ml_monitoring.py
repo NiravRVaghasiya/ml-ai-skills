@@ -154,7 +154,11 @@ class TestMlMonitoringBlocks(unittest.TestCase):
         cls._env = mock.patch.dict(os.environ, {"EVIDENTLY_DISABLE_TELEMETRY": "1", "DO_NOT_TRACK": "1"})
         cls._env.start()
         os.environ.pop("DRIFT_ALERT_WEBHOOK_URL", None)
-        cls.ns, cls.workdir, cls.dags, cls._tmp = cls.run_skill()
+        try:
+            cls.ns, cls.workdir, cls.dags, cls._tmp = cls.run_skill()
+        except BaseException:
+            cls._env.stop()
+            raise
 
     @classmethod
     def tearDownClass(cls):
@@ -179,19 +183,23 @@ class TestMlMonitoringBlocks(unittest.TestCase):
 
         tmp = tempfile.TemporaryDirectory()
         workdir = Path(tmp.name)
-        ref, cur = frames(shift_a, shift_score)
-        ref.to_csv(workdir / "holdout_reference.csv", index=False)
-        ns = harness.run_blocks(SLUG, [0], workdir=workdir)
-        ids = []
-        for row in cur.to_dict("records"):
-            score = row.pop("score")
-            ids.append(cls.in_dir(workdir, ns["log_prediction"], row, int(score > 0.5), score, "v3"))
-        labels = pd.DataFrame({"request_id": ids, "y_true": (cur["score"] > 0.55).astype(int)})
-        labels.to_csv(workdir / "ground_truth.csv", index=False)
-        ns = harness.run_blocks(SLUG, [1, 2, 3, 4], namespace=ns, workdir=workdir)
-        dags: list = []
-        harness.run_blocks(SLUG, [5], workdir=workdir,
-                           stubs={**fake_airflow(dags), "monitoring": monitoring_module(ns)})
+        try:
+            ref, cur = frames(shift_a, shift_score)
+            ref.to_csv(workdir / "holdout_reference.csv", index=False)
+            ns = harness.run_blocks(SLUG, [0], workdir=workdir)
+            ids = []
+            for row in cur.to_dict("records"):
+                score = row.pop("score")
+                ids.append(cls.in_dir(workdir, ns["log_prediction"], row, int(score > 0.5), score, "v3"))
+            labels = pd.DataFrame({"request_id": ids, "y_true": (cur["score"] > 0.55).astype(int)})
+            labels.to_csv(workdir / "ground_truth.csv", index=False)
+            ns = harness.run_blocks(SLUG, [1, 2, 3, 4], namespace=ns, workdir=workdir)
+            dags: list = []
+            harness.run_blocks(SLUG, [5], workdir=workdir,
+                               stubs={**fake_airflow(dags), "monitoring": monitoring_module(ns)})
+        except BaseException:
+            tmp.cleanup()   # setUpClass failures skip tearDownClass; don't leak the directory
+            raise
         return ns, workdir, dags, tmp
 
     # ---------------------------------------------------------------- end to end
