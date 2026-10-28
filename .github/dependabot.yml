@@ -32,10 +32,18 @@ updates:
         exclude-patterns: ["ruff", "shellcheck-py", "coverage", "PyYAML", "jsonschema", "pip-audit"]
     # Dependabot bumps each exact pin on its own and does not check the pins against each
     # other's requirements. Hold back versions an upper bound in a pinned package rejects;
-    # drop an entry once that package lifts its cap.
+    # drop an entry once that package lifts its cap. Before merging a bump, check the whole
+    # file resolves: `pip install --dry-run --ignore-installed -r requirements-examples.txt`
+    # (pip names only the first conflict it hits).
     ignore:
       # mlflow 3.17.2 requires pyarrow<26 (the 26.0.0 bump failed pip's resolver in CI).
       - dependency-name: "pyarrow"
         versions: [">=26"]
+      # albumentations 2.0.8 pins albucore==0.0.24 exactly.
+      - dependency-name: "albucore"
+        versions: [">0.0.24"]
+      # evidently 0.7.23 requires plotly<6.
+      - dependency-name: "plotly"
+        versions: [">=6"]
     commit-message:
       prefix: "deps"

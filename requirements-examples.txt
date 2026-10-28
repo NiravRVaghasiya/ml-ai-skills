@@ -62,7 +62,7 @@ stanio==0.5.1          # (transitive, via cmdstanpy)
 mlflow==3.17.2         # heavy: large dependency tree
 pandera==0.35.0
 SQLAlchemy==2.1.6
-pyarrow==26.0.0
+pyarrow==25.0.1        # mlflow 3.17.2 requires <26; Dependabot ignores >=26 (.github/dependabot.yml)
 pendulum==3.3.0        # optional: enables test_pendulum_interval_end_is_accepted (skips without it)
 
 # --- deep learning / computer vision (heavy) -----------------------------------------
@@ -70,7 +70,7 @@ torch==2.14.1+cpu
 torchvision==0.29.1+cpu
 torchmetrics==1.9.0
 albumentations==2.0.8
-albucore==0.3.1                 # (transitive, via albumentations)
+albucore==0.0.24                # (transitive) albumentations 2.0.8 pins ==0.0.24; Dependabot ignores newer
 opencv-python-headless==5.0.0.93 # (transitive, via albumentations)
 pycocotools==2.0.11
 
@@ -85,7 +85,7 @@ onnxruntime==1.31.1
 onnxscript==0.7.2
 onnx-ir==1.1.0         # (transitive, via onnxscript)
 evidently==0.7.23      # heavy; requires plotly<6
-plotly==7.1.0         # (transitive, via evidently)
+plotly==5.24.1        # (transitive, via evidently: <6); Dependabot ignores >=6
 
 # --- LLM / NLP / RAG (heavy: transformers also slows torchmetrics' import) ------------
 transformers==5.21.0
