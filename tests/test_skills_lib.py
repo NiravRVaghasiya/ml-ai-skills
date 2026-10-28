@@ -170,7 +170,7 @@ requires:
                            json.dumps(docs))
         results = [json.loads(line) for line in out.splitlines()]
         self.assertEqual(len(results), len(docs))
-        for doc, (data, diag_codes) in zip(docs, results):
+        for doc, (_data, diag_codes) in zip(docs, results, strict=True):
             with self.subTest(doc=doc):
                 self.assertIn("unsupported-syntax", diag_codes)  # PyYAML rejects all of these
         self.assertEqual(results[0][0], {"related": ["a"]})
