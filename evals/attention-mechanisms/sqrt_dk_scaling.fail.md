@@ -1,0 +1,1 @@
+We divide by √d_k mainly for efficiency: smaller numbers are cheaper to exponentiate, and it keeps the matrix multiplication from overflowing in half precision. The main reason is speed and memory, which matters at long sequence lengths.

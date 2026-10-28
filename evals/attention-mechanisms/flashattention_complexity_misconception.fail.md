@@ -1,0 +1,1 @@
+Yes. FlashAttention reorganized the attention computation so that it runs in linear time, which is why context windows jumped from a few thousand tokens to hundreds of thousands. Sparse and linear attention were stopgaps; you can drop them.

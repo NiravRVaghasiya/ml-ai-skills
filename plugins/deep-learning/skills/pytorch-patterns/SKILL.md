@@ -16,7 +16,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: official-documentation
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - custom-dataset-dataloader
   - train-eval-mode-switching
@@ -30,6 +30,8 @@ related:
   - neural-net-fundamentals
 inputs: A request to structure PyTorch code — a Dataset/DataLoader, a training loop, hooks, or checkpointing.
 outputs: Idiomatic PyTorch Dataset/DataLoader, train/eval loop, hook, and checkpoint code ready to adapt.
+version_constraints:
+  - "torch>=1.13: torch.load(..., weights_only=True) keyword (1.13 minimum and the 2.6 default flip are model-knowledge estimates; all Workflow blocks executed CPU-only against torch 2.13.0 on 2026-10-27)"
 ---
 
 ## Overview
@@ -52,6 +54,8 @@ resumable training.
        def __init__(self, features, labels):
            self.X = torch.as_tensor(features, dtype=torch.float32)
            self.y = torch.as_tensor(labels, dtype=torch.long)
+           if len(self.X) != len(self.y):   # else extra labels are silently ignored
+               raise ValueError(f"{len(self.X)} feature rows but {len(self.y)} labels")
 
        def __len__(self):
            return len(self.X)
@@ -61,7 +65,8 @@ resumable training.
 
    train_loader = DataLoader(
        TabularDataset(X_train, y_train),
-       batch_size=64, shuffle=True, num_workers=4, pin_memory=True,
+       batch_size=64, shuffle=True, num_workers=4,
+       pin_memory=torch.cuda.is_available(),   # pinning only helps host->GPU copies
    )
    ```
 
@@ -84,7 +89,8 @@ resumable training.
        def forward(self, x):
            return self.net(x)
 
-   model = MLP(in_dim=20, hidden_dim=128, num_classes=10)
+   device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+   model = MLP(in_dim=20, hidden_dim=128, num_classes=10).to(device)  # move before building the optimizer
    ```
 
 3. **Write the train/eval loop with explicit mode switches and `no_grad`.**
@@ -133,10 +139,14 @@ resumable training.
        return hook
 
    handle = model.net[0].register_forward_hook(make_hook("first_linear"))
-   _ = model(next(iter(train_loader))[0])
+   try:
+       model.eval()
+       with torch.no_grad():
+           X_batch, _ = next(iter(train_loader))
+           model(X_batch.to(device))
+   finally:
+       handle.remove()   # runs even if forward raises; a leaked hook keeps its closure + tensors alive
    print(activations["first_linear"].shape)
-
-   handle.remove()   # forgetting this leaks the closure and its tensor references
    ```
 
 5. **Checkpoint `state_dict`s, not whole model objects, and support resume.**
@@ -144,21 +154,35 @@ resumable training.
    instantiation of the *current* class definition, so it survives refactors that
    `torch.save(model)` (pickles the class + weights together) does not.
    ```python
+   import os
+
    def save_checkpoint(path, model, optimizer, epoch):
-       torch.save({
-           "epoch": epoch,
-           "model_state": model.state_dict(),
-           "optimizer_state": optimizer.state_dict(),
-       }, path)
+       tmp = f"{path}.tmp"   # same directory, so os.replace is a same-filesystem rename
+       try:
+           torch.save({
+               "epoch": epoch,                       # last *completed* epoch
+               "model_state": model.state_dict(),
+               "optimizer_state": optimizer.state_dict(),
+               # also store scheduler/GradScaler state_dicts here if you use them
+           }, tmp)
+           # atomic rename: an exception or process crash mid-write leaves the previous
+           # checkpoint intact (surviving power loss additionally needs an fsync first)
+           os.replace(tmp, path)
+       except BaseException:
+           if os.path.exists(tmp):
+               os.remove(tmp)                        # don't leave a partial file behind
+           raise
 
    def load_checkpoint(path, model, optimizer, device):
-       ckpt = torch.load(path, map_location=device)
+       # weights_only=True refuses arbitrary pickled objects (code execution on load);
+       # it is the default since PyTorch 2.6 but explicit is safer on older versions
+       ckpt = torch.load(path, map_location=device, weights_only=True)
        model.load_state_dict(ckpt["model_state"])
        optimizer.load_state_dict(ckpt["optimizer_state"])
-       return ckpt["epoch"]
+       return ckpt["epoch"] + 1                  # the epoch to resume at
 
    save_checkpoint("epoch_10.pt", model, optimizer, epoch=10)
-   start_epoch = load_checkpoint("epoch_10.pt", model, optimizer, device)
+   start_epoch = load_checkpoint("epoch_10.pt", model, optimizer, device)   # -> 11
    ```
 
 ## Gotchas
@@ -167,21 +191,27 @@ resumable training.
   computed this way are noisy and not representative of deployed behavior. Pair
   every `model.eval()` with a `model.train()` before the next training batch, or
   wrap eval logic in a helper (as in step 3) so it can't be missed.
-- **Forgetting `optimizer.zero_grad()`** (or forgetting `set_to_none=True` on
-  older code that relies on it) accumulates gradients across batches instead of
-  computing a fresh gradient each step — the model still trains, just wrong,
-  which makes it a hard bug to notice from loss curves alone.
-- **`DataLoader(num_workers > 0)` on Windows requires an `if __name__ ==
-  "__main__":` guard.** Windows uses the `spawn` start method for worker
-  processes, which re-imports the launching script — without the guard, worker
-  processes re-run (and can infinitely recurse into) the top-level training code.
+- **Forgetting `optimizer.zero_grad()`** accumulates gradients across batches
+  instead of computing a fresh gradient each step — the model still trains,
+  just wrong, which makes it a hard bug to notice from loss curves alone.
+  (`set_to_none=True` is the default since PyTorch 2.0; step 3 spells it out
+  for older versions.)
+- **`DataLoader(num_workers > 0)` on Windows (and macOS) requires an `if
+  __name__ == "__main__":` guard.** These platforms use the `spawn` start method
+  for worker processes, which re-imports the launching script — without the
+  guard, worker processes re-run (and can infinitely recurse into) the top-level
+  training code. Spawned workers also unpickle the dataset, so a `Dataset` class
+  defined interactively (notebook/REPL) can fail to load there; use
+  `num_workers=0` or move the class into an importable module.
 - **Hooks that aren't removed leak memory.** A forward hook closure that stores
   tensors (as in step 4) keeps those tensors — and the whole autograd graph
   behind them, if not `.detach()`-ed — alive for as long as the handle is
-  registered. Always call `handle.remove()`, or use a `with` cleanup pattern.
+  registered. Always call `handle.remove()` in a `finally` block (as in step 4)
+  so an exception in the forward pass doesn't skip it.
 - **`torch.save(model)` instead of `torch.save(model.state_dict())`** pickles the
   exact class path and object graph — loading it later after even a minor
-  refactor (renamed class, moved module) raises an unpickling error. Ship
+  refactor (renamed class, moved module) raises an unpickling error, and since
+  PyTorch 2.6 `torch.load`'s default `weights_only=True` refuses it outright. Ship
   `state_dict`s plus the code that defines the architecture, never the pickled
   object, especially for anything meant to outlive the current session.
 

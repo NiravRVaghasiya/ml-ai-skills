@@ -1,0 +1,50 @@
+id: resumable_checkpoint_misconception
+skill: pytorch-patterns
+category: misconception
+kind: executable
+input: |
+  To make training resumable after a crash I call `torch.save(model, "ckpt.pt")` at the end
+  of every epoch, overwriting the previous file. That saves everything I need to pick up
+  where I left off, right? I'm using AdamW.
+expected_behavior:
+  - 'says no: pickling the module saves the weights plus a pickled class reference, but not the optimizer state (AdamW''s per-parameter moment estimates), the epoch counter, or scheduler/GradScaler state, so a resumed run restarts the optimizer cold and loses its place'
+  - 'recommends saving a dict of state_dicts - model_state, optimizer_state, epoch (and scheduler/scaler state if used) - restoring with model.load_state_dict / optimizer.load_state_dict, and resuming at epoch + 1'
+  - 'flags that torch.save(model) pickles the class path, so loading breaks after refactors and is refused by torch.load''s default weights_only=True since PyTorch 2.6; load state_dict checkpoints with weights_only=True'
+  - 'recommends writing to a temporary file and atomically renaming it (os.replace), so a crash while overwriting does not corrupt the only checkpoint'
+must_not:
+  - 'agree that torch.save(model) captures everything needed to resume'
+  - 'recommend weights_only=False as the way to load checkpoints'
+  - 'suggest the optimizer can simply be re-created on resume without consequence'
+must_include:
+  - '\bstate_dicts?\b'
+  - '\boptimi[sz]er(\.|_)state\w*|\boptimi[sz]er\b[^.]{0,60}\b(state|moments?|momentum|buffers?|running averages?|exp_avg\w*|statistics)\b|\b(moments?|momentum|exp_avg\w*)\b[^.]{0,40}\boptimi[sz]er\b'
+  - '\b(epoch|step)\b[^.]{0,30}\b(number|counter|index|count)\b|\b(last|current|completed|next|start(ing)?) (epoch|step)\b|\bepoch ?\+ ?1\b|\bresum\w* (at|from) (the )?(next |last )?(epoch|step)\b|\bstart_epoch\b|"epoch"'
+  - '\b(atomic\w*|os\.replace|renam\w*|temp(orary)? file)\b|\.tmp\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|that works|that''s (right|correct|enough)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(\b(that|this|it)\b|\btorch\.save\(model[^)]*\)|\b(whole[- ]model (save|pickle|pickling)|pickling the (whole )?model)\b) (already |really |does )?(saves|captures|stores|includes|contains|covers) (everything|all (you need|the state|of it)|the (full|complete|entire|whole) (training )?state)\b'
+  - '(?<!never )(?<!not )(?<!n''t )(?<!avoid )\b(set|pass|use|add|load with|just use) weights_only\s*=\s*False\b(?![^.]{0,60}\b(only|if|unless|trust\w*)\b)'
+  - '(?<!mean )(?<!means )\b(no need|don''t need|do not need|not necessary|unnecessary) to (save|store|checkpoint|persist) (the )?optimi[sz]er\b'
+  - '\b(the )?(optimi[sz]er|adamw)\b[^.]{0,30}\b(can|will) (just |simply )?be (re-?created|re-?initiali[sz]ed|rebuilt|recreated)\b(?![^.]{0,60}\b(but|only|however|lose|loses|losing|reset)\w*)'
+  - '\b(overwrit\w*|saving over)\b(?![^.,;]{0,30}\b(replace|atomic\w*|renam\w*|tmp|temp\w*)\b)[^.,;]{0,30}\b(is|are) (fine|ok|okay|safe|harmless)\b(?![^;]{0,60}\b(atomic\w*|os\.replace|renam\w*|tmp|temp(orary)? file)\b)'
+  - '\bno need (for|to use|to write to|to bother with) (a |an )?(temp(orary)? file|atomic\w*|os\.replace|\.tmp)'
+  - '\b(temp(orary)? file|atomic (rename|write|save)|os\.replace)\b[^.,;]{0,20}\b(is|are) (overkill|unnecessary|not needed|not necessary)\b'
+  - '\boptimi[sz]er state\b[^.]{0,30}\b(isn''t|is not|not) (critical|needed|necessary|important|required|essential)\b'
+  - '(?<!if you )(?<!mean )(?<!means )\b(don''t|do not|doesn''t|does not) (really |actually )?need (to (save|store|keep) )?(the )?(optimi[sz]er|adamw)( state)?\b'
+executable_tests:
+  - 'examples.test_pytorch_patterns.PytorchPatternsExampleTest.test_checkpoint_round_trip_restores_weights'
+  - 'examples.test_pytorch_patterns.PytorchPatternsExampleTest.test_failed_save_keeps_previous_checkpoint'
+  - 'examples.test_pytorch_patterns.PytorchPatternsExampleTest.test_full_workflow_runs_and_trains'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A checkpoint dict {epoch, model_state, optimizer_state} written via a .tmp file and os.replace, restoring identical weights into a fresh model and returning epoch + 1; a simulated crash mid-write leaves the previous checkpoint loadable and no .tmp file behind'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s save_checkpoint/load_checkpoint code round-trips and survives a simulated failed write (CPU only); they do not prove a given response wrote equivalent code, and they do not cover scheduler or GradScaler state.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  See pytorch-patterns/SKILL.md workflow step 5 and Gotchas, "torch.save(model) instead of
+  torch.save(model.state_dict())". The weights_only default flip in PyTorch 2.6 is recorded in
+  the skill's version_constraints as a model-knowledge estimate. The security angle of loading
+  third-party pickles is covered by ai-ml-security/pickle_supply_chain.

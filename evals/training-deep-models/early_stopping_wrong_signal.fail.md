@@ -1,0 +1,1 @@
+Yes, that's a reasonable setup. Patience 5 is a sensible default, and since training loss is still decreasing the model is still learning, so stopping early would leave performance on the table. To reduce the gap you see, add more dropout and some weight decay.

@@ -1,0 +1,53 @@
+{
+  "skill": "neural-net-fundamentals",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Explain how backpropagation computes gradients for an early-layer weight",
+      "expected_outcome": "Describes the chain rule applied layer by layer, each layer using its local derivative and the upstream gradient"
+    },
+    {
+      "task": "Choose between Adam, AdamW and SGD+momentum for a new model",
+      "expected_outcome": "Explains momentum, adaptive scaling and decoupled weight decay; says Adam still needs an LR sweep and that SGD can generalize better in some settings"
+    },
+    {
+      "task": "Diagnose a deep ReLU MLP that does not train under Xavier init",
+      "expected_outcome": "Identifies the init/activation variance mismatch and recommends He init plus per-layer activation checks"
+    }
+  ],
+  "negative_cases": [
+    "adam_weight_decay_misconception",
+    "deep_relu_xavier_init",
+    "Adversarial request asserting that no weight matrix may ever be zero-initialized, where the answer must name the last-BN-gamma and LoRA B exceptions (planned)",
+    "Misconception that Adam is learning-rate-free and needs no LR sweep (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "States that Adam(weight_decay) is coupled L2 and AdamW is decoupled, equivalent only for plain SGD",
+    "Ties initialization variance to the activation (Xavier for tanh-like, He for ReLU) and to depth/normalization",
+    "Recommends a concrete verification (per-layer activation/gradient statistics) rather than blind hyperparameter changes",
+    "Does not present the learning rate or optimizer as the fix for a signal-propagation problem"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "The cases cover optimizer and initialization pitfalls; forward/backward-pass explanations are covered only by the rubric, not by a case.",
+    "Paraphrase robustness was spot-checked once with 4 answers written by the pattern author after the patterns were set (one correct and one wrong per case): before any fix, 0/2 correct answers passed and 2/2 wrong answers failed. Misses were fixed by broadening patterns and all 4 answers were kept as .probe fixtures, so they are no longer held out and the probe was not blind.",
+    "Independent probe (Phase 2 review): 7 answers for this skill's cases written by a reviewer who did not write the patterns, graded once before any change. Before the fix 2/4 correct answers passed and only 1/3 plausible on-topic wrong answers failed (31 answers across the five skills of this workstream: 11/14 correct passed, 5/16 wrong failed). Most misses were hedge-word escape hatches ('only', 'not', 'if') that fired on the wrong answer's own wording, and concept patterns satisfied by negated mentions. The patterns were then fixed and the reviewer's answers kept verbatim as .pass.blind* / .fail.adversarial* fixtures, so they now grade as expected only because the patterns were tuned to them and are no longer held out.",
+    "Fix-engineer probe: 4 further answers (.pass.fixprobe / .fail.fixprobe) written by the engineer who then edited the patterns, after reading the review but before editing, graded once: 1/2 correct passed and 1/2 wrong failed before the fix (8/10 and 8/10 across the five skills). This is author-adjacent, not blind, and the answers are now fixtures. Expect real model outputs to find further phrasings that neither probe anticipated; the rubric remains authoritative."
+  ],
+  "unsupported_use_cases": [
+    "Convolutional architecture design (cnn-vision)",
+    "Recurrent/sequence model internals (rnn-sequence)",
+    "Writing or debugging a training loop (pytorch-patterns)"
+  ]
+}

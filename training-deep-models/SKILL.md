@@ -16,7 +16,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: official-documentation
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - mixed-precision-training
   - learning-rate-scheduling
@@ -32,7 +32,7 @@ related:
 inputs: An existing PyTorch training loop and a goal (faster training, less overfitting, more stability).
 outputs: A hardened training loop with AMP, LR scheduling, gradient clipping, decoupled weight decay, and early stopping wired in.
 version_constraints:
-  - "PyTorch: torch.cuda.amp.autocast/GradScaler (and the newer torch.autocast(device_type=...) entrypoint used here) stable since 1.6+ — model-knowledge estimate, not live-verified this session."
+  - "torch>=2.3: torch.amp.GradScaler(device) and torch.autocast(device_type=..., enabled=...) (2.3 minimum is a model-knowledge estimate; all Workflow blocks executed CPU-only with AMP disabled against torch 2.13.0 on 2026-10-27; the CUDA fp16 path was not executed)"
 ---
 
 ## Overview
@@ -55,15 +55,15 @@ generalizes.
        random.seed(seed); np.random.seed(seed)
        torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
 
-   set_seed(42)
+   set_seed(42)   # seeds alone don't make GPU kernels deterministic; see torch.use_deterministic_algorithms
    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-   model = model.to(device)
+   model = model.to(device)   # `model`, `criterion`, `train_loader`, `val_loader` come from your existing loop
    ```
 
-2. **Split parameters into decay / no-decay groups, then use AdamW.** Weight
-   decay should not be applied to biases or normalization parameters (LayerNorm/
-   BatchNorm weight & bias) — folding it in uniformly measurably hurts
-   generalization on larger models.
+2. **Split parameters into decay / no-decay groups, then use AdamW.** Standard
+   practice (e.g. in BERT/GPT-style recipes) exempts biases and normalization
+   parameters (LayerNorm/BatchNorm weight & bias) from weight decay; decaying
+   them uniformly is commonly reported to hurt generalization on larger models.
    ```python
    decay, no_decay = [], []
    for name, p in model.named_parameters():
@@ -96,7 +96,8 @@ generalizes.
    def lr_lambda(step):
        if step < warmup_steps:
            return step / max(1, warmup_steps)
-       progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+       # clamp: stepping past total_steps (resume/extend) must not climb back up the cosine
+       progress = min(1.0, (step - warmup_steps) / max(1, total_steps - warmup_steps))
        return 0.5 * (1 + math.cos(math.pi * progress))
 
    scheduler = LambdaLR(optimizer, lr_lambda)
@@ -107,11 +108,14 @@ generalizes.
    (e.g., reductions) in fp32; `GradScaler` prevents fp16 gradients from
    underflowing to zero.
    ```python
-   scaler = torch.cuda.amp.GradScaler()
+   # fp16 autocast + GradScaler target CUDA; on CPU, disable them explicitly instead of
+   # relying on the "CUDA is not available. Disabling" warnings
+   use_amp = device.type == "cuda"
+   scaler = torch.amp.GradScaler(device.type, enabled=use_amp)   # torch.cuda.amp.GradScaler is deprecated
 
    def train_step(batch, targets):
        optimizer.zero_grad(set_to_none=True)
-       with torch.autocast(device_type="cuda", dtype=torch.float16):
+       with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=use_amp):
            outputs = model(batch)
            loss = criterion(outputs, targets)
 
@@ -137,12 +141,16 @@ generalizes.
            train_step(batch.to(device), targets.to(device))
 
        model.eval()
-       val_loss = 0.0
+       val_loss, n_val = 0.0, 0
        with torch.no_grad():
            for batch, targets in val_loader:
-               val_loss += criterion(model(batch.to(device)), targets.to(device)).item()
-       val_loss /= len(val_loader)
+               loss = criterion(model(batch.to(device)), targets.to(device))
+               val_loss += loss.item() * len(targets)   # per-sample mean, not mean of batch means
+               n_val += len(targets)
+       val_loss /= n_val
 
+       if not math.isfinite(val_loss):   # NaN never compares < best, so it would pass as a "bad epoch"
+           raise RuntimeError(f"non-finite validation loss at epoch {epoch}; last good weights are in best.pt (if any)")
        if val_loss < best_val_loss:
            best_val_loss, bad_epochs = val_loss, 0
            torch.save({"model": model.state_dict(),
@@ -154,15 +162,18 @@ generalizes.
                print(f"Early stopping at epoch {epoch}")
                break
 
-   model.load_state_dict(torch.load("best.pt")["model"])   # restore best, not final, weights
+   # restore best, not final, weights; weights_only=True refuses arbitrary pickled objects
+   model.load_state_dict(torch.load("best.pt", map_location=device, weights_only=True)["model"])
    ```
 
 ## Gotchas
 - **Scheduler step granularity must match how it was built.** A per-step schedule
   (like the warmup+cosine one above, built over `total_steps`) must be stepped
-  once per *batch*; stepping it once per *epoch* instead silently compresses the
-  entire decay into the first few epochs. `OneCycleLR` and similar schedulers
-  have the same requirement — check the granularity the scheduler expects.
+  once per *batch*; stepping it once per *epoch* instead stretches it by
+  `steps_per_epoch`, so after the whole run the LR has barely left warmup. The
+  opposite mismatch — a schedule built over epochs but stepped per batch — burns
+  through the entire decay within the first epoch or so. `OneCycleLR` and similar
+  schedulers have the same requirement — check the granularity the scheduler expects.
 - **Gradient clipping order matters under AMP.** You must call
   `scaler.unscale_(optimizer)` before `clip_grad_norm_`; clipping the still-scaled
   (fp16-scale) gradients clips against the wrong magnitude and makes the clip
@@ -177,8 +188,9 @@ generalizes.
   even as the model overfits). Also make sure the *final* model returned is the
   restored best checkpoint, not whatever the loop happened to end on.
 - **Uniform weight decay on norm/bias parameters** regularizes parameters that
-  aren't causing overfitting in the way weight matrices are, and measurably hurts
-  accuracy on transformer-scale models — always split param groups as in step 2.
+  aren't causing overfitting in the way weight matrices are, and is commonly
+  reported to hurt accuracy on transformer-scale models — as a rule of thumb,
+  split param groups as in step 2 unless an ablation on your task says otherwise.
 
 ## References
 - [PyTorch: Automatic Mixed Precision package](https://pytorch.org/docs/stable/amp.html) — official `autocast`/`GradScaler` API and correct-usage examples.

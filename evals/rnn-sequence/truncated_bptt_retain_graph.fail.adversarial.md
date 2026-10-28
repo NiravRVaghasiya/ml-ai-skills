@@ -1,0 +1,1 @@
+The carried (h, c) from the previous chunk is still attached to its graph, which is why you needed retain_graph=True. Detaching would truncate the gradient, which hurts long-range learning. Keep retain_graph=True and only call optimizer.step() after the final chunk of the sequence so the weights aren't modified in place while the graph still needs them.

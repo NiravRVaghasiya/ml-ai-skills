@@ -1,0 +1,57 @@
+{
+  "skill": "cnn-vision",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Output size of conv1 (224x224, 7x7, stride 2, padding 3) and receptive field after conv7/s2 -> conv3/s2 -> conv3/s1",
+      "expected_outcome": "112x112 from floor((H+2P-K)/S)+1; receptive field 19 using the cumulative stride product (7, 11, 19)"
+    },
+    {
+      "task": "Plain deep nets fail because of vanishing gradients and ResNets fix that - the whole story?",
+      "expected_outcome": "No: He et al.'s degradation problem (higher training error, BatchNorm, healthy gradient norms, optimization difficulty); residual F(x)+x makes identity easy; gradient path is partial"
+    },
+    {
+      "task": "Port Keras Conv2D(strides=2, padding='same') to PyTorch padding='same'",
+      "expected_outcome": "PyTorch raises ValueError for strided 'same'; Keras gives 28; use padding=1 for shape, asymmetric F.pad for numerical parity"
+    },
+    {
+      "task": "Max pooling vs global average pooling before the classifier",
+      "expected_outcome": "GAP replaces a large flatten+FC head and accepts any resolution but discards position and is not accurate at any resolution; max pooling keeps peaks"
+    }
+  ],
+  "negative_cases": [
+    "degradation_vs_vanishing_gradients",
+    "same_padding_strided",
+    "Fine-tuning a pretrained ResNet with hand-copied normalization constants instead of weights.transforms() (planned)",
+    "Using an aggressively pooled classification backbone for segmentation (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Arithmetic follows the stated formulas and shows the steps",
+    "Historical claims match the cited papers (degradation, not vanishing gradients)",
+    "Framework-specific behavior (PyTorch vs Keras 'same') is stated precisely, with shape checks recommended"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Paraphrase robustness was first spot-checked by the pattern author, not blind: two rounds of answers were written after the patterns were set (one correct and one wrong answer per case per round) and graded once before any tuning; 5/6 correct answers passed and 5/6 wrong answers failed. The missed round-1 correct answer is kept as conv_arithmetic.pass.paraphrase; the round-2 answers, including the missed wrong answer, are kept as .pass.probe / .fail.probe fixtures; the other round-1 answers are not checked in. These pre-tuning figures cannot be reproduced from this repository: the probe scripts were scratch files outside it, and re-grading the kept fixtures now uses the tuned patterns.",
+    "Second, independent check (review round): an independent reviewer wrote correct and wrong answers per case without tuning anything; against the patterns as first shipped, 6/6 correct answers passed and 5/6 wrong answers failed for this skill (15/24 and 23/24 across the four skills reviewed together). The reviewer also wrote targeted on-topic wrong answers aimed at gaps in the patterns (13 across the four skills); all 13 passed every hard assertion; the gaps included NxN notation ('112x112', where \\b112\\b cannot match). The fix engineer then wrote a further held-out set (one correct and one wrong answer per case) before reading the patterns: against the first-shipped patterns 3/3 correct passed and 2/3 wrong failed for this skill (10/12 and 11/12 overall). After the patterns were revised, every reviewer answer and 23/24 held-out answers graded as expected; the one remaining miss (a correct agents-and-tools answer) was then fixed. The post-fix figure is not blind: the person revising the patterns had written the held-out answers. Every reviewer answer that was mishandled, plus the 13 targeted wrong answers, is kept verbatim as .pass.blind* / .fail.adversarial* fixtures and every held-out answer as .pass.holdout / .fail.holdout, so they are no longer held out; recall on real model outputs remains unmeasured.",
+    "Patterns that use [^.] to keep a match inside one sentence stop at any period, including those in 'et al.', 'e.g.', 'F.pad' and decimals such as '111.5'. A wrong claim that crosses such a period escapes the pattern; the rubric still covers it.",
+    "cnn-vision is a reference card with no runnable code, so there is no executable case; the shape, receptive-field and ValueError facts were checked once in the example venv (torch 2.13), not by a test in this repository.",
+    "Numeric must_include patterns match the number anywhere in the response; the rubric decides whether it was derived correctly."
+  ],
+  "unsupported_use_cases": [
+    "Writing/training the PyTorch model (pytorch-patterns, training-deep-models)",
+    "Detection/segmentation workflows (computer-vision)",
+    "Transformer internals (attention-mechanisms)"
+  ]
+}

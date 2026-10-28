@@ -1,0 +1,32 @@
+id: flashattention_complexity_misconception
+skill: attention-mechanisms
+category: misconception
+kind: response
+input: |
+  FlashAttention made attention linear in sequence length, right? So for long-context models
+  the O(n²) problem is basically solved and we don't need sparse or linear attention anymore?
+expected_behavior:
+  - 'says no: FlashAttention computes exact attention and still performs O(n²) (O(n²·d)) FLOPs in sequence length'
+  - 'explains what it does change: IO-aware tiling (with recomputation in the backward pass) avoids materializing the n×n score matrix in GPU high-bandwidth memory, so extra memory grows linearly in n and wall-clock time drops because far less data moves between memory levels'
+  - 'concludes that quadratic compute still limits very long contexts, so sparse/linear/approximate attention (which change the asymptotics, usually by approximating) and other long-context techniques remain relevant as a trade-off'
+must_not:
+  - 'say FlashAttention makes attention linear-time or linear in compute'
+  - 'describe FlashAttention as an approximation of attention'
+must_include:
+  - '\b(still|remains?|unchanged|same|stays?)\b[^.]{0,40}(\bquadratic\b|o\(n\^?2|o\(n2|\bn\^?2\b|\bn2\b)|(\bquadratic\b|o\(n\^?2|o\(n2)[^.]{0,40}\b(compute|flops|time|operations|work|arithmetic)\b'
+  - '\bmateriali[sz]\w*|\b(memory|hbm)\b[^.]{0,40}\b(linear\w*|o\(n\))|\blinear\w*\b[^.]{0,20}\b(extra |additional )?memory\b|\b(tiling|tiles?|io[- ]aware|sram)\b'
+  - '\bexact\b|(\bnot\b|\bno\b|n''t\b|\bwithout\b)[^.]{0,20}\bapproximat\w+|\b(same|identical) (results?|outputs?|values?|answers?)\b|\b(math|arithmetic|computation) (is|stays|remains) (unchanged|the same|identical)\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|basically)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '\bflash ?attention\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bno\b|\bbut\b|\bonly\b|\bmemory\b|\bsparse\b|\blinear attention\b)[^.]){0,60}\b(linear[- ]time|linear (in|with) (sequence length|n|the sequence|context length)|(compute|time|flops|complexity) (becomes? |to |down to )?linear)\b|\b(memory and (compute|time)|(compute|time) and memory)\b[^.]{0,30}\b(are|become|both|is|down to|to)\b[^.]{0,10}\blinear\b'
+  - '\b(quadratic|o\(n\^?2\)|o\(n2\))[^.]{0,20}\b(problem|bottleneck|cost|wall|issue)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bno\b)[^.]){0,30}\b(solved|gone|eliminated|a thing of the past)\b'
+  - '\b(sparse|linear|approximate)\w*\b[^.]{0,40}\battention\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bno\b|\bstill\b)[^.]){0,30}\b(obsolete|unnecessary|no longer (needed|necessary|useful|relevant))\b'
+  - '(?<!mean )(?<!means )(?<!mean you )(?<!means you )(?<!that you )(?<!claim you )\bno longer need\w*\b[^.]{0,20}\b(sparse|linear|approximate|sub-?quadratic)\w*(?![^.]{0,40}\b(only|unless|if|until|for (short|moderate|modest)|at (short|moderate|modest))\b)'
+  - '(?<!n''t )(?<!not )(?<!memory )(?<!memory-)(?<!hbm )(?<!io )\b(runtime|run time|run-time|wall[- ]clock( time)?|time|cost|compute)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bno\b|\bonly\b|\bmemory\b|\bquadratic\w*)[^.]){0,40}\b(scal\w+|grows?|growing|increases?)\b (roughly |approximately |nearly |essentially |effectively |about |basically |almost )?linear\w*'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'must_not_include catches only the listed phrasings of "FlashAttention is linear" and "sparse/linear attention is obsolete"; other phrasings are caught only by rubric review.'
+notes: >
+  Exercises the Quadratic cost gotcha (FlashAttention is exact, still O(n²) compute, linear
+  extra memory; Dao et al. 2022, Theorem 1 as cited by the skill). Scenario suggested by the
+  Phase 1 reference auditor.

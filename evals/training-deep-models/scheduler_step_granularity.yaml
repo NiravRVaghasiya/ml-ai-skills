@@ -1,0 +1,42 @@
+id: scheduler_step_granularity
+skill: training-deep-models
+category: misconception
+kind: response
+input: |
+  I built a warmup + cosine LambdaLR over `total_steps = num_epochs * len(train_loader)`
+  (20 epochs, 500 batches per epoch, 5% warmup, AdamW with peak lr 3e-4) and call
+  `scheduler.step()` once at the end of each epoch, like the PyTorch examples do. After
+  20 epochs the loss has barely moved. That scheduler placement is correct, so the problem
+  must be elsewhere, right?
+expected_behavior:
+  - 'says no: the schedule is defined in optimizer steps (batches), so scheduler.step() must be called once per batch, after optimizer.step()'
+  - 'explains the consequence concretely: stepping once per epoch advances the schedule only 20 of its 10,000 steps, so training never leaves the 500-step warmup and the LR ends at about 20/500 = 4% of the peak - a plausible reason the loss barely moved'
+  - 'notes that the per-epoch placement in documentation examples applies to schedulers defined in epochs (e.g. StepLR with step_size in epochs); the units the schedule was built in decide the stepping granularity'
+  - 'suggests verifying by logging the LR each step (scheduler.get_last_lr() or optimizer.param_groups[0]["lr"])'
+must_not:
+  - 'say per-epoch stepping is correct for this schedule'
+  - 'claim per-epoch stepping makes the cosine decay happen too early, compresses the decay, or finishes the warmup within the first epoch - for this direction of the mismatch the schedule is stretched, not compressed'
+  - 'blame something else (the peak LR, the model, the data) without fixing the scheduler step'
+must_include:
+  - '\b(every|each|per|once per|once every|after each|after every|inside the|in the|into the) (training )?(optimi[sz]er[ ._]?step(\(\))?|(batch|optimi[sz]er step|iteration|mini-?batch|step)\b)|\b(batch|inner|step)[- ]level\b|\b(inner|batch|training) loop\b|\bper-(batch|step|iteration)\b'
+  - '\bwarm-?up\b[^.]{0,40}(\bnever|\bnot|n''t)\b[^.]{0,20}\b(finish|complet|end|over|done|exit|leav|reach|get (past|through|out))\w*|(\bnever|\bnot|n''t)\b[^.]{0,20}\b(finish\w*|complet\w*|leav\w*|exit\w*|get (past|through|out of)|reach\w* the end of)\b[^.]{0,30}\bwarm-?up\b|\b(stuck|stays?|remains?|kept|still)\b[^.]{0,40}\b(in|during|within)( the| its)? (\d+-step )?warm-?up\b|\bstill warming up\b|\b(stuck|stays?|remains?|kept)\b[^.]{0,40}\b(tiny|small) fraction\b|\b(barely|hardly|only just) (started|begun|begins|starts|into)\b[^.]{0,30}\bwarm-?up\b|\b(never|not|n''t|barely|hardly)\b[^.]{0,15}\bramps? (up|to)\b|\bnever (reaches|hits|gets to|climbs to)\b[^.]{0,30}\b(peak|target|full|base)\b|\b(4|four) ?(%|percent)|\b20 ?/ ?500\b|\b20 (of|out of) (its |the )?500\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(once per epoch|per[- ]epoch|every epoch|each epoch|end of (each|every|the) epoch)\b[^.,;]{0,25}(?<!n''t )(?<!not )\b(is|was|looks|seems) (correct|right|fine|standard|ok|okay)\b(?![^.]{0,60}\b(for|only|if|when|but)\b)'
+  - '\b(scheduler|placement|schedule)\b[^.,;]{0,20}\b(isn''t|is not|can''t be|cannot be) (the )?(problem|issue|cause|culprit)\b'
+  - '\b(the )?problem (must be|is (probably|likely)) (elsewhere|in (your|the) (model|data|lr|learning rate|optimi[sz]er|initiali[sz]ation))\b'
+  - '\bwarm-?up (phase |period )?(finishes|completes|ends|is over|is done|is complete|wraps up)\b[^.,;]{0,25}\b(after|within|in|by|during)( the end of)? (the )?(first|1st|one|a single)\b|\bwarm-?up\b[^.,;]{0,5}\b(complete|finish|end)\w* too (fast|quickly|early|soon)\b'
+  - '(\A|[.!?:;] )(?![^.!?]*\b(opposite|other way|other direction|reverse|reversed|conversely|in epochs|epoch-built|epoch-based|epoch counts?)\b)[^.!?]*(\bcompress\w*\b[^.!?]{0,30}\b(decay|schedule|cosine)\b|\b(cosine )?decay\b[^.!?]{0,10}\b(finish\w*|happen\w*|end\w*|complete\w*|run\w* out) (too )?(early|fast|quickly|soon)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The wrong-direction mechanism ("per-epoch stepping compresses the decay", "the warmup finishes within the first epoch", "the decay finishes too early") is caught by must_not_include only in those forms. The compression pattern is sentence-scoped and deliberately skips any sentence that also mentions the opposite mismatch (opposite / conversely / in epochs / epoch-based ...), so a wrong claim written in such a sentence is not caught.'
+  - 'Correct answers that describe the stuck warmup in words none of the must_include[1] alternatives anticipate (negated warmup completion, stuck/still in warmup, barely started warmup, never ramps up / never reaches the peak, 4%, 20/500) fail the hard assertions.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  Checked in the example venv: with the skill's lr_lambda, 20 epochs x 500 batches, 5% warmup
+  and AdamW(lr=3e-4), calling scheduler.step() once per epoch leaves the LR at 1.2e-05 after
+  20 epochs (20/500 = 4% of the peak; the ratio holds for any peak). training-deep-models/SKILL.md
+  Gotchas ("Scheduler step granularity") describes this mismatch as compressing the decay into
+  the first few epochs, which is the effect of the opposite mismatch (an epoch-built schedule
+  stepped per batch); this case grades the numerically checked behaviour. Fixtures labelled
+  adversarial / blind are verbatim probe texts from the independent review of this case.

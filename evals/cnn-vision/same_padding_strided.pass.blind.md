@@ -1,0 +1,1 @@
+PyTorch raises ValueError: padding='same' is not supported for strided convolutions. Keras produces a 28x28 map (ceil(56/2)). Use padding=1 (also 28x28), and for exact parity pad asymmetrically with F.pad(x, (0,1,0,1)) and padding=0, since TF pads only bottom/right here.

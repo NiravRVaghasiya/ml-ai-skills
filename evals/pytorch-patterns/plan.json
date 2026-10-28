@@ -1,0 +1,59 @@
+{
+  "skill": "pytorch-patterns",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Validation accuracy is noisy and low; the loop is wrapped in torch.no_grad() - is model.eval() still needed?",
+      "expected_outcome": "Explains no_grad only disables autograd; model.eval() switches Dropout off and BatchNorm to running statistics; pairs eval() with train() before training resumes"
+    },
+    {
+      "task": "torch.save(model) every epoch, overwriting the file - is that enough to resume after a crash?",
+      "expected_outcome": "Saves a dict of model/optimizer state_dicts plus epoch (and scheduler/scaler state), writes atomically via a temp file and os.replace, loads with weights_only=True and resumes at epoch + 1"
+    },
+    {
+      "task": "Write a custom Dataset/DataLoader and train/eval loop for tabular data",
+      "expected_outcome": "Dataset doing per-sample work with a length check, DataLoader handling batching/shuffling, a loop that zeroes grads every batch and switches train/eval modes"
+    }
+  ],
+  "negative_cases": [
+    "no_grad_eval_misconception",
+    "resumable_checkpoint_misconception",
+    "DataLoader(num_workers>0) on Windows without an if __name__ == '__main__' guard (planned)",
+    "Forward hook registered for feature extraction but never removed (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Distinguishes autograd control (no_grad/inference_mode) from layer mode (train/eval)",
+    "Checkpoints state_dicts (model, optimizer, epoch, scheduler/scaler) rather than pickled modules",
+    "Loads checkpoints with weights_only=True and does not recommend weights_only=False for untrusted files",
+    "Atomic checkpoint writes so a crash mid-save cannot corrupt the only checkpoint"
+  ],
+  "prerequisites": [
+    "example-deps (torch, numpy) for executable tests; CPU only"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable; they run CPU-only.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "A trained MLP whose evaluate() leaves it in eval mode",
+    "A checkpoint file written atomically (no .tmp left after success or a failed save) that restores identical weights and resumes at epoch + 1"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Executable tests run CPU-only; CUDA-specific behaviour (pin_memory, device placement on GPU) is not exercised.",
+    "The executable tests prove the skill's checkpoint code round-trips and survives a simulated crash mid-write; they do not prove a response wrote equivalent code.",
+    "An independent reviewer's stress test (30 texts written after reading the patterns, so adversarial rather than blind; 23 wrong, 7 correct across all five skills of this workstream) initially had 16/23 wrong answers passing every hard assertion and 6/7 correct answers failing one. The patterns were then fixed and these texts kept verbatim as fail.adversarial* / pass.blind* fixtures, so the post-fix 30/30 is a regression result, not a held-out discrimination rate."
+  ],
+  "unsupported_use_cases": [
+    "Mixed precision, LR schedules, early stopping (training-deep-models)",
+    "Optimizer/backprop theory (neural-net-fundamentals)",
+    "Threat analysis of loading untrusted pickles from third parties (ai-ml-security)"
+  ]
+}

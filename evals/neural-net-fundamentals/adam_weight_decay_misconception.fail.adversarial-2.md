@@ -1,0 +1,1 @@
+Mostly yes. The classes differ only in how the L2 term enters: Adam adds it to the gradient (coupled, so it is rescaled by the adaptive denominator) while AdamW decouples it. For a reproduction that is a minor detail; you don't need to use AdamW, Adam with weight_decay=0.01 is fine.

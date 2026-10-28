@@ -1,0 +1,1 @@
+conv1 gives 112 (floor((224+6-7)/2)+1). For the receptive field, multiply each layer's (k-1) by the product of the earlier strides... conv1: 7, conv2: 7+2*2 = 11, conv3 uses stride 1 so it adds (3-1)*1. The receptive field of a conv3 unit is 13x13 pixels.

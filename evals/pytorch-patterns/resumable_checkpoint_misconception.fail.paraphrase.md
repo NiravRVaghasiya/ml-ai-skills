@@ -1,0 +1,1 @@
+That works. Saving the model object each epoch is the simplest way to make training resumable - just load the latest file and keep going. If you want to be extra careful, also keep a copy of the file from the previous epoch.

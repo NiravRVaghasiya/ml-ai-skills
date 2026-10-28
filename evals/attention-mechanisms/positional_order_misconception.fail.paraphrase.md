@@ -1,0 +1,1 @@
+Correct. Because attention is permutation-invariant, the causal mask can't help either: every token is treated identically no matter where it sits. You need RoPE or learned positions for any notion of order.

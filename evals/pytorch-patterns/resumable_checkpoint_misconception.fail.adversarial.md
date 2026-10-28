@@ -1,0 +1,1 @@
+Mostly. Switching to state_dict is cleaner, but the optimizer state for AdamW isn't critical - its moments re-warm within a few hundred steps. Keep the epoch counter in a log, and overwriting the file is fine as long as you don't crash during save; no need for a temp file or atomic rename.

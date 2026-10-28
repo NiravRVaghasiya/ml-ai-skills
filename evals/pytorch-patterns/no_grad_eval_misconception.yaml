@@ -1,0 +1,40 @@
+id: no_grad_eval_misconception
+skill: pytorch-patterns
+category: misconception
+kind: response
+input: |
+  My validation accuracy jumps around from run to run on the same checkpoint and is lower
+  than I expected. I already wrap the validation loop in `torch.no_grad()`, so the model is
+  in inference mode - I don't need `model.eval()` too, right? The model has Dropout and
+  BatchNorm layers.
+expected_behavior:
+  - 'says no: torch.no_grad() only disables gradient tracking (no autograd graph is built); it does not change how any layer behaves'
+  - 'explains that model.eval() is what turns Dropout off and makes BatchNorm normalize with its running statistics; without it Dropout keeps randomly zeroing activations (noisy, lower accuracy) and BatchNorm uses per-batch statistics - and, in train mode, keeps updating its running statistics from the validation batches even under no_grad'
+  - 'recommends calling model.eval() before validation and model.train() before training resumes, ideally inside an evaluate helper, combined with no_grad (or torch.inference_mode) for memory and speed'
+must_not:
+  - 'claim no_grad or inference_mode puts the model in eval mode or disables Dropout/BatchNorm updates'
+  - 'say model.eval() is redundant or optional when the model has Dropout or BatchNorm'
+must_include:
+  - '\beval\s*\(\s*\)|\beval(uation)?[- ]mode\b'
+  - '\b(dropout|batch ?norm\w*|running (stats|statistics|means?|averages?|var\w*))\b'
+  - '\b(no_grad|no-grad|inference_mode)\b[^.]{0,40}\b(only|just|merely|solely|purely|exclusively)\b[^.]{0,40}\b(grad\w*|autograd|computation(al)? graph|backprop\w*)\b|\b(no_grad|no-grad|inference_mode)\b[^.]{0,60}\b(nothing (more|else)|that''s all)\b|\b(no_grad|no-grad|inference_mode)\b[^.;]{0,10}\b(disables|turns off|switches off|stops)\b[^.;]{0,10}\b(autograd|grad(ient)?s?( tracking| computation| recording)?|grad mode)\b|\b(different|separate|independent|orthogonal|unrelated) (switches|things|mechanisms|concerns|settings)\b|\b(no_grad|no-grad|inference_mode|gradient tracking|autograd)\b[^.]{0,40}\b(no|zero) effect on\b[^.]{0,30}\b(dropout|batch ?norm|layers?|modes?|behaviou?r)\b|\b(no_grad|no-grad|inference_mode)\b[^.]{0,80}\b(doesn''t|does not|won''t|will not|never)\b[^.]{0,30}\b(change|affect|touch|switch|alter|disable|turn off)\w*\b[^.]{0,40}\b(dropout|batch ?norm|layers?|modes?|behaviou?r)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|of course|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but|you (do |still |definitely |really )?need)\b)'
+  - '(?<!neither )(?<!nor )\b(no_grad|no-grad|inference_mode)\b[^.,;]{0,40}(?<!n''t )(?<!not )(?<!neither )\b(puts|sets|switches|places|flips)\b[^.,;]{0,20}\b(eval(uation)?|inference)[- ]mode\b'
+  - '\b(model\.)?eval\(\)( call| as well| too)? (is|would be|becomes) (redundant|unnecessary|optional|not needed|superfluous)\b'
+  - '\b(no_grad|no-grad|inference_mode)\b[^.,;]{0,40}(?<!n''t )(?<!not )\b(is|are) (enough|sufficient|all you need)\b'
+  - '\b(dropout|batch ?norm\w*)\b[^.,;]{0,40}\b(is|are) (already |automatically |effectively )?(disabled|turned off|switched off|frozen|inactive|bypassed) (by|under|inside|within|in) (torch\.)?(no_grad|no-grad|inference_mode)\b'
+  - '\byou (don''t|do not) need (to call )?(model\.)?eval\(\)'
+  - '(?<!without )(?<!without model\.)(model\.)?\beval(\(\)| mode)\b[^.]{0,20}\b(won''t|doesn''t|will not|does not) make (a|any|much of a) difference\b'
+  - '(?<!not )(?<!n''t )\b(mostly|just|merely|only|purely) (a )?(convention|formality)\b'
+  - '(\A|[.!?:;] )(?![^.!?]*\b(eval\w*|train(ing)?[- ]mode)\b)[^.!?]*\b(dropout|batch ?norm)\w*\b[^.!?]{0,60}\b(acts?|behaves?|works?) (as|like) (an? )?(identity|no-?op|pass-?through)\b'
+  - '\b(they|dropout|batch ?norm\w*|these layers)\b[^.]{0,30}(?<!n''t )(?<!not )\b(need|needs|require|requires|depend on|depends on|rely on|relies on) (gradients|backprop\w*|a backward pass|autograd)\b'
+  - '\bno_grad(\(\))? (already )?(handles|takes care of) (this|it|that|inference|everything)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The claim that BatchNorm running statistics still update under no_grad in train mode was checked in the example venv (torch, CPU) but is rubric-only here.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  Checked in the example venv (torch, CPU): inside torch.no_grad() a train-mode Dropout still
+  zeroes activations and a train-mode BatchNorm1d still updates running_mean. See
+  pytorch-patterns/SKILL.md workflow step 3 and Gotchas, "Forgetting model.eval()".

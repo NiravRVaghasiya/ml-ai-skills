@@ -1,0 +1,1 @@
+He et al. named it the degradation problem: deeper plain nets had higher training error, even with BatchNorm. The underlying cause is still vanishing gradients through the many layers, and the identity shortcut fixes exactly that by letting the gradient skip the layers.

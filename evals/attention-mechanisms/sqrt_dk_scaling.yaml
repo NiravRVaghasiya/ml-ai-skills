@@ -1,0 +1,31 @@
+id: sqrt_dk_scaling
+skill: attention-mechanisms
+category: happy_path
+kind: response
+input: |
+  In scaled dot-product attention, why do we divide QKᵀ by √d_k? What would go wrong if we
+  left it out?
+expected_behavior:
+  - 'explains that if query and key components are roughly independent with zero mean and unit variance, their dot product is a sum of d_k terms with variance about d_k (standard deviation about √d_k), so raw scores grow with the key/head dimension'
+  - 'explains that large-magnitude logits push the softmax toward a near one-hot (saturated) distribution where its gradients are extremely small, which slows or destabilizes learning'
+  - 'states that dividing by √d_k brings the scores back to roughly unit variance regardless of d_k, keeping the softmax in a range with useful gradients'
+  - 'does not confuse the scaling with the softmax normalization that makes the weights sum to 1'
+must_not:
+  - 'claim the √d_k division is what makes the attention weights sum to 1'
+  - 'claim the main purpose of the scaling is computational speed or memory savings'
+must_include:
+  - '\b(variance|std|standard deviation|magnitudes?|spread)\b[^.]{0,60}\b(grows?|growing|increases?|scales?|proportional|larger|blows? up)\b|\bvariance (of|is|equal to|equals)\b[^.]{0,20}\bd_?k\b|\b(sum|sums) (of )?d_?k\b|\bvar(iance)?\b[^.]{0,30}\bd_?k\b|\b(std|standard deviation|magnitudes?|scale|size|norm)\b[^.]{0,30}(\bsqrt\b ?\(?|√ ?\(?)d_?k\b|\b(dot products?|scores?|logits?)\b[^.]{0,40}\b(grow|get (bigger|larger)|increase|scale)\w*\b[^.]{0,30}\b(d_?k|dimension\w*)\b'
+  - '\b(saturat\w+|one[- ]hot|peak(ed|y)|spik(y|ed)|near[- ]argmax|argmax|very sharp|extremely sharp)\b'
+  - '\bgradients?\b[^.]{0,40}\b(vanish\w*|tiny|small|near[- ]zero|close to zero|die|disappear\w*)\b|\b(vanish\w*|tiny|small|near[- ]zero|weak)\b[^.]{0,20}\bgradients?\b|\bgradients?\b[^.]{0,40}\b(nearly|almost|essentially|approximately|close to) (zero|0|nothing)\b'
+must_not_include:
+  - '\b(scaling|dividing|the division|division by)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bsoftmax\b)[^.]){0,60}\b(makes?|ensures?|so that|so (the )?|guarantees?)\b(?:(?!\bnot\b|n''t\b|\bsoftmax\b)[^.]){0,30}\b(weights?|scores?|probabilities)\b(?:(?!\bnot\b|n''t\b|\bsoftmax\b|\balways\b|\bstill\b|\balready\b)[^.]){0,40}(\bsums? to (1|one)\b|\b(a )?(valid|proper) probability distribution\b)'
+  - '\b(main|real|only|whole|primary) (reason|point|purpose)\b[^.]{0,40}\b(speed|faster|efficien\w+|memory|fewer (flops|operations)|cheaper)\b'
+  - '\bdivid\w* (it |them |the scores |the logits )?by d_?k\b(?![^.]{0,25}\b(would|over\w*|too|instead of)\b)|\bnot (by )?(its|the) square root\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The variance argument assumes roughly independent, unit-variance components (as in Vaswani et al.); a response that states the assumption differently still passes the rubric.'
+notes: >
+  Happy-path check of the scaled dot-product formula in the Key Concepts. Numerically
+  confirmed in the example venv (torch 2.13): the sample variance of q.k for standard-normal
+  q, k was about 15.9 at d_k=16 and 256.0 at d_k=256. Scenario suggested by the Phase 1
+  reference auditor.

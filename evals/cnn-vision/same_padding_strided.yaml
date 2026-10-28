@@ -1,0 +1,35 @@
+id: same_padding_strided
+skill: cnn-vision
+category: edge_case
+kind: response
+input: |
+  I'm porting a Keras model to PyTorch. In Keras it was Conv2D(128, 3, strides=2,
+  padding='same') on a 56×56 feature map. In PyTorch I wrote
+  nn.Conv2d(64, 128, 3, stride=2, padding='same'). What output size should I expect, and
+  will the outputs match Keras?
+expected_behavior:
+  - 'says PyTorch rejects padding=''same'' for strided convolutions (it raises a ValueError when the layer is constructed), so the line as written will not run'
+  - 'gives the Keras/TF "same" result for stride 2 as ceil(56 / 2) = 28, i.e. 28×28'
+  - 'recommends explicit padding, e.g. padding=1, which gives floor((56 + 2 - 3) / 2) + 1 = 28, and printing the shape to confirm'
+  - 'notes that matching the size is not the same as matching the values: TF "same" pads asymmetrically here (0 on top/left, 1 on bottom/right), so exact numerical parity with ported weights needs an explicit asymmetric pad such as F.pad(x, (0, 1, 0, 1)) with padding=0'
+must_not:
+  - 'claim PyTorch accepts padding=''same'' with stride 2'
+  - 'claim the output stays 56×56'
+must_include:
+  - '\b(errors?|raises?|exceptions?|valueerror|not supported|unsupported|rejects?|refuses?|fails?|won''t (run|work|construct))\b'
+  - '(?<![\d.])28(?!\.?\d)'
+  - '\bpadding ?= ?1\b|\bf\.pad\b|\bexplicit\w* (integer |numeric |symmetric |asymmetric )?pad\w*|\bpad\w* (explicitly|manually)\b'
+must_not_include:
+  - '(?<!n''t )(?<!not )(?<!never )(?<!only )\b(accepts?|supports?|handles?|allows?) (padding ?= ?''?same''?|same padding|''same'' padding|it)(?:(?!\bnot\b|n''t\b|\bonly\b|\bstride ?=? ?1\b)[^.]){0,30}\b(strides? ?=? ?2|strided|stride (of |> ?)?2|stride > ?1)'
+  - '(?<!n''t )(?<!not )\bpadding ?= ?''?same''?\)? (works|is supported|is fine|is allowed)\b[^.]{0,20}\b(strides? ?=? ?2|strided|stride (of )?2|stride > ?1)|\bpadding ?= ?1\b[^.]{0,40}\b(it''s |it is |is )?(not needed|unnecessary|not necessary)\b'
+  - '\b(output|it|result)\b (is|will be|stays?|remains?|should be|would be) (still )?(the same,? )?56 ?(x|×|by) ?56\b'
+  - '\b(no need to|(don''t|do not) need to|no reason to) (change|set|add|specify|modify|touch)\b[^.]{0,30}\bpadding\b'
+  - '(?:\A|[.!?;:] )(?:(?!\bnot\b|n''t\b|\bnever\b|\bno\b|\bunless\b|\bif\b|\bonly\b|\bbut\b|\bwhile\b|\bthough\b|\bhowever\b|asymmetr|\bbottom\b|\bf\.?pad\b|zeropadding)[^.]){0,200}?(\b(outputs?|values?|activations?|results?|numbers)\b[^.]{0,30}\b(will|should|would|are going to|is going to) (match|be (exactly |numerically |bit[- ]for[- ]bit )?(identical|the same|equal))\b|\b(you''ll|you will|you''d|you should|it will|this will|that will) (get|produce|give|see) (exactly |numerically |bit[- ]for[- ]bit )?(identical|the same|matching) (outputs?|values?|activations?|results?)\b)(?![^.]{0,60}\b(if|unless|only|provided|as long as)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The PyTorch ValueError was observed in the example venv (torch 2.13: "padding=''same'' is not supported for strided convolutions"). The TF asymmetric-padding rule comes from the TensorFlow documentation; TensorFlow is not installed here, so that part was not executed.'
+  - 'The exact-parity must_not_include pattern catches only ''the outputs/values will match (or be identical)'' and ''you will get identical outputs'' phrasings, and it skips any sentence that mentions F.pad, asymmetric or bottom padding, a negation, or a condition (if/unless/only). A parity claim worded otherwise is caught only by the rubric.'
+notes: >
+  Exercises the output-size Key Concept and the padding-mismatch gotcha ("same" differs by
+  framework when stride > 1; PyTorch raises for strided "same"). Scenario suggested by the
+  Phase 1 reference auditor.

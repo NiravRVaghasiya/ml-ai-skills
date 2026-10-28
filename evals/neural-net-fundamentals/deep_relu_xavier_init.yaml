@@ -1,0 +1,32 @@
+id: deep_relu_xavier_init
+skill: neural-net-fundamentals
+category: edge_case
+kind: response
+input: |
+  My 40-layer plain MLP (ReLU activations, no BatchNorm, no residual connections) barely trains: the loss stays flat from the first epoch and the gradients in the early layers are tiny. I initialized every Linear layer with nn.init.xavier_normal_. The optimizer is Adam with lr=1e-3. What's going on?
+expected_behavior:
+  - 'identifies the init/activation mismatch: Xavier/Glorot assumes a zero-centered, roughly unit-slope activation, but ReLU zeroes about half of its inputs, so activation (and gradient) variance roughly halves per layer and collapses geometrically over 40 un-normalized layers'
+  - 'recommends He/Kaiming initialization (Var(W) = 2/n_in, e.g. nn.init.kaiming_normal_(w, nonlinearity=''relu'')) for this ReLU stack'
+  - 'suggests verifying by logging per-layer activation std and gradient norms before and after the change'
+  - 'may add normalization layers or residual connections as further remedies, and that the PyTorch default Linear init is neither He nor Xavier'
+must_not:
+  - 'attribute the problem primarily to the learning rate or the optimizer and recommend only tuning those'
+  - 'claim Xavier init is appropriate for a deep un-normalized ReLU stack'
+must_include:
+  - '\b(kaiming\w*|he[- ](et al\.?[- ])?(init\w*|normal|uniform))\b'
+  - '\b(vanish\w*|shrink\w*|collaps\w*|decay\w*|die out|dies out|diminish\w*|halv\w+)\b'
+  - '\b(half|halves|factor of (2|two)|2\s*/\s*(n_in|fan_in|n|d)|zero(es|s)? out)\b'
+  - '\b(activation|gradient|output)s?\b[^.]{0,40}\b(std|standard deviation|variance|second moment|scale|magnitude|norm|statistics)s?\b|\b(std|standard deviation|variance|second moment|scale|magnitude|norm)s?\b[^.]{0,30}\b(of|in)\b[^.]{0,20}\b(activation|gradient|output|layer)s?\b'
+must_not_include:
+  - '(?<!n''t )(?<!not )(?<!never )\b(increas\w*|rais\w*|bump\w* up)\b[^.]{0,20}\b(the )?(learning rate|lr)\b[^.]{0,60}\b((will|should|would) (fix|solve)|(fixes|solves) (it|this|the problem))'
+  - '\bxavier\b[^.]{0,40}\b(is|was|works) (fine|correct|right|appropriate|ok|okay|the right choice|well)\b(?![^.]{0,50}\b(for tanh|with tanh|but|only|if|unless)\b)'
+  - '\b(init\w*|initiali[sz]ation)\b[^.]{0,20}\b(doesn''t|does not|won''t|will not|shouldn''t) matter\b(?![^.]{0,20}\b(as much|much|if|when|with)\b)'
+  - '\b(kaiming|he)\b[^.]{0,40}(?<!not a )(?<!n''t a )\b(small|minor|slight|little|marginal) (difference|effect|improvement|change|gain)\b|\b(kaiming|he)\b[^.]{0,40}\b(won''t|will not|doesn''t|does not|wouldn''t|would not) (make|matter) (much|a big|any big|a significant)\b'
+  - '\bconstant factor\b[^.]{0,50}(?<!n''t )(?<!not )(?<!cannot )\b(compensat\w+|absorb\w+|harmless|correct\w* for|make up for|undo\w*)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The patterns cannot check that a recommended He-init call uses the right nonlinearity argument or fan mode.'
+notes: >
+  Phase 1 audit scenario (Xavier with a deep ReLU stack). Checked in torch 2.13 (CPU):
+  40 ReLU layers of width 256 on unit-variance input end with activation std
+  about 6e-7 with xavier_normal_ and about 0.5 with kaiming_normal_(nonlinearity='relu').

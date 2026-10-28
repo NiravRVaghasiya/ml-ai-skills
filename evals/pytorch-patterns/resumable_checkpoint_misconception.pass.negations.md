@@ -1,0 +1,1 @@
+No - that doesn't save everything. It isn't safe to rely on a pickled model: it has no optimizer state and no epoch counter, and you should never set weights_only=False just to load it. Don't re-create AdamW from scratch on resume; restore its state_dict. Overwriting the previous file isn't safe either, so write to a .tmp file and rename it atomically.

@@ -1,0 +1,1 @@
+The in-place error happens because optimizer.step() modifies the LSTM weights that the retained graph from the earlier chunk still needs. Since you want gradients across the whole sequence, keep retain_graph=True, accumulate the losses of every chunk and delay optimizer.step() until the sequence is finished; detaching the hidden state would throw away the long-range gradient.

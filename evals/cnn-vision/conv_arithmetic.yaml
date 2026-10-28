@@ -1,0 +1,33 @@
+id: conv_arithmetic
+skill: cnn-vision
+category: happy_path
+kind: response
+input: |
+  A 224×224 RGB image goes through conv1 (7×7 kernel, stride 2, padding 3), then conv2
+  (3×3, stride 2, padding 1), then conv3 (3×3, stride 1, padding 1). What is conv1's output
+  spatial size, and what is the receptive field of one conv3 output unit, in input pixels?
+  Show the arithmetic.
+expected_behavior:
+  - 'applies H_out = floor((H_in + 2P - K) / S) + 1 to conv1: floor((224 + 6 - 7) / 2) + 1 = 112, i.e. 112×112'
+  - 'computes the receptive field layer by layer with r_l = r_(l-1) + (K_l - 1) × (product of the strides of the earlier layers), starting at r_0 = 1: 7, then 7 + 2·2 = 11, then 11 + 2·4 = 19, i.e. 19×19 input pixels'
+  - 'makes clear that later layers grow the receptive field faster because of the cumulative stride, rather than each layer simply adding K - 1'
+  - 'optionally notes that this is the theoretical receptive field and the effective receptive field is smaller'
+must_not:
+  - 'give a conv1 output size other than 112 (e.g. 111 from dropping the +1, or 113 from rounding up)'
+  - 'give a final receptive field other than 19 (e.g. 11 from ignoring strides, or 15 from using only the immediately preceding layer''s stride)'
+must_include:
+  - '(?<![\d.])112(?!\.?\d)'
+  - '(?<![\d.])19(?!\.?\d)'
+  - '\b(product of (the )?(previous |earlier |preceding |prior )?(layers'' )?strides|cumulative (stride|product)|stride product|accumulated stride|effective stride|jumps?|times (the )?(product of (the )?)?(previous |earlier |preceding |prior |cumulative )?strides?|multipl\w+ by (the )?(product of (the )?)?(cumulative |accumulated |previous |earlier |preceding |prior )?strides?|prod ?s_?i)\b'
+must_not_include:
+  - '\b(final|total|overall|so the|therefore the|thus the|the answer|conv ?3''?s?|one conv ?3 (output )?unit''?s?)\b[^.]{0,30}\breceptive field\b(?:(?!conv|layer)[^.]){0,20}(\bis\b|\bof\b|=|\bequals\b|:) ?(about |roughly |only )?(9|11|13|15|21|23|29)(?!\.?\d)|\breceptive field\b[^.]{0,10}\b(of|for) (a |one |each |the )?conv ?3\b(?:(?!conv|layer)[^.]){0,30}(\bis\b|=|:) ?(about |roughly |only )?(9|11|13|15|21|23|29)(?!\.?\d)'
+  - '\b(111|113|109|115) ?(x|×|by) ?(111|113|109|115)\b|\b(output|conv ?1)\b[^.]{0,20}\b(is|will be|would be|becomes|gives|of) (about |roughly )?(111|113|109|115)\b(?!\.\d)(?! ?\+)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'must_include checks for the numbers 112 and 19 anywhere in the response; an answer that mentions them for an unrelated reason (e.g. "VGG-19") would satisfy that pattern, so the rubric remains authoritative.'
+  - 'The numeric patterns use digit guards rather than \b, so 112x112 and 19x19 match. The wrong-receptive-field pattern only fires when a wrong number directly follows a receptive-field phrase (''the conv3 receptive field is 13x13''). Word orders like ''has an 11x11 receptive field'' are caught only because the response then lacks 19 or the cumulative-stride concept.'
+notes: >
+  Happy-path check of the output-size and receptive-field formulas in the Key Concepts.
+  Both numbers were confirmed in the example venv (torch 2.13): Conv2d(7, stride 2,
+  padding 3) on 224×224 gives 112×112, and the input-gradient footprint of one conv3 output
+  unit is 19 pixels wide. Scenario suggested by the Phase 1 reference auditor.

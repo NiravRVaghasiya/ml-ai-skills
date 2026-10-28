@@ -1,0 +1,1 @@
+Since PyTorch 2.x, padding='same' works with stride 2 and matches Keras: ceil(56/2) = 28, so you'll get 28×28. You could use padding=1 explicitly instead, but it's not needed, and the outputs will be identical to Keras.

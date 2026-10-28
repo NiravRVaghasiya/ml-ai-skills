@@ -1,0 +1,1 @@
+Placing scheduler.step() at the end of each epoch is the documented pattern. Your warmup ends after the first epoch anyway. The problem is likely your data pipeline; try a training loop sanity check by overfitting a single batch.

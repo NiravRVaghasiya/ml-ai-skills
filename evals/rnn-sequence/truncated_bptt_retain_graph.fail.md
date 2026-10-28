@@ -1,0 +1,1 @@
+That in-place error is usually caused by an activation created with inplace=True somewhere in your model, such as nn.ReLU(inplace=True) or nn.Dropout(inplace=True) in the output head. Set inplace=False everywhere, keep retain_graph=True so the graph from the earlier step is still available, and turn on torch.autograd.set_detect_anomaly(True) to find the offending op.

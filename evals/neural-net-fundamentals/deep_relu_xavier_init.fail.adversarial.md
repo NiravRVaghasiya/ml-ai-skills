@@ -1,0 +1,1 @@
+Vanishing gradients are common at this depth, but Xavier init works well with ReLU in practice and switching to Kaiming typically makes only a small difference, since ReLU halves variance by a constant factor. The flat loss is more likely a learning-rate problem: with Adam at 1e-3 the early layers barely move. Try lr=3e-3 with warmup and check the std of activations per layer.

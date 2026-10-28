@@ -1,0 +1,1 @@
+The hidden state carried from earlier chunks still references the old graph. Since retain_graph=True keeps that graph, the in-place error comes from optimizer.step() modifying weights; accumulate the loss across all chunks of the sequence and call backward and step once at the end. You could detach instead, but then you lose gradient flow.

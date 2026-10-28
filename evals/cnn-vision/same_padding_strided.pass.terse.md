@@ -1,0 +1,1 @@
+PyTorch will raise an error: padding='same' isn't supported when stride > 1. Keras 'same' with stride 2 gives ceil(56/2) = 28, so use padding=1, which also yields 28×28. Shapes then match, but TF pads the extra pixel only on the bottom/right, so for bit-for-bit parity with the Keras weights use an explicit asymmetric pad, F.pad(x, (0, 1, 0, 1)), with padding=0.

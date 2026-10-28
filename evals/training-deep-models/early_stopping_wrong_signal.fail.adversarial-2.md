@@ -1,0 +1,1 @@
+It's mostly okay. Monitoring training loss works because the optimizer minimizes it; just make sure you also log validation loss. Keeping the best checkpoint is nice-to-have; the final model is what most people ship.

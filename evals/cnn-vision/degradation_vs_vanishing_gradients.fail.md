@@ -1,0 +1,1 @@
+Yes, that's basically it. Each layer multiplies the gradient by a small factor, so after 20+ layers almost nothing reaches the first layers, and skip connections let the gradient jump straight back. That's why ResNets can be 150 layers deep.

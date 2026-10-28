@@ -1,0 +1,59 @@
+{
+  "skill": "training-deep-models",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Warmup+cosine LambdaLR built over total_steps but stepped once per epoch; loss barely moves - is the scheduler placement correct?",
+      "expected_outcome": "Says the schedule is in optimizer steps so scheduler.step() goes once per batch; explains that per-epoch stepping leaves the LR stuck in warmup at a few percent of the peak; suggests logging the LR"
+    },
+    {
+      "task": "Early stopping monitors training loss and keeps the final weights",
+      "expected_outcome": "Monitors validation loss (per-sample mean), checkpoints on improvement, restores the best checkpoint after the loop, fails loudly on a non-finite validation loss"
+    },
+    {
+      "task": "Add mixed precision and gradient clipping to an existing loop",
+      "expected_outcome": "autocast + torch.amp.GradScaler on CUDA (disabled on CPU), scaler.unscale_ before clip_grad_norm_, bf16 noted as usually not needing a scaler"
+    }
+  ],
+  "negative_cases": [
+    "scheduler_step_granularity",
+    "early_stopping_wrong_signal",
+    "Gradient clipping applied to still-scaled fp16 gradients (clip before scaler.unscale_) (planned)",
+    "fp16 AMP producing NaN loss where the user proposes removing GradScaler (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Scheduler stepping granularity matched to the units the schedule was built in, with the concrete consequence of a mismatch",
+    "Early stopping on a validation signal with best-checkpoint restore, not final weights",
+    "AMP ordering (unscale_ before clipping) and dtype trade-offs stated correctly when relevant",
+    "Heuristics (warmup fraction, patience, weight decay groups) phrased as defaults to validate, not universal rules"
+  ],
+  "prerequisites": [
+    "example-deps (torch, numpy) for executable tests; CPU only"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable; they run CPU-only with AMP disabled, so the CUDA fp16 path is not exercised.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "best.pt holding the best-validation-loss model/optimizer state, restored into the model after early stopping",
+    "A warmup+cosine lr_lambda that reaches the peak after warmup and stays near zero past total_steps"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Executable tests run CPU-only with AMP disabled; GradScaler/autocast on CUDA is not executed by anything in this repository.",
+    "The scheduler case's expected answer (per-epoch stepping of a per-step schedule leaves the LR stuck in warmup) was checked numerically in the example venv; the skill's own Gotcha wording describes this mismatch as compressing the decay, which is the effect of the opposite mismatch.",
+    "An independent reviewer's stress test (30 texts written after reading the patterns, so adversarial rather than blind; 23 wrong, 7 correct across all five skills of this workstream) initially had 16/23 wrong answers passing every hard assertion and 6/7 correct answers failing one. The patterns were then fixed and these texts kept verbatim as fail.adversarial* / pass.blind* fixtures, so the post-fix 30/30 is a regression result, not a held-out discrimination rate."
+  ],
+  "unsupported_use_cases": [
+    "Idiomatic Dataset/DataLoader/hook/checkpoint structure (pytorch-patterns)",
+    "Optimizer and backprop theory (neural-net-fundamentals)",
+    "Searching hyperparameters such as LR or weight decay (hyperparameter-tuning)"
+  ]
+}

@@ -1,0 +1,1 @@
+Good question! For practical purposes, yes — the weight_decay argument does the same job in both classes; AdamW was mostly introduced to make the default nonzero. As long as you set weight_decay=0.01 explicitly on Adam, you'll get equivalent behavior and results within noise of the paper.

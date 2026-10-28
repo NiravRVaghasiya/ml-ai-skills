@@ -1,0 +1,1 @@
+conv1 output: (224 + 2×3 - 7) // 2 + 1 = 112, so 112×112. Receptive field, growing by (K - 1) times the jump (product of earlier strides): 1 → 7 (jump 1) → 7 + 2×2 = 11 (jump 2) → 11 + 2×4 = 19 (jump 4). One conv3 unit sees a 19×19 patch of the input.

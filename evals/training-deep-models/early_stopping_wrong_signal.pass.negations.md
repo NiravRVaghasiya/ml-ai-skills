@@ -1,0 +1,1 @@
+No. Monitoring training loss is not fine, and it isn't a valid signal for early stopping: it never stops improving. Don't keep the final weights either - instead of keeping the final weights, restore the best checkpoint by validation loss.

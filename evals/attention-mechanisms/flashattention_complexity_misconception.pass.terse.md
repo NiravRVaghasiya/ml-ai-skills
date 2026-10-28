@@ -1,0 +1,1 @@
+Not right. FlashAttention is exact attention with the same O(n²) FLOPs; its win is that tiling avoids writing the n×n matrix to HBM, so memory overhead is linear and it runs faster. Compute stays quadratic, so for very long sequences sparse or linear-attention approximations, or other long-context methods, are still worth considering.

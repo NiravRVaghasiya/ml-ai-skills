@@ -1,0 +1,1 @@
+retain_graph=True was the wrong fix; revert it. The carried hidden state (h, c) is still attached to the previous chunk's graph. Call h, c = h.detach(), c.detach() before each chunk's forward. With retain_graph=True backward walks into the old graph, whose saved weights were modified in place by optimizer.step(), hence the new error.

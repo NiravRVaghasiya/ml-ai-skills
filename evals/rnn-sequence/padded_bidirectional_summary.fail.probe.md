@@ -1,0 +1,1 @@
+Since padding is at the end, the fix is simple: gather the output at index lengths-1 for each sentence, i.e. `output[torch.arange(B), lengths-1]`. This picks the last real token and gives you a 256-d vector combining both directions, with no need for packing.

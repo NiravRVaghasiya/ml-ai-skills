@@ -1,0 +1,1 @@
+Yes - `torch.save(model, "ckpt.pt")` serializes the entire model object, architecture and weights together, so it's the most complete option. On restart, `model = torch.load("ckpt.pt")` and continue your training loop. If you get an error about `weights_only` on newer PyTorch versions, pass `weights_only=False` to `torch.load`.

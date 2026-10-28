@@ -1,0 +1,1 @@
+Since no_grad only disables gradient tracking, Dropout layers have no gradients to compute, so they effectively act as identity in validation. model.eval() is mostly a convention; your noise likely comes from non-deterministic cuDNN.

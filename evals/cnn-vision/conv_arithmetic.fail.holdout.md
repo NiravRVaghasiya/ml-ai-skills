@@ -1,0 +1,1 @@
+conv1: floor((224 + 6 - 7)/2) + 1 = 112. Receptive field: add (k - 1) for each layer: 7 + 2 + 2 = 11. Strides change the output resolution but not how many input pixels a unit sees, so a conv3 unit has an 11x11 receptive field.

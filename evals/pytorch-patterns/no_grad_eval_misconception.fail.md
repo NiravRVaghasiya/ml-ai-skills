@@ -1,0 +1,1 @@
+Right, `torch.no_grad()` already handles inference for you, so a separate call isn't needed. The run-to-run variation is more likely from your data: make sure the validation DataLoader uses `shuffle=False`, fix the random seeds, and check that the same preprocessing is applied as in training.

@@ -1,0 +1,1 @@
+The issue is padding: output[:, -1] for short sentences is taken over pad tokens, and the backward direction has started on padding. Don't use pack_padded_sequence - it's slow. Instead gather output at lengths - 1 so you are not reading padding; that index holds the final state of both directions for the real sentence. Alternatively take h_n[-2] and h_n[-1] from an unpacked run.

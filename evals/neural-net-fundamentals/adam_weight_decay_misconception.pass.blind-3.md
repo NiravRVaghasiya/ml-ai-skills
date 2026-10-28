@@ -1,0 +1,1 @@
+They are not equivalent. torch.optim.Adam(weight_decay=...) is L2 regularization: the decay term goes into the gradient and is then divided by sqrt(v_hat). AdamW (Loshchilov & Hutter, 'Decoupled Weight Decay Regularization') applies decay directly to the weights. Your codebase can import AdamW from torch.optim; it is a drop-in replacement.

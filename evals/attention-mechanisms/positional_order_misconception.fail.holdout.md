@@ -1,0 +1,1 @@
+Correct. Attention is a set operation, so without positional encodings the representation of each token is the same regardless of order; the causal mask only controls which tokens are visible, it doesn't encode positions. That's exactly why every GPT variant adds RoPE or learned position embeddings - without them the model can't distinguish 'dog bites man' from 'man bites dog'.

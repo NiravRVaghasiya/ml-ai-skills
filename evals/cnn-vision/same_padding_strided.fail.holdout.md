@@ -1,0 +1,1 @@
+PyTorch doesn't accept padding='same' when stride > 1 - it raises a ValueError - so replace it with padding=1. The output will be 28x28, same as Keras' ceil(56/2) = 28, and since both pad the borders with zeros, once you transfer the weights (transposing to PyTorch's layout) the outputs will be identical to the Keras model.

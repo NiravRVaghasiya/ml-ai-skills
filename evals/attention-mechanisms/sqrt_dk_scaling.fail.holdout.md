@@ -1,0 +1,1 @@
+Without the scaling, the dot products grow with d_k and the softmax becomes very peaked. Dividing by sqrt(d_k) normalizes the scores so the attention weights form a proper probability distribution that sums to 1; without it the weights wouldn't be normalized and the weighted sum of values would blow up.

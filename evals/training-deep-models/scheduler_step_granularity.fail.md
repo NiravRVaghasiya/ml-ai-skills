@@ -1,0 +1,1 @@
+Yes, per-epoch is the standard place for `scheduler.step()`, so the scheduler is fine. When loss barely moves after 20 epochs, check the peak learning rate first - 3e-4 may be too low for your model - then look for a bug in the loss function, frozen layers, or labels that don't match the inputs.

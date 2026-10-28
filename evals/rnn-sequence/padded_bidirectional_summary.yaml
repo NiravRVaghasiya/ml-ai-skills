@@ -1,0 +1,43 @@
+id: padded_bidirectional_summary
+skill: rnn-sequence
+category: edge_case
+kind: response
+input: |
+  I'm classifying variable-length sentences with nn.GRU(emb_dim, 128, num_layers=2, bidirectional=True, batch_first=True). Batches are zero-padded to the longest sentence, and I feed output[:, -1, :] (shape [batch, 256]) into a linear classifier. Accuracy is noticeably worse on short sentences. What's wrong, and what should I use as the sentence representation?
+expected_behavior:
+  - 'explains that for short sentences output[:, -1] is a padding position: the forward half is the state after reading pad steps, and the backward half has read only that last (padded) position, not the sentence'
+  - 'recommends pack_padded_sequence(..., lengths, batch_first=True, enforce_sorted=False) so the GRU skips padding'
+  - 'says to take the top layer''s final forward and backward states from h_n, i.e. concatenate h_n[-2] and h_n[-1] (or h_n.view(num_layers, 2, batch, hidden)[-1]), noting h_n is (num_layers * num_directions, batch, hidden) regardless of batch_first'
+  - 'if gathering from output instead, does so only on the pad_packed_sequence output of a packed run, taking the forward half at lengths - 1 and the backward half at position 0 (output[:, 0, 128:]); without packing, no position of this 2-layer bidirectional output is clean, because the top layer''s forward states consume bottom-layer backward states that have read padding'
+must_not:
+  - 'recommend h_n[0] and h_n[1] (the bottom layer of this 2-layer model) as the final states'
+  - 'claim batch_first applies to h_n'
+  - 'recommend gathering output at lengths - 1 for both directions as a complete fix'
+  - 'recommend skipping packing and gathering the unpacked output (forward half at lengths - 1, backward half at position 0) as a fix for this 2-layer bidirectional model'
+must_include:
+  - '\b(pack_padded_sequence|packedsequence|pack(ed|ing)?)\b'
+  - '(\bh_n\s*\[\s*-\s*2|\blast two (entries|rows|slices|elements|layers?) of\b|\bh_n\.(view|reshape)\(|\b(hidden|hn|h|final|states?|hiddens|h_final)\s*\[\s*-\s*2\s*(,|\])|\.(view|reshape)\(\s*(2|num_layers|self\.num_layers)\s*,\s*2\s*,)'
+  - '\bbackward\b[^.]{0,40}\b(direction|half|pass|state|gru|rnn|hidden)\b|\b(reverse|backward)[- ]direction\b'
+  - '\bpad(ding)? (steps?|tokens?|positions?|embeddings?|entries|values|frames|indices)\b|\bpadded (steps?|positions?|time ?steps?|tokens?|index|indices)\b|\b(after|read\w*|consum\w+|process\w+|step\w* through|run\w* over|includ\w+|updat\w+|over|on|into|seen|sees|saw)\b[^.]{0,40}\b(padding|pads|zeros)\b'
+must_not_include:
+  - '(?<!n''t )(?<!not )(?<!never )\b(use|take|cat|concat\w*|grab|read)\b[^.]{0,20}\bh_n\s*\[\s*0\s*\][^.]{0,25}\bh_n\s*\[\s*1\s*\]'
+  - '\bbatch_first\b[^.]{0,40}(?<!not )(?<!n''t )\b(also )?(applies|apply|affects?) to h_n\b|\bh_n\b[^.]{0,20}(?<!not )(?<!n''t )\b(is|are) (also )?batch[- ]first\b'
+  - '(?<!n''t )(?<!not )\bgather\w*\b(?![^.]{0,60}\bpack)[^.]{0,60}\blengths?\s*-\s*1\b(?![^.]{0,100}\b(only (for )?the forward|only (valid|correct|right) for the forward|forward (half|direction|states?) only|for the forward (half|direction) only|unidirectional|pad_packed\w*|packed)\b)'
+  - '(?<!if you )(?<!if we )\b((don''t|do not|doesn''t|does not)( really)? need( to use)?|no need (to use |for )?|needn''t( use)?|(don''t|do not) (use|bother with))\s*(pack_padded_sequence|packing|to pack|pack)\b'
+  - '(?<!n''t )(?<!not )\b(skip|avoid)\w*\b[^.]{0,10}\b(pack_padded_sequence|packing)\b|(?<!no )\b(fix|approach|way|solution)\b[^.]{0,10}\bwithout (packing|pack_padded_sequence)\b'
+  - '\bh_n\b[^.]{0,20}(?<!not )(?<!n''t )\b(is|has shape|shape is|of shape)\s*\(?\s*(batch|b|batch_size)\s*,|\bh_n\s*\[\s*:\s*,\s*-\s*[12]\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The h_n pattern accepts h_n[-2] (or any hidden[-2]) without checking the response also concatenates the backward state h_n[-1]; the rubric covers completeness.'
+  - 'An answer that skips packing and gathers the unpacked output at lengths - 1 (forward) and 0 (backward) is caught only if it also omits h_n[-2] or uses one of the anticipated "no packing" phrasings; the rubric item is authoritative.'
+notes: >
+  Phase 1 audit scenarios (padding with output[:, -1]; bidirectional lengths - 1 gather;
+  h_n indexing). Checked in torch 2.13 (CPU), batch_first=True, a length-3 sentence padded
+  to 10, compared with the same sentence run alone. Packed run (1 and 2 layers): h_n has
+  shape (num_layers * 2, batch, hidden); h_n[-2] equals the pad_packed_sequence output at
+  lengths - 1 (forward half) and h_n[-1] equals that output at position 0 (backward half).
+  Unpacked run: with 1 layer the forward half at lengths - 1 is still correct but the
+  backward half at position 0 is not; with 2 layers no output position matches either
+  direction, because the top forward layer reads bottom-layer backward states that have
+  read padding (found by the Phase 2 review; the earlier version of this case only
+  checked the packed run).

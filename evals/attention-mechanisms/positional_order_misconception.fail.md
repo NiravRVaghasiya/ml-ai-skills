@@ -1,0 +1,1 @@
+Yes. Attention just mixes token vectors as an unordered set, so without RoPE or learned position embeddings the model sees a bag of words and has no way to know word order. That's why every GPT needs positional encodings.

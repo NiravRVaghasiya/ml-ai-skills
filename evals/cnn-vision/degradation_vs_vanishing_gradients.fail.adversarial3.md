@@ -1,0 +1,1 @@
+Mostly right. The degradation problem is that deeper plain networks get higher training error. That happens because the gradients vanish by the time they reach the early layers, even with BatchNorm. A residual block outputs F(x) + x, so the identity term passes the gradient through unchanged and fixes the vanishing.

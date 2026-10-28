@@ -1,0 +1,1 @@
+For random q, k with unit-variance entries, Var(q·k) = d_k, so the logits' spread grows like √d_k. Big logits saturate the softmax (it becomes nearly one-hot) and its gradients vanish. Dividing by √d_k restores unit variance whatever the head size, so training stays stable.

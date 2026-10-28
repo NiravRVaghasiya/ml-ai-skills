@@ -1,0 +1,1 @@
+Short sentences simply carry less signal, so the classifier has less to work with. Switch the GRU to an LSTM with a larger hidden size (256) and add dropout=0.3 between layers; you can also oversample short sentences so the model sees more of them during training.

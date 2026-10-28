@@ -1,0 +1,1 @@
+Yes, more or less. The degradation problem He et al. describe - deeper plain networks getting higher training error - happens because the gradient signal shrinks as it passes through many layers, so the early layers stop learning. The identity shortcut in F(x) + x gives the gradient a direct path back, which is why ResNets can go to 152 layers.

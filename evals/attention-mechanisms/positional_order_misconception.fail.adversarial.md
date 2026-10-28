@@ -1,0 +1,1 @@
+Small correction: self-attention is permutation-equivariant, not invariant. The causal mask does make each position see a different prefix, so in principle a decoder could learn order. In practice, though, Haviv et al.'s NoPE models are an academic curiosity; the claim stands that without RoPE the model effectively has no positional signal and treats the input as a bag of words.

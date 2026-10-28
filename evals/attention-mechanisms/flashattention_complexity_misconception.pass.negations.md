@@ -1,0 +1,1 @@
+No, it isn't linear-time. FlashAttention doesn't approximate anything and doesn't reduce the O(n²) compute; it only cuts memory to linear by never materializing the score matrix. The quadratic cost isn't solved, so sparse and linear attention aren't obsolete.

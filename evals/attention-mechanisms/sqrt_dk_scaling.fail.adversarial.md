@@ -1,0 +1,1 @@
+The variance of q·k grows with d_k, so without scaling the softmax saturates into a near one-hot distribution and gradients vanish. Dividing by √d_k normalizes the scores so the attention weights sum to 1, which is what keeps them a valid probability distribution.
