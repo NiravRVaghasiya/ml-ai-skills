@@ -337,9 +337,14 @@ class TestDataPipelinesSkill(unittest.TestCase):
         path = self.tmp / f"features_{AS_OF}.parquet"
         bad = pd.read_parquet(path).assign(unexpected_column=1)    # schema drift -> INSERT fails
         bad.to_parquet(path)
-        import sqlalchemy.exc  # the INSERT of an unknown column fails at the DB layer
-        with self.assertRaises(sqlalchemy.exc.DBAPIError):
+        import pandas.errors
+        import sqlalchemy.exc
+        # The INSERT of an unknown column fails at the DB layer. pandas 2.2 lets SQLAlchemy's
+        # DBAPIError through; pandas 3.1 wraps it in pandas.errors.DatabaseError ("Execution
+        # failed on sql ..."). Either way engine.begin() must roll back the DELETE.
+        with self.assertRaises((sqlalchemy.exc.DBAPIError, pandas.errors.DatabaseError)) as cm:
             ns["load"](**airflow3_context())
+        self.assertIn("unexpected_column", str(cm.exception))
         after = self._features_table()
         self.assertEqual(len(after), len(before), "partition must survive a failed insert")
 

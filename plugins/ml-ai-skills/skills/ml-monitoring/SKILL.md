@@ -15,7 +15,7 @@ level: intermediate
 lifecycle: stable
 risk_level: medium
 evidence_level: established-practice
-last_verified: 2026-10-27
+last_verified: 2026-10-28
 capabilities:
   - data-drift-detection
   - concept-drift-detection
@@ -33,7 +33,7 @@ inputs: A model already serving live traffic, a frozen reference dataset (held-o
 outputs: A scheduled drift/performance check plus alerts that fire before customers notice a degraded model.
 version_constraints:
   - "evidently>=0.7,<0.8: from evidently import Report; from evidently.presets import DataDriftPreset(num_method='psi', cat_method='psi'); Report.run(...) returning a Snapshot with .dict() and .save_html() (executed against evidently 0.7.23 on 2026-10-27; the 0.7.23 wheel has no evidently.report or evidently.metric_preset module)"
-  - "pandas>=1.5: read_json(lines=True), DataFrame.merge(validate='one_to_one') (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified)"
+  - "pandas>=1.5,<3: read_json(lines=True), DataFrame.merge(validate='one_to_one') (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified; <3 because evidently 0.7.23 failed to import on pandas 3.1.0 in CI on 2026-10-28)"
   - "apache-airflow>=2.4: DAG(schedule=...) (not executed: Airflow is stubbed in tests; apache-airflow-task-sdk 1.3.2 source read on 2026-10-27 has schedule but no schedule_interval)"
 ---
 
@@ -87,7 +87,7 @@ metric that goes stale the day the model ships.
    inputs first: evidently does not complain when the current window is missing a
    reference column.
    ```python
-   # pip install "evidently>=0.7,<0.8"   (0.7 changed the API; see Gotchas)
+   # pip install "evidently>=0.7,<0.8" "pandas<3"   (0.7 changed the API; 0.7.23 breaks on pandas 3; see Gotchas)
    import pandas as pd
    from evidently import Report
    from evidently.presets import DataDriftPreset
@@ -252,6 +252,11 @@ metric that goes stale the day the model ships.
   where `Report.run()` returns a `Snapshot` and results are listed per metric by name
   (the old API lives on under `evidently.legacy`). Pin a range like `>=0.7,<0.8`, and look
   metrics up by name (step 2's `drifted_share`) rather than by list position.
+- **evidently 0.7.23 does not import on pandas 3**, although its metadata allows any
+  `pandas>=1.3.5`, so an unpinned install picks pandas 3. `from evidently import Report`
+  then fails with `ImportError: cannot import name 'infer_dtype_from_object'` (a private
+  pandas function removed in 3.0). Keep `pandas<3` next to the evidently pin until an
+  evidently release supports pandas 3.
 - **Ground truth often arrives late** (weeks, for churn/fraud/credit models) — you cannot
   wait on labels alone to detect a problem. Feature/prediction drift is your leading
   signal in the interim; treat label-based decay as confirmation, not the first alarm.

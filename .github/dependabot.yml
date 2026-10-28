@@ -45,5 +45,9 @@ updates:
       # evidently 0.7.23 requires plotly<6.
       - dependency-name: "plotly"
         versions: [">=6"]
+      # evidently 0.7.23 declares no pandas cap but fails to import on pandas 3 (it imports
+      # pandas.core.dtypes.common.infer_dtype_from_object, removed in 3.0).
+      - dependency-name: "pandas"
+        versions: [">=3"]
     commit-message:
       prefix: "deps"

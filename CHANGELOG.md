@@ -133,6 +133,21 @@ from runs on Windows 11 / Git Bash / Python 3.13 on 2026-10-27 and 2026-10-28. N
 
   `.github/dependabot.yml` ignores those ranges. The whole file resolves with
   `pip install --dry-run --ignore-installed` (Windows, CPython 3.13.2, 2026-10-28).
+
+  The same bump took pandas from 2.2.3 to 3.1.0, and the next CI run had 2 errors:
+  - **ml-monitoring**: evidently 0.7.23 (the latest release) fails to import on pandas 3.
+    It imports `pandas.core.dtypes.common.infer_dtype_from_object`, which pandas 3.0
+    removed, although its metadata allows any `pandas>=1.3.5`. pandas is back to 2.2.3, and
+    Dependabot ignores `pandas>=3`. The skill's install line now adds `"pandas<3"`, with a
+    new gotcha and a claim in `docs/claims.json` (unverified: from the CI traceback only).
+  - **data-pipelines test**: pandas 3.1 wraps the failed INSERT's `DBAPIError` in
+    `pandas.errors.DatabaseError`. `test_failed_insert_rolls_back_the_partition_delete`
+    now accepts either type. The skill was already correct: `engine.begin()` rolls back
+    on any exception.
+
+  `test_ml_monitoring` no longer leaks its temp directory and environment patch when
+  `setUpClass` fails. These test changes passed ruff and import cleanly, but no test was
+  run locally: pandera and evidently are not installed there.
 - **rag-pipeline**: `retrieve()` indexed the chunk store with every FAISS id. FAISS pads
   short results with `-1` (and returns all `-1` on an empty index), so a dict store raised
   `KeyError: -1` and a list store silently returned the last chunk. `-1` ids are now
