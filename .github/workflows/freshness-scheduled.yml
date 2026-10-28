@@ -1,0 +1,88 @@
+name: freshness-scheduled
+
+# Network freshness check (automated-doc-check). Runs on a schedule, never on
+# pull requests: external sites rate-limit and flake, and merges must not be
+# gated on third-party availability. It only REPORTS: no issues are opened, no
+# files are edited, nothing is pushed. A human reads the uploaded report and
+# records outcomes in docs/claims.json (see docs/FRESHNESS.md).
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"  # weekly, Monday 06:23 UTC (off the top of the hour, when scheduled runs bunch up)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freshness-scheduled
+  cancel-in-progress: false
+
+jobs:
+  verify-online:
+    name: Reference URLs + PyPI latest-release check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+
+      # No `pip install`: scripts/ are stdlib-only.
+
+      - name: Offline scan (static-pattern + review-clock + metadata)
+        run: python scripts/check_freshness.py --json > freshness-offline.json || true
+
+      - name: Claims registry review clock
+        run: python scripts/check_claims.py --json > claims-check.json || true
+
+      # --max-seconds (20 min) < step timeout (25 min) < job timeout (30 min): the script stops on its own
+      # budget and still writes a full report; unchecked URLs come out 'inconclusive' (deadline). The
+      # report is also rewritten after every item, so even a killed step leaves a partial (INCOMPLETE) one.
+      - name: Online check (automated-doc-check)
+        id: online
+        timeout-minutes: 25
+        run: |
+          set +e
+          python scripts/verify_online.py --max-seconds 1200 --json-out verify-online-report.json > verify-online-summary.txt
+          code=$?
+          set -e
+          cat verify-online-summary.txt
+          cat verify-online-summary.txt >> "$GITHUB_STEP_SUMMARY"
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: freshness-report-${{ github.run_id }}
+          path: |
+            verify-online-report.json
+            verify-online-summary.txt
+            freshness-offline.json
+            claims-check.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      # Judged on the report's own status, not just the exit code: a crash also exits 1, and the
+      # partial report a crash leaves behind says INCOMPLETE. OK = green. FINDINGS (broken links,
+      # unacknowledged inconclusive URLs, excludes-latest), SKIPPED (network unavailable) and
+      # INCOMPLETE all turn the run red so none of them reads as a pass. URLs a maintainer listed in
+      # schema/freshness_policy.json acknowledged_inconclusive (e.g. 403 bot walls) are not findings.
+      - name: Result
+        if: always()
+        env:
+          CODE: ${{ steps.online.outputs.exit_code }}
+        run: |
+          status=$(python -c "import json; print(json.load(open('verify-online-report.json'))['status'])" 2>/dev/null || echo MISSING)
+          case "$status" in
+            OK) echo "No findings." ;;
+            FINDINGS) echo "::warning::Findings for human review; see the freshness-report artifact."; exit 1 ;;
+            SKIPPED) echo "::warning::SKIPPED: network unavailable; nothing was checked."; exit 2 ;;
+            INCOMPLETE) echo "::error::verify_online.py did not finish (exit '$CODE'); the artifact holds a partial report."; exit 1 ;;
+            *) echo "::error::verify_online.py produced no readable report (exit '$CODE'); the check itself failed."; exit 1 ;;
+          esac
