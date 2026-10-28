@@ -35,19 +35,25 @@ DOMAIN_LABEL = {
 DOMAIN_ORDER = list(DOMAIN_LABEL)
 
 
-def count_tests() -> int:
-    suite = unittest.defaultTestLoader.discover(str(sl.REPO_ROOT / "tests"), pattern="test_*.py")
+def count_tests() -> tuple[int, int]:
+    """Returns (default_suite_tests, example_tests).
 
-    def _count(s) -> int:
-        total = 0
+    The default suite is tests/test_*.py (stdlib only; optional PyYAML/jsonschema/claude-CLI
+    cross-checks skip without them). The example suite is tests/examples/ (executes SKILL.md code,
+    needs requirements-examples.txt). Counts are test methods as loaded, not outcomes of a run.
+    """
+    suite = unittest.defaultTestLoader.discover(str(sl.REPO_ROOT / "tests"), pattern="test_*.py")
+    counts = [0, 0]
+
+    def _walk(s) -> None:
         for item in s:
             if isinstance(item, unittest.TestSuite):
-                total += _count(item)
+                _walk(item)
             else:
-                total += 1
-        return total
+                counts[1 if item.id().startswith("examples.") else 0] += 1
 
-    return _count(suite)
+    _walk(suite)
+    return counts[0], counts[1]
 
 
 def count_evals() -> tuple[int, int]:
@@ -73,7 +79,7 @@ def render() -> str:
     evidence_counts = Counter(s.frontmatter.get("evidence_level") for s in skills)
 
     eval_files, eval_skills_covered = count_evals()
-    test_count = count_tests()
+    default_tests, example_tests = count_tests()
     script_count = len(list((sl.REPO_ROOT / "scripts").glob("*.py")))
     docs_count = len(list((sl.REPO_ROOT / "docs").glob("*.md")))
 
@@ -83,15 +89,17 @@ def render() -> str:
         "     this block — your changes will be overwritten. Edit skill frontmatter, scripts/,",
         "     tests/, docs/, or evals/ instead, then regenerate. -->",
         "",
-        f"| Metric | Value |",
-        f"|---|---|",
+        "| Metric | Value |",
+        "|---|---|",
         f"| Skills | **{total}** ({fmt_counter(type_counts, ['workflow', 'reference'])}) |",
         f"| Domains | {len(domain_counts)} — {fmt_counter(domain_counts, DOMAIN_ORDER)} |",
         f"| Level | {fmt_counter(level_counts, ['beginner', 'intermediate', 'advanced'])} |",
         f"| Risk level | {fmt_counter(risk_counts, ['low', 'medium', 'high', 'critical'])} |",
         f"| Evidence level | {fmt_counter(evidence_counts, ['primary', 'official-documentation', 'established-practice', 'heuristic', 'opinion'])} |",
-        f"| Eval cases | {eval_files} case file(s) covering {eval_skills_covered}/{total} skills — structural sanity only, not automated grading (see `evals/SCHEMA.md`) |",
-        f"| Unit tests | {test_count} (stdlib `unittest`, no extra dependencies) |",
+        f"| Eval cases | {eval_files} case file(s) covering {eval_skills_covered}/{total} skills — graded offline against "
+        "pass/fail fixtures by regex hard assertions; no model output graded (see `evals/SCHEMA.md`) |",
+        f"| Unit tests | {default_tests} in the default suite (`tests/test_*.py`, stdlib only) + {example_tests} optional "
+        "example tests (`tests/examples/`, need `requirements-examples.txt`) |",
         f"| Scripts / docs | {script_count} scripts in `scripts/`, {docs_count} policy docs in `docs/` |",
         END,
     ]
@@ -115,7 +123,7 @@ def main() -> int:
     new_text = pre + new_block + post
 
     if args.write:
-        README.write_text(new_text, encoding="utf-8")
+        README.write_text(new_text, encoding="utf-8", newline="\n")  # LF on every platform
         print("README.md PROJECT-STATS block updated")
         return 0
 

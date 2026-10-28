@@ -68,7 +68,7 @@ def check_index_consistency(skills: list[sl.Skill], index_path: Path) -> list[st
     by_slug = sl.by_slug(skills)
     entry_slugs = {e["slug"] for e in entries.values()}
 
-    for slug, skill in by_slug.items():
+    for slug in by_slug:
         if slug not in entry_slugs:
             issues.append(f"skill '{slug}' has no INDEX.md entry")
 
@@ -87,7 +87,7 @@ def check_index_consistency(skills: list[sl.Skill], index_path: Path) -> list[st
 
     actual_done = sum(1 for e in entries.values() if e["slug"] in by_slug)
     actual_total = len(entries)
-    for i, line in enumerate(lines):
+    for line in lines:
         m = PROGRESS_RE.match(line)
         if m:
             stated_done, stated_total = int(m.group(1)), int(m.group(2))
@@ -139,7 +139,7 @@ def apply_fix(skills: list[sl.Skill], index_path: Path) -> None:
                 ]
                 lines[insert_at:insert_at] = new_bullets
             else:
-                next_num = max([int(re.match(r'^## (\d+)\.', l).group(1)) for l in lines if re.match(r'^## \d+\.', l)] or [0]) + 1
+                next_num = max([int(re.match(r'^## (\d+)\.', ln).group(1)) for ln in lines if re.match(r'^## \d+\.', ln)] or [0]) + 1
                 new_section = ["", f"## {next_num}. {heading_text}"]
                 for s in skill_list:
                     new_section.append(f"- ✅ [{TYPE_TAG.get(s.frontmatter.get('type'), 'W')}] `{s.slug}` — "
@@ -147,7 +147,7 @@ def apply_fix(skills: list[sl.Skill], index_path: Path) -> None:
                 # insert BEFORE the trailing `---` / Progress footer, not at the
                 # absolute end of the file, so new domain sections land with the
                 # other domain sections instead of after the progress line.
-                footer_idx = next((i for i, l in enumerate(lines) if PROGRESS_RE.match(l)), len(lines))
+                footer_idx = next((i for i, ln in enumerate(lines) if PROGRESS_RE.match(ln)), len(lines))
                 sep_idx = next((i for i in range(footer_idx - 1, -1, -1) if lines[i].strip() == "---"), footer_idx)
                 lines[sep_idx:sep_idx] = new_section + [""]
 
@@ -158,7 +158,7 @@ def apply_fix(skills: list[sl.Skill], index_path: Path) -> None:
         if PROGRESS_RE.match(line):
             lines[i] = f"**Progress:** {done} / {total} written. Clone `_TEMPLATE/SKILL.md` to fill any ⬜ item."
 
-    index_path.write_text("\n".join(lines), encoding="utf-8")
+    index_path.write_text("\n".join(lines), encoding="utf-8", newline="\n")  # LF on every platform
 
 
 def parse_index_from_lines(lines: list[str]) -> tuple[list[str], dict[int, dict]]:

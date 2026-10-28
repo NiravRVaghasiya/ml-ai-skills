@@ -1,0 +1,21 @@
+# Development / CI tooling. scripts/ and the default tests/ stay stdlib-only; nothing
+# here is needed to *use* the skills or run install.sh.
+#
+# Exact pins so a CI run is reproducible; Dependabot (.github/dependabot.yml) proposes
+# weekly bumps. Only top-level tools are pinned - their transitive dependencies are
+# resolved at install time (no hash-locked constraints file yet).
+#
+# Used by .github/workflows/ci.yml:
+#   lint                ruff, shellcheck-py   (installed one by one from the lines below)
+#   unit-with-dev-deps  all of this file: PyYAML + jsonschema make the YAML-parity and
+#                       JSON-Schema cross-check tests run instead of skipping; coverage
+#   security            pip-audit
+#
+# Versions verified to exist on PyPI (JSON API) on 2026-10-27.
+
+ruff==0.15.20
+shellcheck-py==0.11.0.1
+coverage==7.14.3
+PyYAML==6.0.3
+jsonschema==4.26.0
+pip-audit==2.10.1

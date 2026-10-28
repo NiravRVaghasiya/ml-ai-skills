@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -151,6 +152,58 @@ class TestPluginManifests(unittest.TestCase):
     def test_all_in_one_plugin_packages_every_published_skill(self):
         packaged = {p.name for p in (REPO_ROOT / "plugins" / gp.ALL_PLUGIN_NAME / "skills").iterdir()}
         self.assertEqual(packaged, ALL_SLUGS)
+
+
+# "<N> ... Agent Skill(s)" / "<N> self-contained ML/AI Agent Skills": a number followed, within a
+# few words, by "Skill"/"Skills"/"Skill(s)". Used to find every count claim in generated text.
+COUNT_CLAIM_RE = re.compile(r"\b(\d+)(?:\s+[^\s\d]+){0,5}?\s+Skill(?:s|\(s\))?\b")
+
+
+def count_claims(text: str) -> list[int]:
+    return [int(m.group(1)) for m in COUNT_CLAIM_RE.finditer(text)]
+
+
+class TestNoHardcodedCounts(unittest.TestCase):
+    """Every skill count stated in generated text must equal the real count for that
+    plugin's scope - a hardcoded "38" goes stale the moment a skill is added or removed."""
+
+    def test_regex_finds_the_claims_it_is_meant_to_find(self):
+        self.assertEqual(count_claims("38 self-contained ML/AI Agent Skills, packaged as one plugin"), [38])
+        self.assertEqual(count_claims("All 38 ML/AI Agent Skills from the library"), [38])
+        self.assertEqual(count_claims("4 Responsible AI Agent Skill(s) from the library"), [4])
+        self.assertEqual(count_claims("covering 8 domains"), [])
+
+    def test_generated_manifests_state_the_real_counts(self):
+        plan = gp.build_plan(ALL_SKILLS)
+        expected = {name: len(entry["slugs"]) for name, entry in plan.items()}
+        checked = 0
+        for rel, content in gp.render_files(ALL_SKILLS).items():
+            if not rel.endswith(".json"):
+                continue
+            doc = json.loads(content)
+            if rel == ".claude-plugin/marketplace.json":
+                scoped = [(gp.ALL_PLUGIN_NAME, doc["metadata"]["description"])]
+                scoped += [(e["name"], e["description"]) for e in doc["plugins"]]
+            else:
+                scoped = [(doc["name"], doc["description"])]
+            for name, text in scoped:
+                claims = count_claims(text)
+                self.assertTrue(claims, f"{rel}: no skill count found in {text!r} (did the wording change?)")
+                for n in claims:
+                    self.assertEqual(n, expected[name], f"{rel}: {text!r} states {n} skills; '{name}' has "
+                                                        f"{expected[name]}")
+                checked += 1
+        # marketplace metadata + one marketplace entry and one plugin.json per plugin
+        self.assertEqual(checked, 1 + 2 * len(plan))
+
+    def test_marketplace_description_tracks_a_synthetic_skill_count(self):
+        skills = [make_skill("alpha", domain="foundations"), make_skill("beta", domain="classical-ml"),
+                  make_skill("gamma", domain="classical-ml")]
+        doc = gp.render_marketplace_json(gp.build_plan(skills), "0.0.0")
+        self.assertEqual(count_claims(doc["metadata"]["description"]), [3])
+        for entry in doc["plugins"]:
+            want = {"ml-ai-skills": 3, "classical-ml": 2, "foundations": 1}.get(entry["name"], 0)
+            self.assertEqual(count_claims(entry["description"]), [want], entry["name"])
 
 
 class TestNoDuplicateContent(unittest.TestCase):

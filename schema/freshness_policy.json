@@ -1,0 +1,100 @@
+{
+  "$comment": "Freshness policy for scripts/check_freshness.py and scripts/check_claims.py. Validated by check_freshness.validate_policy (run: python scripts/check_freshness.py --validate-policy). Every override needs a reason; the day counts are maintainer policy choices, not measured API-churn rates. See docs/FRESHNESS.md.",
+  "policy_version": 1,
+  "default_max_age_days": 180,
+  "domain_max_age_days": {
+    "foundations": {"max_age_days": 365, "reason": "Math/statistics/Python-idiom content; the concepts do not change between library releases."},
+    "classical-ml": {"max_age_days": 270, "reason": "scikit-learn-centred; its deprecation cycle spans two minor releases, so a yearly-ish review is usually enough."},
+    "llm": {"max_age_days": 90, "reason": "Vendor SDKs, model identifiers and fine-tuning libraries (peft/trl/transformers) change quickly."},
+    "security": {"max_age_days": 90, "reason": "Threat guidance and the standards it cites (e.g. OWASP lists) are revised on short cycles."},
+    "mlops": {"max_age_days": 120, "reason": "Serving/tracking/orchestration tools (MLflow, FastAPI, Airflow, ONNX export) ship breaking changes often."}
+  },
+  "capability_max_age_days": {
+    "mcp-tool-integration": {"max_age_days": 60, "reason": "The MCP specification is versioned by date and has been revised more than once a year; policy choice."}
+  },
+  "skill_max_age_days": {
+    "model-optimization": {"max_age_days": 90, "reason": "Its Workflow relies on the torch.export-based ONNX exporter (dynamo=True), which is still moving between torch releases; see its version_constraints."}
+  },
+  "ignore_imports": {
+    "src": "Placeholder for the user's own project package in ci-cd-for-ml examples; not a PyPI distribution."
+  },
+  "known_stale_patterns": [
+    {
+      "id": "sklearn-cross-validation",
+      "pattern": "sklearn\\.cross_validation",
+      "level": "STALE",
+      "message": "sklearn.cross_validation is gone (not importable in current scikit-learn; superseded by sklearn.model_selection since 0.18); use sklearn.model_selection",
+      "claim": "sklearn-cross-validation-not-importable"
+    },
+    {
+      "id": "sklearn-preprocessing-imputer",
+      "pattern": "from sklearn\\.preprocessing import Imputer\\b",
+      "level": "STALE",
+      "message": "sklearn.preprocessing.Imputer is gone (sklearn.impute.SimpleImputer adopted it in scikit-learn 0.20); use sklearn.impute.SimpleImputer",
+      "claim": "sklearn-preprocessing-imputer-not-importable"
+    },
+    {
+      "id": "sklearn-externals-joblib",
+      "pattern": "sklearn\\.externals\\.joblib",
+      "level": "STALE",
+      "message": "sklearn.externals.joblib is gone; import joblib directly",
+      "claim": "sklearn-externals-joblib-not-importable"
+    },
+    {
+      "id": "openai-completion-create",
+      "pattern": "openai\\.Completion\\.create",
+      "level": "STALE",
+      "message": "openai.Completion.create is the pre-1.0 openai-python API; v1+ uses client.chat.completions.create",
+      "claim": "openai-v1-removed-module-level-completion"
+    },
+    {
+      "id": "openai-chatcompletion-create",
+      "pattern": "openai\\.ChatCompletion\\.create",
+      "level": "STALE",
+      "message": "openai.ChatCompletion.create is the pre-1.0 openai-python API; v1+ uses client.chat.completions.create",
+      "claim": "openai-v1-removed-module-level-completion"
+    },
+    {
+      "id": "tensorflow-contrib",
+      "pattern": "tensorflow\\.contrib",
+      "level": "STALE",
+      "message": "tf.contrib was removed in TensorFlow 2.x",
+      "claim": "tensorflow-2-removed-contrib"
+    },
+    {
+      "id": "openai-text-davinci",
+      "pattern": "text-davinci-\\d+",
+      "level": "STALE",
+      "message": "text-davinci-* completion models are retired; verify current model availability against vendor docs",
+      "claim": "openai-text-davinci-retired"
+    },
+    {
+      "id": "openai-dated-gpt-3-5-snapshot",
+      "pattern": "\\bgpt-3\\.5-turbo-\\d{4}\\b",
+      "level": "REVIEW_DUE",
+      "message": "pinned dated GPT-3.5 snapshot - check whether this snapshot is still served before relying on it (not known-dead, so it does not fail CI)",
+      "claim": null
+    },
+    {
+      "id": "openai-dated-gpt-4-snapshot",
+      "pattern": "\\bgpt-4-\\d{4}\\b",
+      "level": "REVIEW_DUE",
+      "message": "pinned dated GPT-4 snapshot - check whether this snapshot is still served before relying on it (not known-dead, so it does not fail CI)",
+      "claim": null
+    }
+  ],
+  "acknowledged_inconclusive": [
+    {
+      "url": "https://dl.acm.org/doi/10.1145/582415.582418",
+      "http_status": [403],
+      "reason": "dl.acm.org answers urllib HEAD and GET with 403 (observed 2026-10-27, User-Agent ml-ai-skills-verify-online/1.0): a bot wall, not link rot. Not yet confirmed in a browser by a named maintainer; confirm or remove at next review.",
+      "acknowledged_on": "2026-10-27"
+    },
+    {
+      "url": "https://doi.org/10.1162/089976698300017197",
+      "http_status": [403],
+      "reason": "doi.org resolves and redirects to direct.mit.edu/neco/article/10/7/1895-1923/6224, which answers urllib HEAD and GET with 403 (observed 2026-10-27): the DOI is registered; the publisher blocks automated clients. Not yet confirmed in a browser by a named maintainer.",
+      "acknowledged_on": "2026-10-27"
+    }
+  ]
+}

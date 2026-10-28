@@ -1,0 +1,4 @@
+# Normalize line endings: generated artifacts (plugins/, INDEX.md, docs/SKILL-GRAPH.md)
+# are compared byte-for-byte, so a CRLF checkout on Windows must not leak into commits.
+* text=auto eol=lf
+*.png binary
