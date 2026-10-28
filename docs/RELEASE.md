@@ -2,8 +2,8 @@
 
 This page covers versioning, the release steps, how users check a release, deprecation,
 and how pinned actions and dependencies are updated. The release workflow
-(`.github/workflows/release.yml`) has **not yet run on GitHub**: everything below about it
-describes the workflow file, not an observed release.
+(`.github/workflows/release.yml`) has **no recorded run on GitHub**: everything below about
+it describes the workflow file, not an observed release.
 
 ## Versioning
 
@@ -184,7 +184,7 @@ not yet treat `deprecated` specially; a deprecated skill can still be selected.
 - The supported environments and the tests behind each are in `docs/COMPATIBILITY.md`. A
   release does not widen that list unless a test for the new environment was run.
 - Python tooling targets Python 3.10 and later (`ruff.toml` targets py310; CI is configured to
-  run the unit suite on 3.10 and 3.13, but has not run yet). The only observed 3.10 run had one
+  run the unit suite on 3.10 and 3.13, but no result of that job is recorded yet). The only observed 3.10 run had one
   real failure, on Windows (`docs/COMPATIBILITY.md`, `docs/KNOWN-ISSUES.md` #12).
 - A skill's frontmatter stays readable by the stdlib parser in `scripts/skills_lib.py`
   (the supported YAML subset in `docs/SKILL-SPEC.md`). A new syntax form is a breaking change

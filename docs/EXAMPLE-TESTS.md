@@ -46,8 +46,11 @@ skipped. Skipped is not evidence.
 
 **Last observed run:** 2026-10-28, Windows 11, Python 3.13.2, local example venv,
 `ML_AI_SKILLS_SLOW_EXAMPLES=1`: 327 tests, OK, in about 256 s. The venv had mlflow 3.16.1,
-while `requirements-examples.txt` pins 3.17.2. The Linux pins have not been installed or run
-by us; the CI `examples` job is configured but has not run.
+while `requirements-examples.txt` pins 3.17.2.
+
+**Last observed CI run:** 2026-10-28, the `examples` job on Linux, Python 3.13.17: 338 tests,
+2 errors, 1 skipped. Both errors came from the pandas 3.1.0 bump and are fixed; pandas is now
+pinned to 2.2.3. No run with the current pins has been observed (`docs/KNOWN-ISSUES.md` #4).
 
 ## Coverage
 

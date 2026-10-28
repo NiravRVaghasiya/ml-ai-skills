@@ -4,8 +4,9 @@ A skill is "done" when it passes every gate below. The markers say how each gate
 enforced:
 
 - **(CI)**: a script fails a job in `.github/workflows/ci.yml` (job name in brackets). The
-  same scripts can be run locally; **no CI workflow has run on GitHub yet**
-  (`docs/KNOWN-ISSUES.md`), so "(CI)" describes the configured gate, not an observed result.
+  same scripts can be run locally. CI has run on GitHub, but **only the `examples` job's
+  results have been observed** (`docs/KNOWN-ISSUES.md` #4), so for every other job "(CI)"
+  describes the configured gate, not an observed result.
 - **(review)**: needs human or agent judgement, recorded in `docs/SKILL-AUDIT.md` or the PR.
 
 Passing every (CI) gate shows a skill is well-formed, that its code runs on the test

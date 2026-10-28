@@ -45,16 +45,26 @@ Severity is the harm if a user relies on the affected claim without knowing abou
    codes; the installer tests stop at file layout and frontmatter parsing. Whether Claude
    Code loads a skill, selects the right one for a task, or does better with it is
    **untested**. See `docs/COMPATIBILITY.md`.
-4. **No GitHub Actions workflow has run.** `ci.yml`, `release.yml` and
-   `freshness-scheduled.yml` were checked with actionlint, `scripts/audit_workflows.py`,
-   PyYAML and local re-runs of individual scripts only. Untested as a result:
-   - every Linux and macOS result (including bash 3.2 and BSD tools for the installer);
-   - `pip install -r requirements-examples.txt` on Linux;
+4. **GitHub Actions results are only partly observed.** `ci.yml` has run on GitHub, but the
+   only results recorded here are from its `examples` job (Linux, Python 3.13.17, job logs
+   read on 2026-10-28). One run failed at `pip install -r requirements-examples.txt`
+   (ResolutionImpossible). A later run installed the pins, including torch/torchvision
+   `+cpu` from the extra index, and ran 338 tests: 2 errors and 1 skip, both errors caused by
+   pandas 3.1.0. Both failures are fixed (`CHANGELOG.md`, Unreleased, Fixed), but no passing
+   run of the job has been observed. No results are recorded for the other `ci.yml` jobs, or
+   for `release.yml` and `freshness-scheduled.yml`. Those were checked only with
+   actionlint, `scripts/audit_workflows.py`, PyYAML and local re-runs of individual scripts.
+   Not observed as a result:
+   - every Linux and macOS result outside the `examples` job (including bash 3.2 and BSD
+     tools for the installer);
+   - a passing `examples` job, and the current pins (pandas 2.2.3) on Linux;
    - the public `@anthropic-ai/claude-code` CLI build pinned in CI (`CLAUDE_CODE_VERSION`) on a clean runner;
    - the release ancestry/CI-success check, `actions/attest-build-provenance`,
      `gh release create --verify-tag`;
    - the coverage floor (84%) on Linux; it was measured at 87% on Windows only;
-   - whether Dependabot handles the `+cpu` torch pins and `--extra-index-url`;
+   - Dependabot bumps each pin on its own. Its grouped PR #3 produced a set pip could not
+     resolve, so dry-run the whole file before merging a bump (`.github/dependabot.yml`).
+     The `+cpu` torch pins it bumped did install;
    - the routing gate's assumption that `HEAD^1` of a pull-request merge commit is the base branch tip.
 5. **Upload paths are expected to reject the skills.** claude.ai skill upload, the Skills API
    and `package_skill.py` accept only six frontmatter keys (Claude Code docs, read
