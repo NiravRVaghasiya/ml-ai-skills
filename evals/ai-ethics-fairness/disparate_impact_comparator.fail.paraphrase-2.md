@@ -1,0 +1,1 @@
+Strictly the comparator is the highest-rate group, which would put C at 0.70, below 0.8. But dividing by the overall average is a legitimate alternative, and since the four-fifths rule is only a rule of thumb anyway, your conclusion that the process shows no adverse impact holds.

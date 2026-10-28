@@ -1,0 +1,1 @@
+No - this isn't anonymized. Random IDs are pseudonymization; records can still be singled out or re-identified via linkage on quasi-identifiers like ZIP code and birth date. It remains personal data under GDPR. Use generalization and check k-anonymity before any release.

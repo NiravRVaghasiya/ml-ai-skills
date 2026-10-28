@@ -1,0 +1,1 @@
+A and B are probably correlated, and SHAP can split credit between correlated features, but that effect is small in practice: the model chose A, which means A carries the signal and B is redundant. SHAP is grounded in game theory, so its attributions are reliable enough to act on - you can drop B. Running permutation importance as well would just tell you the same thing.

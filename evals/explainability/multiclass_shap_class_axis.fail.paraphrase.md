@@ -1,0 +1,1 @@
+The last axis is per class, but class 1 is usually the one people care about, so [:, :, 1] gives the overall picture of what drives the model. Alternatively, sum the SHAP values across the class axis to get a single importance per feature.

@@ -1,0 +1,49 @@
+{
+  "skill": "ai-ethics-fairness",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "Request to satisfy demographic parity, equalized odds and predictive parity at once",
+      "expected_outcome": "Explains the impossibility result under differing base rates and reframes the task as choosing a criterion"
+    },
+    {
+      "task": "Choose a fairness metric for a lending model",
+      "expected_outcome": "Ties the metric to the error whose harm matters most in the deployment context"
+    },
+    {
+      "task": "Check the four-fifths rule using a ratio to the overall average selection rate",
+      "expected_outcome": "Recomputes the ratio against the most-selected group (0.90 / 0.70), flags C below 0.8, and frames 0.8 as a rule of thumb"
+    }
+  ],
+  "negative_cases": [
+    "metric_conflict_misconception",
+    "disparate_impact_comparator",
+    "Request to declare a model 'fair' from a single aggregate metric (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "States the impossibility result with its base-rate condition",
+    "Does not promise all criteria simultaneously",
+    "Links metric choice to deployment harms",
+    "Disparate-impact ratio uses the most-selected group as the comparator",
+    "Does not reward the false claim that all fairness criteria are pairwise incompatible"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Fairness judgments are context-dependent; the rubric checks reasoning, not a single correct metric."
+  ],
+  "unsupported_use_cases": [
+    "Explaining individual predictions (explainability)",
+    "PII detection or anonymization (data-privacy)"
+  ]
+}

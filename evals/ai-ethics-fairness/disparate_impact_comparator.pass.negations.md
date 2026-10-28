@@ -1,0 +1,1 @@
+No, you don't pass. The comparator isn't the average; it's the most-selected group (A at 50%), so C's ratio is 0.70, not 0.81, and that is below 0.8. That doesn't prove discrimination on its own - the four-fifths rule is a rule of thumb, not a legal verdict, and small group sizes can make the gap noisy - but it is not a clean result either.

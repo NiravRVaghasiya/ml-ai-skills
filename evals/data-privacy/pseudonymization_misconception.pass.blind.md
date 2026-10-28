@@ -1,0 +1,1 @@
+No. Swapping names for random IDs is pseudonymization, not anonymization. People can still be singled out from ZIP, birthdate and gender. Under GDPR that is still personal data. Apply k-anonymity before release.

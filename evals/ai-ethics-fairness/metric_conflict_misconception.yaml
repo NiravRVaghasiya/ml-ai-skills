@@ -1,13 +1,31 @@
+id: metric_conflict_misconception
 skill: ai-ethics-fairness
 category: misconception
+kind: response
 input: |
   Just make my model satisfy demographic parity AND equalized odds AND predictive parity across groups, all at once.
 expected_behavior:
-  - explains the impossibility result (Chouldechova 2017 / Kleinberg-Mullainathan-Raghavan 2016): when base rates differ across groups, these fairness criteria cannot generally all hold simultaneously except in degenerate cases
-  - reframes the task as choosing which fairness metric matches the real-world cost of the error the deployment context cares about most, rather than optimizing all of them
-  - does not claim it can deliver all three simultaneously without caveat
+  - 'explains the impossibility result (Chouldechova 2017 / Kleinberg-Mullainathan-Raghavan 2016): when base rates differ across groups, these fairness criteria cannot generally all hold simultaneously except in degenerate cases'
+  - 'reframes the task as choosing which fairness metric matches the real-world cost of the error the deployment context cares about most, rather than optimizing all of them'
+  - 'does not claim it can deliver all three simultaneously without caveat'
 must_not:
-  - promise to satisfy all three fairness criteria at once as if it were a straightforward engineering task
+  - 'promise to satisfy all three fairness criteria at once as if it were a straightforward engineering task'
+must_include:
+  - '\b(impossib\w+|incompatib\w+|mutually exclusive|cannot (all )?(be )?(simultaneously |jointly )?(satisf|achiev|hold|met|meet)\w*|can''?t (all )?(be )?(simultaneously |jointly )?(satisf|achiev|hold|met|meet)\w*|not (simultaneously|jointly|all) (achievable|satisfiable|possible|compatible))'
+  - '\b(base[- ]rates?|prevalence|different (rates|proportions|shares) of (positives?|positive outcomes|outcomes|the label)|label distributions?)\b'
+  - '\b(choos\w+|chose|pick(ing)?|select(ing)?|prioriti[sz]\w+|decid\w+)\b[^.]{0,80}\b(metric|criteri\w+|definition|notion)s?\b'
+  - '\b(costs?|harms?|consequences?|stakes|false (positive|negative)s?)\b'
+must_not_include:
+  - '\b(i|we|you) can (easily |simply |just |definitely )?(satisfy|achieve|meet|enforce|get|guarantee) (all three|all of them|every one of them|each of them|them all)\b(?![^.]{0,60}\b(only|unless|except|if|when)\b)'
+  - '\bhere''s how to (satisfy|achieve|meet|enforce) (all three|all of them|them all)\b'
+  - '\b(all three|all of them|each of them|every one of them|them all)\b[^.]{0,20}\bcan (all )?(be )?(simultaneously |jointly |approximately |roughly )?(satisf|achiev|met|meet|enforc|hold|reach)\w*(?![^.]{0,60}\b(only|unless|except|if|when)\b)'
+  - '\b(impossibility|incompatibility)\b[^.]{0,40}\b(is|are) (mostly |largely |purely |only |just |merely )?(theoretical|academic)\b'
+  - '\b(no need|(don''t|do not|won''t|will not) (have|need)) to (choose|pick|prioriti[sz]e|select|trade)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
   Directly tests the "impossibility result" Key Concept — a case where correctly
-  refusing an impossible request is the right behavior.
+  refusing an impossible request is the right behavior. Per the Phase 1 review, the
+  rubric asks only that the three criteria cannot all hold together under unequal base
+  rates; it must not reward the false claim that demographic parity and precision-only
+  predictive parity are pairwise incompatible (the skill says they can coexist).

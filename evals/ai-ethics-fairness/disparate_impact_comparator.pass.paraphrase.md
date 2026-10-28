@@ -1,0 +1,1 @@
+The ratio should use the most-selected group, A at 50%, as the denominator, not the average: B is 0.90 and C is 0.70, which is below 0.8, so C shows potential adverse impact. The four-fifths rule is a rule of thumb, not a legal finding; check statistical significance and group sizes too.

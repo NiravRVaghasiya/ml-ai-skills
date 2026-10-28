@@ -1,0 +1,1 @@
+Yes - once the names are replaced with random IDs, nobody can tell who each row belongs to, so the dataset is anonymized. You can share it freely with partners or publish it. Just make sure the random IDs aren't sequential and keep the ID-to-name mapping file somewhere private.
