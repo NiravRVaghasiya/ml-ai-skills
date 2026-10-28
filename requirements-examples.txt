@@ -62,7 +62,7 @@ stanio==0.5.1          # (transitive, via cmdstanpy)
 mlflow==3.17.2         # heavy: large dependency tree
 pandera==0.35.0
 SQLAlchemy==2.1.1
-pyarrow==24.0.0
+pyarrow==24.0.0        # mlflow 3.17.2 requires <26; Dependabot ignores >=26 (.github/dependabot.yml)
 pendulum==3.3.0        # optional: enables test_pendulum_interval_end_is_accepted (skips without it)
 
 # --- deep learning / computer vision (heavy) -----------------------------------------
