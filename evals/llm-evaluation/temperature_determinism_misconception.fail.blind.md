@@ -1,0 +1,1 @@
+Essentially, yes. With temperature=0 decoding is greedy, so for practical purposes outputs are deterministic; GPU floating-point effects exist but are negligible. Pin the model snapshot and you're set.

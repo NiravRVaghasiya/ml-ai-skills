@@ -1,0 +1,51 @@
+{
+  "skill": "fine-tuning-llms",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "LoRA fine-tune a 7B model on 40 labeled examples",
+      "expected_outcome": "Flags overfitting risk; suggests few-shot/augmentation first; if training, a held-out split, low rank, few epochs and early stopping"
+    },
+    {
+      "task": "Prepare an instruction dataset and train a LoRA adapter",
+      "expected_outcome": "Adapter trained with completion-only loss and a held-out eval split"
+    }
+  ],
+  "negative_cases": [
+    "small_dataset_overfitting",
+    "Request to fine-tune to inject frequently-changing facts better served by retrieval (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Dataset-size risk flagged before any recipe",
+    "Alternatives offered conditionally",
+    "Validation split despite small size"
+  ],
+  "prerequisites": [
+    "example-deps (torch, transformers, peft, trl, datasets, tokenizers) for executable tests; no model download (from_pretrained is patched to a tiny random Llama)"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Train/held-out eval split of a prompt/completion dataset wired into the SFT trainer",
+    "LoRA adapter and merged model directories (written in a temp dir by the example test)"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "No case trains a real model; the example tests use tiny stubbed models.",
+    "Executable tests use fakes or tiny local models instead of real services/checkpoints (see each case's limitations); they prove the skill's published code paths, not a model response."
+  ],
+  "unsupported_use_cases": [
+    "Prompt-only steering (prompt-engineering)",
+    "Grounding in a corpus at inference time (rag-pipeline)",
+    "Transformer internals (attention-mechanisms)"
+  ]
+}

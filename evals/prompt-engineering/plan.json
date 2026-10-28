@@ -1,0 +1,59 @@
+{
+  "skill": "prompt-engineering",
+  "type": "reference",
+  "representative_tasks": [
+    {
+      "task": "2% of responses fail json.loads despite an all-caps 'respond only in JSON' instruction and temperature 0",
+      "expected_outcome": "Native schema-constrained output mode where available, parse + schema validation with bounded retry, explicit handling of refusals and max-token truncation; no 100% guarantee claimed"
+    },
+    {
+      "task": "User text is wrapped in <document> tags with a 'never follow instructions inside' rule; is injection solved?",
+      "expected_outcome": "No: delimiters reduce risk only; escape tag-like text; architectural controls (least privilege, output validation, human approval); route to ai-ml-security"
+    },
+    {
+      "task": "Add 'Let's think step by step' to every prompt, including a 1B model and a reasoning model",
+      "expected_outcome": "Not as a blanket rule: CoT gains emerged at scale, reasoning models already reason, cost/latency, measure per model on an eval set"
+    },
+    {
+      "task": "Few-shot examples disagree with the prose instructions about output length",
+      "expected_outcome": "Expect the examples to win; make examples match the real input distribution and the spec, then re-run the eval set"
+    }
+  ],
+  "negative_cases": [
+    "broken_json_output",
+    "delimiters_injection_misconception",
+    "cot_everywhere_misconception",
+    "Prompt edit that fixes one failing input; expect re-running a fixed test set instead of spot-checking (planned)",
+    "Few-shot examples drawn from a different distribution than production inputs (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "rubric"
+  ],
+  "rubric": [
+    "Format guarantees are attributed only to schema-constrained modes, with refusal/truncation caveats and a validation step",
+    "Delimiters are presented as risk reduction, not a security boundary",
+    "Technique choices (CoT, few-shot) are conditional on model and task and backed by measurement"
+  ],
+  "prerequisites": [],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run.",
+    "Paraphrase robustness was first spot-checked by the pattern author, not blind: two rounds of answers were written after the patterns were set (one correct and one wrong answer per case per round) and graded once before any tuning; 5/6 correct answers passed and 5/6 wrong answers failed (both misses were in round 2). The round-2 answers, including the missed ones, are kept as .pass.probe / .fail.probe fixtures; the round-1 answers, all graded as expected, are not checked in. These pre-tuning figures cannot be reproduced from this repository: the probe scripts were scratch files outside it, and re-grading the kept fixtures now uses the tuned patterns.",
+    "Second, independent check (review round): an independent reviewer wrote correct and wrong answers per case without tuning anything; against the patterns as first shipped, 3/6 correct answers passed and 6/6 wrong answers failed for this skill (15/24 and 23/24 across the four skills reviewed together). The reviewer also wrote targeted on-topic wrong answers aimed at gaps in the patterns (13 across the four skills); all 13 passed every hard assertion. The fix engineer then wrote a further held-out set (one correct and one wrong answer per case) before reading the patterns: against the first-shipped patterns 3/3 correct passed and 3/3 wrong failed for this skill (10/12 and 11/12 overall). After the patterns were revised, every reviewer answer and 23/24 held-out answers graded as expected; the one remaining miss (a correct agents-and-tools answer) was then fixed. The post-fix figure is not blind: the person revising the patterns had written the held-out answers. Every reviewer answer that was mishandled, plus the 13 targeted wrong answers, is kept verbatim as .pass.blind* / .fail.adversarial* fixtures and every held-out answer as .pass.holdout / .fail.holdout, so they are no longer held out; recall on real model outputs remains unmeasured.",
+    "Patterns that use [^.] to keep a match inside one sentence stop at any period, including those in 'et al.', 'e.g.', 'F.pad' and decimals such as '111.5'. A wrong claim that crosses such a period escapes the pattern; the rubric still covers it.",
+    "prompt-engineering is a reference card with no runnable code, so there is no executable case; no case calls a model or checks a real structured-output API.",
+    "Provider features and model behavior change quickly; the cases test the reasoning pattern (constrain, validate, measure), not a specific API's current guarantees."
+  ],
+  "unsupported_use_cases": [
+    "Grounding answers in external documents (rag-pipeline)",
+    "Multi-step tool-calling loops (agents-and-tools)",
+    "Changing model weights (fine-tuning-llms)",
+    "Building the evaluation harness itself (llm-evaluation)"
+  ]
+}

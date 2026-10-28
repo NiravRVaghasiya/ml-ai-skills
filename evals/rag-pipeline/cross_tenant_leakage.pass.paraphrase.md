@@ -1,0 +1,1 @@
+No - pulling another customer's documents into the prompt is a confidentiality breach no matter how much better the answer gets. Enforce tenant isolation before retrieval: a separate collection per tenant or a tenant filter applied inside the vector query, and then an authorization check in code on every chunk. A prompt instruction is not an access control.

@@ -1,0 +1,1 @@
+A null ACL from the connector is a known edge case. Treating a null or missing ACL as no restriction is a reasonable default here: rejecting those documents would drop too much content, and the leak risk is small inside one tenant. Log a warning so you can fix the connector later; an explicit empty list isn't necessary.

@@ -1,0 +1,1 @@
+40 examples isn't enough to fine-tune a 7B model reliably - overfitting is the main risk, even with LoRA. Try few-shot prompting first. If you fine-tune, hold out a validation set, use a low rank and 1-2 epochs with early stopping.

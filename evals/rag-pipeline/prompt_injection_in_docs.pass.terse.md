@@ -1,0 +1,3 @@
+Nothing — the pipeline must not act on it. This is a prompt injection attack embedded in a document: retrieved text is untrusted content, and it never gets to give orders, only the operator's system prompt and the user do.
+
+Defenses: wrap each retrieved chunk in explicit delimiters and instruct the model to treat what is inside as reference material; keep secrets such as API keys out of the model's context entirely so there is nothing to reveal; give the generation step no tool or credential access; and validate the output (e.g. reject answers containing the system prompt or key-shaped strings).

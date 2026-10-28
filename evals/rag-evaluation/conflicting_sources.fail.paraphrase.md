@@ -1,0 +1,1 @@
+Yes. The faithfulness metric passed, which is what matters for RAG evaluation: the answer is supported by the retrieved context. Which document is newer is a content-management question, not an evaluation one.

@@ -1,0 +1,3 @@
+No - it makes injection harder, not impossible. The model has no hard separation between "instructions" and "data"; the tags and your rule are just more text it weighs. A document can also contain its own "</document>" followed by "SYSTEM: new instructions...", so at minimum escape or remove tag-like strings from uploads.
+
+The real protection is limiting the blast radius: don't give the model tools or data it doesn't need while it reads untrusted documents, validate its outputs before acting on them, and require approval for sensitive actions. And test it - build a small set of malicious documents and check how often the model follows them.

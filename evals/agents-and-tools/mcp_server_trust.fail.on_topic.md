@@ -1,0 +1,1 @@
+MCP is a standard protocol, and since this server is popular and widely used, its tools are effectively vetted, so their outputs can be passed straight to the model as-is. Prompt injection is mainly a risk for unknown, untrusted servers, not ones like this. You can still restrict the token's scopes if you like, but it isn't necessary.

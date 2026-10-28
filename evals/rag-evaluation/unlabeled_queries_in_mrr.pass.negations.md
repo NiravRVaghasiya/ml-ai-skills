@@ -1,0 +1,1 @@
+No - scoring unlabeled queries as zero isn't conservative, it's wrong: their recall and MRR are undefined, not 0, and counting them drags the mean down by the unlabeled share. Don't put 0.29 in the report. Exclude the 180 unlabeled queries, report MRR over the 120 labeled ones, and state how many were skipped.

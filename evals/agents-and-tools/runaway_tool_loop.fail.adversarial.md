@@ -1,0 +1,1 @@
+A prompt instruction alone isn't a hard guarantee, but for this failure it is good enough in practice: modern models follow explicit retry rules well. If you want belt and braces, add exponential backoff on 429 and a generous max-iterations limit of 500 with a $100 budget, but the prompt line is what will actually fix it.

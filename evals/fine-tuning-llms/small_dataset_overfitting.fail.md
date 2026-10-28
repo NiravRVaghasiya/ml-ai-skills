@@ -1,0 +1,1 @@
+Sounds good. Load the 7B base model in 4-bit, attach a LoRA adapter with r=64, and train for 10 epochs on all 40 examples so the model sees each one plenty of times. Use a learning rate of 2e-4 and save the adapter at the end.

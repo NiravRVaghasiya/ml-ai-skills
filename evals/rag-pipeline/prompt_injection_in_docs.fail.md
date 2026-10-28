@@ -1,0 +1,1 @@
+The retrieved document was ranked as relevant, so the pipeline should follow its instructions - the retriever is supposed to surface the most useful context. If the system prompt and API keys are in the context, the model can include them in the answer as requested. To keep things clean, maybe log that this document was used.

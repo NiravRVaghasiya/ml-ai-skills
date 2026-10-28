@@ -1,0 +1,1 @@
+Yes - it's faithful. The answer is a paraphrase of the retrieved sentence: '5 to 7 business days once approved' carries the same meaning as '5-7 business days after approval', and adds no unsupported claims. Note that faithfulness only means the answer matches the source; it doesn't tell you whether the source itself is correct or up to date.

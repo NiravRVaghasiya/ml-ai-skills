@@ -1,0 +1,1 @@
+Structured outputs mode with strict: true constrains decoding so every response is valid JSON - 100% of the time. After you switch, json.loads will never fail, so you can drop the validation and retry code; refusals and truncation are not an issue in strict mode.

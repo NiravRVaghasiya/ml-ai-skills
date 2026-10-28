@@ -1,0 +1,1 @@
+No, it's not a good idea to add it everywhere. CoT doesn't always improve accuracy: the gain wasn't seen in small models, which can get worse, and reasoning models already think before answering. Don't add it to every prompt; it isn't free (more tokens, more latency). Evaluate it on a test set first.

@@ -1,0 +1,41 @@
+id: stale_persisted_index
+skill: rag-pipeline
+category: failure_recovery
+kind: executable
+input: |
+  Last week we upgraded the embedding model to a new revision in the serving container, but
+  kept the FAISS index files built with the old revision because rebuilding takes hours.
+  Retrieval quality has quietly dropped and some answers cite outdated text. The loader didn't
+  complain, so the index must be fine. Should I tune the reranker instead?
+expected_behavior:
+  - 'identifies a stale/mismatched index: query vectors from the new revision are compared with document vectors from the old one (a different vector space), so similarities are meaningless even when the dimensions match; corpus changes since the build also leave ids pointing at outdated chunks'
+  - 'explains that "the loader didn''t complain" is not evidence: a width check passes when dimensions match; the index needs a manifest (embedding model and revision, dim, normalization, counts, corpus/build hash) checked against the running config at load time, refusing to serve on mismatch'
+  - 'recommends rebuilding the index with the new revision (or rolling the serving model back to the indexed revision) before touching the reranker, treating the index as a versioned build artifact (e.g. build the new one alongside and switch over)'
+must_not:
+  - 'recommend tuning the reranker, prompt or k as the fix while the index and the query encoder disagree'
+must_include:
+  - '\b(stale|mismatch\w*|out of (date|sync)|outdated index|different (vector |embedding )?spaces?|incompatible (embeddings?|vectors?))\b'
+  - '\bmanifest\b|\b(record|store|persist|check|compare|verify)\w*\b[^.]{0,40}\b(embedding )?(model (name|id|revision|version)|revision|build hash|corpus hash)\b'
+  - '\b(rebuild\w*|re-?index\w*|re-?embed\w*|roll\w* back)\b'
+  - '\b(refus\w+ to (serve|load|start)|fail\w* (loudly|fast|at (load|startup))|raise\w*|StaleIndexError|block\w* (serving|startup))\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!than )(?<!before )(?<!of )\b(tune|tuning|adjust\w*|retrain\w*|fine-?tun\w*) (the )?(reranker|prompt|top-?k)\b[^.]{0,40}\b(first|instead|should (fix|help|recover)|will (fix|help|recover))\b'
+  - '\b(dimensions?|dims?|widths?)\b[^.]{0,30}\b(match\w*|are the same|agree)\b[^.]{0,40}\b(so|therefore)\b[^.]{0,30}\b(fine|compatible|ok|okay|safe|valid)\b'
+executable_tests:
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_persisted_build_is_checked_against_running_config'
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_embedding_model_revision_change_detected'
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_stale_or_mismatched_index_detected'
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_persisted_build_tampering_detected'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A persisted index whose manifest is checked against the running config on load; StaleIndexError on an embedding-revision, dimension, count or corpus-hash mismatch'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s pipeline with a fake FAISS index, a deterministic fake encoder and a fake LLM client (no network); they prove the published code''s behavior, not that a model''s response recommends the same.'
+notes: >
+  Regression scenario from the Phase 1 rag-pipeline review (stale persisted index). See
+  Workflow step 3 and the "Stale or mismatched index" Gotcha: an in-process check against a
+  manifest you just built proves nothing; the persisted build must be checked against the
+  running config.

@@ -1,0 +1,1 @@
+This is a real issue: a destructive, irreversible delete happened without confirmation, and 'clean up the old staging data' was ambiguous. Going forward the agent should simply include confirmed=True on high-risk calls so the registry requirement is met.

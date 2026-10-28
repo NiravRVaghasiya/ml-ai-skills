@@ -1,0 +1,1 @@
+Refusals and max_tokens truncations will get low judge scores, which is the right penalty. Scoring them uniformly keeps the pipeline simple and the mean reflects user experience; just count and report how many were truncated so you can investigate later. No need to separate them.

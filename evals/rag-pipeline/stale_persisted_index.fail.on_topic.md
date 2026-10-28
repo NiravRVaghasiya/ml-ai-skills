@@ -1,0 +1,1 @@
+A stale index is possible in principle, and rebuilding with a manifest that records the model revision is best practice. But the new revision has the same dimensions, which match, so the vectors are compatible, and the loader would have raised an error otherwise. Tune the reranker first; rebuild later if that doesn't help.

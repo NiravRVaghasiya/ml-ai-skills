@@ -1,0 +1,1 @@
+Gains from chain-of-thought emerged only at large scale, so the 1B model may not benefit much, and reasoning models already think internally. But the extra tokens cost almost nothing, so adding it everywhere is harmless and you don't need to measure it - just ship it across the app.

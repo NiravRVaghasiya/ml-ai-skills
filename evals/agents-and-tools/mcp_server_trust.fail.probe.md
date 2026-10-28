@@ -1,0 +1,1 @@
+MCP defines a standard interface, and widely used servers have been reviewed by many people, so prompt injection through them is unlikely. You can scope the token later if needed; for now it's reasonable to treat the server's tools like your own and pass their results straight into the context.

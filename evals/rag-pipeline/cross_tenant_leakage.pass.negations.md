@@ -1,0 +1,1 @@
+Absolutely not. A system-prompt line is not enough: it isn't an access control, and you can't assume the model will ignore text it was given. Retrieving B's document for A is a leak even if B's name never appears. Use per-tenant indexes so other tenants are never searched, and enforce authorization in code with a tenant/ACL check on every retrieved chunk.

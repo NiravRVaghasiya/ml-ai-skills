@@ -1,0 +1,1 @@
+Chain-of-thought is a universal booster: whatever the model scale, asking for step-by-step reasoning always helps, and even reasoning models with thinking already built in benefit from the extra nudge. It costs a few more tokens, but adding it to every prompt is the right default, so there's no need to evaluate it first.

@@ -1,0 +1,1 @@
+Delimiters plus the instruction are the recommended defense, and attackers can't close the tag because the model knows where the real tags are, so there's nothing to escape. Least privilege and output validation are good hygiene but not needed for injection; with the tags in place, injection is effectively solved.

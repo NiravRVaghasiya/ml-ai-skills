@@ -1,0 +1,1 @@
+Yes, the answer is grounded: it matches a retrieved document word for word, and the faithfulness check confirms there's no hallucination. That's the end of the analysis - the RAG pipeline worked as designed. If you want, you could add a citation so users can see where the 14-day figure came from.

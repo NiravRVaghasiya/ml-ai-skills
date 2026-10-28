@@ -1,0 +1,1 @@
+Yes, that's the point of strict mode: the model can no longer emit arguments that don't match your JSON Schema, so the extra validation layer is redundant code. Removing it simplifies the tool server and cuts latency. Just make sure path and query are marked as required strings in the schema.

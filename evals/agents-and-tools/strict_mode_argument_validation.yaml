@@ -1,0 +1,35 @@
+id: strict_mode_argument_validation
+skill: agents-and-tools
+category: misconception
+kind: response
+input: |
+  Our coding agent has two tools: delete_file(path: string) and run_sql(query: string).
+  We just enabled strict: true on both tool definitions, so the model's arguments are now
+  guaranteed to match the JSON Schema. That means we can remove our server-side argument
+  validation before executing these tools, right?
+expected_behavior:
+  - 'corrects the premise: strict mode guarantees only that the arguments conform to the schema''s shape and types, not that the values are safe, in scope, or authorized'
+  - 'gives concrete schema-valid but dangerous arguments, e.g. a path outside the sandbox/workspace (path traversal, an absolute system path) or an unbounded/destructive SQL statement, or a query touching data the caller may not access'
+  - 'recommends keeping value-level validation and authorization before executing, especially for side-effecting tools (canonicalize paths and check them against an allowed root, read-only or narrowly scoped database credentials or parameterized operations instead of raw SQL, ownership/ID checks)'
+  - 'treats the sandbox / permission scope (optionally plus human confirmation for destructive actions) as the actual safety boundary, not the schema or the prompt'
+must_not:
+  - 'agree that server-side validation can be removed because strict mode is enabled'
+  - 'claim that schema conformance makes an argument safe, authorized, or in scope'
+must_include:
+  - '\b(shape|types?|structure|structural\w*|syntax|syntactic\w*|format)\b[^.]{0,80}(\bnot\b|n''t\b|\brather than\b|\bnever\b|\bnothing about\b)[^.]{0,60}\b(values?|safe\w*|scope|authori[sz]\w*|semantic\w*|correct\w*|intent|meaning|permitted|allowed)\b|\b(only|just|merely|nothing (more|beyond|but))\b[^.]{0,40}\b(shape|types?|structure|syntax|format)\b|\b(says?|tells? you|guarantees?|knows?) nothing about\b|\b(doesn''t|does not|can''t|cannot) (tell you|say|know|check|guarantee)\b[^.]{0,30}\b(whether|if|that)\b|\b(format|shape|type|schema|syntax|structural) (guarantee|check|validation|constraint)s?\b|\bseparate (question|concern|issue|check)\b|\b(doesn''t|does not|can''t|cannot|won''t|will not) (constrain|check|validate|limit|restrict|care about|look at)\b[^.]{0,20}\b(what|whether|which|the (values?|contents?))\b|\b(not|n''t) (a |an )?(security|safety|authori[sz]ation|access[- ]control) (control|boundary|mechanism|feature|layer|check|guarantee)\b|\b(parser|parsing) (guarantee|check|level)\b|\b(different|separate|distinct|orthogonal) (properties|things|questions|concerns|guarantees|problems)\b|\b(separate|different|distinct|orthogonal),? (\w+ )?(question|concern|issue|check|property|problem)\b|\bsemantic (question|validity|validation|checks?|correctness|constraints?)\b'
+  - '\b(path traversal|directory traversal|outside (of )?(the |your |its )?(sandbox|workspace|repo\w*|allowed|working|project|root|permitted)\w*|absolute (system )?paths?|system (files?|director\w+)|drop table|truncate|delete from|without a where|no where clause|unbounded|another (user|tenant|customer)|other (users?|tenants?|customers?))\b|\.\./|(?<!\w)/etc/\w+|~/\.ssh|\bdrop (table|database|schema)\b|\bdelete_file\(\W*/\W*\)|\brm -rf\b|\.git\b|\bhome (folder|director\w+|dir)\b|\bupdate\b[^.]{0,30}\b(wipes?|every|all|without)\b|\b(arbitrary|malicious|harmful|dangerous|destructive) (paths?|files?|quer(y|ies)|sql|values?|statements?|arguments?)\b'
+  - '\b(keep|still|continue to|must|should|need to|always)\b[^.]{0,40}\b(validat\w+|check\w*|verif\w+|authori[sz]\w*|sanitiz\w+|enforc\w+)\b|\b(leave|keep)\b[^.]{0,20}\b(it|them|that|this|those)\b (in|in place|on|there|enabled)\b|\b(don''t|do not|never) (remove|drop|delete|disable|skip|rip out|get rid of)\b'
+  - '\b(least[- ]privilege|sandbox\w*|allow-?list\w*|read[- ]only|scoped (credentials?|tokens?|roles?|permissions?|database (users?|roles?))|canonicali[sz]\w+|realpath|resolv\w*\b[^.]{0,20}\bpaths?|parameteri[sz]ed|(human|user|manual) (approval|confirmation|review)|confirm\w*\b[^.]{0,30}\b(destructive|delet\w+|before))\b'
+must_not_include:
+  - '\A\W*(yes|yep|yeah|correct|right|exactly|absolutely|sure|good news|that''s right)\b(?![\s,!.:;-]*(not|but|no)\b)'
+  - '\bstrict\w*\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bonly\b|\bno\b|\bnothing\b|\bjust\b)[^.]){0,60}\b(makes?|means?|guarantees?|ensures?)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bonly\b|\bno\b|\bnothing\b|\bjust\b)[^.]){0,30}\b(arguments?|inputs?|calls?|values?|paths?|quer(y|ies)|it|they|everything)\b(?:(?!\bnot\b|n''t\b|\bnever\b|\bonly\b)[^.]){0,15}\b(safe|trusted|authori[sz]ed|in scope|harmless)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(you|we|i) (can|could|may) (safely |now |just |also |then )*(remove|drop|skip|delete|disable|get rid of|rip out) (the |your |all |any |that |those |these )?(server[- ]side |argument |input |extra |existing )*(validat\w+|checks?)\b|\b(no (longer )?need (for|to keep|to do)|(don''t|do not|no longer) need)\b (the |your |any |server[- ]side |argument |extra )*(validat\w+|checks?)\b|(?<!not )(?<!n''t )\b(it''s|it is|that''s|that is) (now )?(safe|fine|ok(ay)?) to (remove|drop|delete|skip|disable)\b|\bfeel free to (remove|drop|delete|skip|disable|get rid of)\b'
+  - '(?<!type )(?<!shape )(?<!format )(?<!schema )(?<!json )(?<!structural )\b(validation|validat\w+ (layer|step|code)|checks?)\b[^.]{0,20}\b(is|are) (now |completely |entirely |just )?(redundant|unnecessary|superfluous|not needed|optional)\b(?![^.]{0,40}\b(but|only|if|unless|except)\b)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'must_not_include catches only the listed phrasings of "strict mode makes the arguments safe" and "you can remove the validation"; other phrasings are caught only by rubric review.'
+notes: >
+  Exercises the Key Concept that strict tool mode guarantees argument shape and types
+  only, so argument values and authorization still need checking before a side-effecting
+  tool runs (scenario suggested by the Phase 1 reference reviewer). The sibling
+  prompt-engineering card makes the same point for structured output.

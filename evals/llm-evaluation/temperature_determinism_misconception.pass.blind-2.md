@@ -1,0 +1,1 @@
+Not quite. Even at temperature 0, outputs can differ between runs: batched GPU inference isn't bitwise deterministic because floating-point addition isn't associative, and providers can update the model behind the same name. Pin a dated snapshot, log every output, and run the eval several times to measure the noise floor before trusting small differences.

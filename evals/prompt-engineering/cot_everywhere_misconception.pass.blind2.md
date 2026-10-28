@@ -1,0 +1,1 @@
+Not as a blanket rule. CoT doesn't always improve accuracy: Wei et al. found gains only at large scale and small models can get worse. Reasoning models already think. It adds tokens and latency. Measure it on an eval set per model; it rarely, if ever, universally helps.

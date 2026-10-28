@@ -1,0 +1,1 @@
+No. Being grounded doesn't mean the answer is correct: the two sources contradict each other and the answer came from the outdated one. Use recency-aware ranking on effective dates and remove superseded versions from the index; the analysis isn't complete until conflicts are checked.

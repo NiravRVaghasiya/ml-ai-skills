@@ -1,0 +1,41 @@
+id: fabricated_citation_ids
+skill: rag-pipeline
+category: edge_case
+kind: executable
+input: |
+  The context block I send labels its sources [S1] to [S4], but the model's answer says
+  "Refunds are unlimited [S9]." The answer has a citation, so my "answer must cite a source"
+  check passes. Can I show it to the user?
+expected_behavior:
+  - 'says no: S9 was never provided, so the citation is fabricated and the claim is unsupported; a citation marker being present is not citation integrity'
+  - 'recommends checking every cited id against the source map that was actually sent (any unknown id fails), and also flagging answers with no citations and URLs that appear in no source'
+  - 'on failure, does not show the answer (returns a fallback such as "I couldn''t produce a verifiable answer"), logs the problem without the text, and hands the trace to evaluation (rag-evaluation citation correctness/faithfulness)'
+must_not:
+  - 'show the answer because it contains some citation, or silently rewrite [S9] to a real source id'
+must_include:
+  - '\b(fabricat\w+|hallucinat\w+|invent\w+|made[- ]up|bogus|non-?existent|unknown (citation|source|id)s?|does(n''t| not) exist|never (provided|sent|retrieved|supplied|in the context))\b'
+  - '\b(source[_ ]map|(provided|supplied|retrieved|sent|given) (sources?|ids?|chunks?)|(ids?|citations?|sources?|chunks?) (that )?(you |were |was )?(actually )?(sent|provided|retrieved|supplied|gave|given)|citation integrity|valid (source )?ids?|set of (source )?ids|allowed ids)\b'
+  - '\b(block\w*|withhold\w*|suppress\w*|replac\w+|fallback|fall back|don''t show|do not show|not show|reject\w*|refus\w+)\b'
+  - '\b(log\w*|trace\w*|rag-evaluation|evaluat\w+|faithful\w*|monitor\w*)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(has|contains|includes) (a |its |an? )?(citation|source)s?\b[^.]{0,40}\b(it''s|it is|that''s|is) (fine|ok|okay|safe to show|good enough)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(safe|fine|ok|okay) to (show|display|return|send)\b(?![^.]{0,40}\b(only|if|unless|once|after)\b)'
+  - '(?<!not a )(?<!n''t a )(?<!not )\b(minor|cosmetic|harmless) (formatting |numbering )?(issue|glitch|mistake|typo)\b'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!never silently )(?<!n''t silently )(?<!not silently )\b(map|remap|rewrite|re-?assign|replace|snap|coerc|swap)\w*\b[^.]{0,40}\bto (the )?(closest|nearest|most similar|best[- ]matching|last|a real|a valid|an existing|one of the|matching)\b'
+  - '\b(it''s|it is|this is|that''s|that is) (not a big deal|no big deal|not a real problem)\b'
+  - '\bblock\w*\b[^.]{0,30}\b(would|will) (hurt|harm|degrade|annoy|ruin)\b'
+executable_tests:
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_fabricated_citation_end_to_end_is_blocked'
+  - 'examples.test_rag_pipeline.TestRagPipelineFakeFaiss.test_citation_integrity'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A post-generation check result {ok: false, problems: [fabricated_citation], unknown_citations: [S9]} and a fallback answer in place of the unverifiable one'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s pipeline with a fake FAISS index, a deterministic fake encoder and a fake LLM client (no network); they prove the published code''s behavior, not that a model''s response recommends the same.'
+notes: >
+  Regression scenario from the Phase 1 rag-pipeline review (fabricated citation ids); see
+  Workflow step 8 (citation integrity). Complements prompt_injection_in_docs, which references
+  the same end-to-end test from the injection angle.

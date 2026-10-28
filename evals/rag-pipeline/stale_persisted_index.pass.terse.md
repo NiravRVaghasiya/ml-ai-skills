@@ -1,0 +1,1 @@
+The reranker isn't the problem; the index is out of sync with the encoder. Old-revision document vectors and new-revision query vectors aren't comparable even at the same width, so retrieval degrades silently. Re-embed and rebuild (or roll the encoder back), and store a manifest with the model revision that the server compares at startup, refusing to start on a mismatch.

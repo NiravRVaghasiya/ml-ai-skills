@@ -1,0 +1,1 @@
+Not quite. Temperature 0 picks the argmax token, but runs are not bit-for-bit reproducible: results depend on the numeric order of operations on the accelerator, and the provider may silently update the model behind the same name. Record the exact model identifier and keep every output, and evaluate each prompt a few times.

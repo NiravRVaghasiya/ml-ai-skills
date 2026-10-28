@@ -1,0 +1,1 @@
+Yes — the answer is grounded. It rephrases the source without adding or changing any fact; "5 to 7 business days once approved" has the same meaning as "5-7 business days after approval". Whether the policy is actually correct today is a different question from faithfulness: faithfulness only compares the answer with the retrieved text.

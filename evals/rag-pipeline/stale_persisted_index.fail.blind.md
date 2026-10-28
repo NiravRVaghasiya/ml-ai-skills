@@ -1,0 +1,1 @@
+An embedding revision mismatch could matter, but revisions of the same model family usually produce close-enough vectors. Rebuilding takes hours, so tune the reranker and increase top-k first; if quality is still down, rebuild and add a manifest check that raises at load.

@@ -1,0 +1,1 @@
+Better not to. Five of fifty rows didn't produce a usable answer, and folding them in as low scores hides that. Exclude the refusal and max_tokens rows from ROUGE and the judge, count them as incomplete in the report, and treat a nonzero count as a regression to investigate - increase max_tokens for the truncated ones and look into why those prompts were refused.

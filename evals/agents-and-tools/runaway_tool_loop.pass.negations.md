@@ -1,0 +1,1 @@
+No, that's not enough, and don't assume the model will stop because you asked. The instruction alone isn't a safeguard. Don't just raise the budget either: enforce a max_tool_calls cap and a hard cost limit in code, detect repeated identical calls, and never retry a 429 silently - back off and then fail loudly.

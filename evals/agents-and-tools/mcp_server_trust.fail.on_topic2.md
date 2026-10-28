@@ -1,0 +1,1 @@
+MCP standardizes how tools are discovered and called, and prompt injection through tool results is a known risk in general. But since this server is widely used and open source, it is safe to connect it to the agent; just give it a least-privilege token scoped to the repos it needs.

@@ -1,0 +1,3 @@
+Yes, it's faithful. The answer is a paraphrase of the retrieved sentence: "5 to 7 business days once approved" preserves the meaning of "processed within 5-7 business days after approval" - it adds no new claim and contradicts nothing. Differences in wording are not unfaithfulness; a faithfulness check should compare claims, not strings.
+
+Keep two questions separate: faithfulness asks whether the answer is supported by the retrieved context; correctness asks whether it matches reality. This answer is faithful even if the policy document itself turned out to be outdated - that would be a retrieval or content problem, not a generation problem.

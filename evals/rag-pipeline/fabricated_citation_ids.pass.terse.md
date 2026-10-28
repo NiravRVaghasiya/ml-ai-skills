@@ -1,0 +1,1 @@
+No - S9 isn't one of the sources you gave the model, so that citation is invented and the claim has no support. Validate citations against the ids you actually sent, reject the answer when any are unknown, show a "couldn't verify an answer" fallback instead, and record the failure in your eval traces.

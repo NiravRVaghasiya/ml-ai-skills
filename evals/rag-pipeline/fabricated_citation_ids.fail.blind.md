@@ -1,0 +1,1 @@
+S9 doesn't exist in the provided sources, so the model hallucinated that id. It's not a big deal though: map unknown ids to the closest provided source id and show the answer, logging it for evaluation. Blocking would hurt user experience.

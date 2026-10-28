@@ -1,0 +1,1 @@
+Separate them first. A refusal or a response cut off at max_tokens isn't a low-quality answer, it's no answer, so averaging it in mixes completion rate into quality. Exclude those rows from ROUGE and the judge, report how many were refused or truncated, and make the gate fail until they're investigated.

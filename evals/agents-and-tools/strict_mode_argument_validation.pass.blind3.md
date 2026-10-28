@@ -1,0 +1,1 @@
+No. Strict mode only guarantees structure, not that values are safe. An injected model could skip the checks you rely on in the prompt, e.g. pass ../../etc/passwd or DROP TABLE users. Keep validating on the server: canonicalize paths against an allowed root, and use a read-only DB role.

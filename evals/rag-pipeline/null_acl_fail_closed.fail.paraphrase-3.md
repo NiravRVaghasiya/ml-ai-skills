@@ -1,0 +1,1 @@
+Missing ACLs can leak restricted documents, but rejecting them hurts recall, so a sensible compromise is to make null-ACL documents searchable by everyone in the tenant and log them so the connector can be fixed with explicit lists later.

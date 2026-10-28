@@ -1,15 +1,25 @@
+id: faithfulness_case
 skill: rag-evaluation
 category: happy_path
+kind: response
 input: |
   My RAG pipeline retrieved a document saying "refunds are processed within 5-7
   business days after approval." The generated answer says "refunds take 5 to 7
   business days once approved." Is this faithful?
 expected_behavior:
-  - recognizes this as faithful/grounded: the answer is a paraphrase that preserves the retrieved claim's meaning, not an added or contradicted fact
-  - distinguishes faithfulness (matches the retrieved context) from correctness (matches reality) and does not conflate them
-  - notes that faithfulness checking does not require the underlying policy document itself to be currently accurate
+  - 'recognizes this as faithful/grounded: the answer is a paraphrase that preserves the retrieved claim''s meaning, not an added or contradicted fact'
+  - 'distinguishes faithfulness (matches the retrieved context) from correctness (matches reality) and does not conflate them'
+  - 'notes that faithfulness checking does not require the underlying policy document itself to be currently accurate'
 must_not:
-  - flag this as unfaithful merely because the wording differs from the source
+  - 'flag this as unfaithful merely because the wording differs from the source'
+must_include:
+  - '\b(is|are|it''?s|this is|looks|counts as|remains|answer is) (fully |entirely |clearly |perfectly |still )?(faithful|grounded|supported)\b|\bfaithful (paraphrase|restatement|rewording)\b|\A\W*yes\b'
+  - '\b(paraphras\w+|reword\w*|rephras\w+|same meaning|semantically (equivalent|the same|identical)|meaning[- ]preserv\w+|preserv\w+ (the )?meaning|different wording|wording (differs|is different))\b'
+  - '\b(faithful\w*|grounded\w*)\b[^.]{0,150}\b(correct\w*|accura\w+|true|reality|real world|up[- ]to[- ]date|current)\b|\b(correct\w*|accura\w+)\b[^.]{0,150}\b(faithful\w*|grounded\w*)\b'
+must_not_include:
+  - '\b(is|it''?s|this is|looks|answer is) (un-?faithful|not faithful|a hallucination|hallucinated)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
-  A true happy-path case: correct behavior here is recognizing a faithful
-  paraphrase as faithful, not over-flagging benign rewording as hallucination.
+  A true happy-path case: correct behavior here is recognizing a faithful paraphrase
+  as faithful, not over-flagging benign rewording as hallucination.

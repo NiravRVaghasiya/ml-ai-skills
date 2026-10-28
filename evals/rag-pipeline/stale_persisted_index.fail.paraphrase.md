@@ -1,0 +1,1 @@
+Since the loader didn't raise, the dimensions match, so the old vectors are still valid for the new encoder; a stale index would have errored out. Rebuilding or adding a manifest isn't needed. Adjust the reranker instead - that should fix the quality drop.

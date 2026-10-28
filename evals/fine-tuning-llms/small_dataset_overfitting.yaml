@@ -1,13 +1,34 @@
+id: small_dataset_overfitting
 skill: fine-tuning-llms
 category: edge_case
+kind: executable
 input: |
   I only have 40 labeled examples, but I want to fine-tune (LoRA) a 7B model on them for my task.
 expected_behavior:
-  - flags that 40 examples is a very small dataset for fine-tuning and raises overfitting/memorization risk
-  - discusses conditional alternatives (few-shot prompting instead of fine-tuning, data augmentation, stronger regularization/lower rank and fewer training epochs, or growing the dataset) rather than proceeding as if 40 examples were unremarkable
-  - if proceeding with fine-tuning anyway, recommends a held-out validation split despite the small size and close overfitting monitoring
+  - 'flags that 40 examples is a very small dataset for fine-tuning and raises overfitting/memorization risk'
+  - 'discusses conditional alternatives (few-shot prompting instead of fine-tuning, data augmentation, stronger regularization/lower rank and fewer training epochs, or growing the dataset) rather than proceeding as if 40 examples were unremarkable'
+  - 'if proceeding with fine-tuning anyway, recommends a held-out validation split despite the small size and close overfitting monitoring'
 must_not:
-  - proceed with a standard fine-tuning recipe without flagging the dataset-size risk
+  - 'proceed with a standard fine-tuning recipe without flagging the dataset-size risk'
+must_include:
+  - '\b(overfit\w*|over-fit\w*|memori[sz]\w+)\b'
+  - '\b(few-?shot|in-?context|prompt(ing| engineering)|retrieval|RAG|augment\w*|synthetic|paraphras\w+|collect(ing)? (more|additional)|more (labeled |labelled )?(data|examples))\b'
+  - '\b(lower (lora )?rank|small(er)? (lora )?rank|r ?= ?[1-8]\b|fewer epochs|\d[- ]\d epochs|(one|two|three|1|2|3) epochs?|early stopping|dropout|regulari[sz]\w+|(lower|smaller) learning rate|weight decay)'
+  - '\b(held-?out|hold-?out|validation (split|set|examples)|eval(uation)? (split|set)|dev set|cross-?validat\w+|leave-one-out)\b'
+must_not_include:
+  - '\b40 (labeled |labelled )?examples (is|are|should be|will be) (plenty|enough|sufficient|fine|ok|okay)\b'
+  - '\boverfit\w*\b[^.]{0,20}\b(isn''t|is not|won''t be|will not be|is rarely|is never) (really |much |a big |an? )?(concern|issue|problem|risk)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\bskip (the )?(validation|held-?out|hold-?out|eval)'
+executable_tests:
+  - 'examples.test_fine_tuning_llms.TestFineTuningLLMsExamples.test_dataset_keeps_input_field_and_holds_out_eval_split'
+  - 'examples.test_fine_tuning_llms.TestFineTuningLLMsExamples.test_trainer_trained_with_completion_only_loss_and_eval_split'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A prompt/completion dataset split into train and a non-empty held-out eval split, passed to the SFT trainer as eval_dataset'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests run the skill''s blocks with from_pretrained patched to a tiny randomly initialised Llama (no download; real 4-bit loading is not exercised) for two training steps; they prove the skill''s recipe holds out an eval split and wires it into the trainer, not that 40 examples are enough or that a response weighs the alternatives.'
 notes: >
   Tests whether the skill applies dataset-size judgment conditionally instead of
   running the same LoRA recipe regardless of scale.

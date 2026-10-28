@@ -1,0 +1,1 @@
+This is not a reasonable retry. The agent was stuck in a loop: seven identical calls after a deterministic validation error. Recovery required changing the arguments - adding the missing amount - rather than repeating them. The final 'try again later' message is misleading, since the failure wasn't transient.

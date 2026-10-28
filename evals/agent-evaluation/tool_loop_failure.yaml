@@ -1,5 +1,7 @@
+id: tool_loop_failure
 skill: agent-evaluation
 category: failure_recovery
+kind: executable
 input: |
   Here is a trajectory: the agent calls `issue_refund(order_id=4471)`, gets
   "ERROR: amount required", then calls `issue_refund(order_id=4471)` again with
@@ -7,12 +9,28 @@ input: |
   before giving up and telling the user "refund failed, please try again later."
   Evaluate this trajectory.
 expected_behavior:
-  - identifies this as a loop (identical arguments repeated after an identical error), not recovery
-  - distinguishes this from legitimate retry (which would change the arguments in response to the error, e.g. adding the missing `amount`)
-  - flags that the agent should have corrected the missing `amount` argument instead of repeating the identical failing call
-  - notes the final answer misrepresents the failure to the user (blames transient failure rather than a fixable argument error)
+  - 'identifies this as a loop (identical arguments repeated after an identical error), not recovery'
+  - 'distinguishes this from legitimate retry (which would change the arguments in response to the error, e.g. adding the missing `amount`)'
+  - 'flags that the agent should have corrected the missing `amount` argument instead of repeating the identical failing call'
+  - 'notes the final answer misrepresents the failure to the user (blames transient failure rather than a fixable argument error)'
 must_not:
-  - describe the repeated identical calls as reasonable retry behavior
+  - 'describe the repeated identical calls as reasonable retry behavior'
+must_include:
+  - '\b(loop(s|ed|ing)?|stuck|repeat(s|ed|ing)? (the )?(same|identical)|(same|identical) (calls?|arguments|args|requests?|parameters))\b'
+  - '\b(add|adding|added|supply|supplying|supplied|provide|providing|provided|include|including|included|pass|passing|fill(ing)? in|set(ting)?)\b[^.]{0,60}\bamount\b|\bamount\b[^.]{0,60}\b(should|must|needed to|need to|has to) (have )?(be(en)? )?(add|suppl|provid|includ|pass|set)\w*'
+  - '\b(chang\w+|modif\w+|adjust\w*|different|correct\w*|fix\w*|updat\w+)\b[^.]{0,40}\b(argument|arg|param\w*|input|call|request)s?\b'
+  - '\b(misleading|misrepresent\w*|inaccurate\w*|wrongly|falsely|not (a )?(transient|temporary)|isn''?t (a )?(transient|temporary)|blam\w+|dishonest\w*|misattribut\w+)\b'
+must_not_include:
+  - '\b(retr(y|ies|ied|ying)|repeat\w*|behaviou?r|approach|persisten\w+)\b[^.]{0,40}\b(is|was|were|are|seems|looks|would be) (perfectly |entirely |quite |pretty |the )?(reasonable|appropriate|sensible|fine|correct|acceptable|good|standard|right)\b(?![^.]{0,30}\b(only|when|if|but)\b)'
+  - '\b(final|closing|last) (message|answer|response|reply)\b[^.]{0,20}\b(is|was) (honest|accurate|appropriate|fine|correct|reasonable|truthful)\b(?![^.]{0,40}\b(but|only|although)\b)'
+executable_tests:
+  - 'examples.test_agent_evaluation.AgentEvaluationExampleTest.test_loop_detection_distinguishes_changed_arguments'
+  - 'examples.test_agent_evaluation.AgentEvaluationExampleTest.test_all_blocks_execute_and_report_matches_sample_trajectory'
+artifacts:
+  - 'A per-dimension trajectory report whose loop finding distinguishes identical repeats from retries with changed arguments'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s detect_loops code separates identical repeats from changed-argument retries; they do not grade the model''s prose.'
 notes: >
-  Directly exercises the loop-vs-recovery distinction from agent-evaluation
-  Workflow step 3 and Gotchas.
+  Directly exercises the loop-vs-recovery distinction from agent-evaluation Workflow
+  step 3 and Gotchas.

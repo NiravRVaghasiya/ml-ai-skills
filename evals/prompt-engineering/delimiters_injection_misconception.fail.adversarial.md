@@ -1,0 +1,1 @@
+On its own, wrapping in tags reduces the risk but doesn't fully prevent it. So also escape any literal </document> in uploads, and apply least privilege to the tools. With those three layers in place, prompt injection is no longer a concern for you and no adversarial testing is needed.

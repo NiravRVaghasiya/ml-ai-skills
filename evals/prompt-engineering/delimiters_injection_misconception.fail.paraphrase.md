@@ -1,0 +1,1 @@
+With the rule in the system prompt, the instruction is enough: modern models are trained to prioritize system instructions over document text, so you're protected. Just make sure the tags are spelled consistently.

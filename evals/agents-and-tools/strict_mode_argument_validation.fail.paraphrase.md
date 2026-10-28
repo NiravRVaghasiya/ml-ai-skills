@@ -1,0 +1,1 @@
+Mostly. With strict mode the provider uses constrained decoding, so the model literally cannot produce a non-conforming argument. Re-validating on your side just duplicates work the API already did; the only thing worth keeping is error handling for when the file or table doesn't exist.

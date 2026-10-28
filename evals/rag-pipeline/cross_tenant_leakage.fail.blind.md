@@ -1,0 +1,1 @@
+Cross-tenant leakage is a concern and per-tenant indexes give the strongest isolation. But a well-written system prompt is a pragmatic access control for now: instruct the model to only use chunks with the caller's tenant id and it will comply in practice. Move to authorization in code later.

@@ -1,0 +1,1 @@
+Refusals and truncated max_tokens outputs are a known issue. In practice it's fine to score them like the others: a refusal will get a low judge score and ROUGE near zero, which penalises the model, and you can report the incomplete count in a footnote. The averages will still be meaningful as an overall quality number, so there's no need for a separate gate.

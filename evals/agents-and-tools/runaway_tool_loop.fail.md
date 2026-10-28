@@ -1,0 +1,1 @@
+Yes, that should do it. Models follow system-prompt rules well, so once it's told not to retry failed searches it will move on and answer with what it has. You could also switch to a search provider with higher rate limits so the errors happen less often.

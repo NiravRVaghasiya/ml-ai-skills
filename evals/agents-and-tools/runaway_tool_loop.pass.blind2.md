@@ -1,0 +1,1 @@
+No. A prompt line alone is not a reliable stop condition; enforce it in the harness. Add a max of 10 tool calls per run, a token budget, and detect repeated identical calls. Handle 429 with backoff honoring Retry-After. Never increase the budget as a fix, and bumping the retry limit won't help either.

@@ -1,0 +1,1 @@
+The underlying problem is the rate limit, so the instruction plus a longer timeout should be enough. A max-iterations cap or a budget would also work, but loop detection and backoff aren't necessary once the model knows not to retry.
