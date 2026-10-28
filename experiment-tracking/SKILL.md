@@ -32,7 +32,7 @@ inputs: A training script or notebook whose hyperparameters, metrics, and artifa
 outputs: Logged, queryable runs grouped by experiment, a comparison table across runs, and a registered model version with an alias (e.g. @staging).
 version_constraints:
   - "mlflow>=2.9: `set_registered_model_alias`, `search_runs(filter_string=attributes.status ...)`, `mlflow.sklearn.autolog(log_input_examples=...)`, `runs:/<id>/model` registration, and the `runs describe` / `artifacts download -d` CLI (executed against mlflow 3.16.1 with a SQLite store on 2026-10-27; `transition_model_version_stage` carries a deprecated-since-2.9.0 decorator there; behaviour on 2.x not tested)"
-  - "mlflow==3.16.1: sklearn serialization defaults are `autolog(serialization_format='cloudpickle')` but `log_model`/`save_model(serialization_format='skops')` (read with inspect.signature and the mlflow/sklearn/__init__.py source on 2026-10-28; other releases not checked, including the one that switched log_model to skops); with skops 0.16.0, autolog(serialization_format='skops') on a RandomForestClassifier left a FAILED logged model (untrusted sklearn.tree._tree.Tree), and log_model(serialization_format='skops', skops_trusted_types=['sklearn.tree._tree.Tree']) logged and loaded one (executed 2026-10-28)"
+  - "mlflow==3.17.2: sklearn serialization defaults are `autolog(serialization_format='cloudpickle')` but `log_model`/`save_model(serialization_format=None)`, which `_get_default_serialization_format()` resolves to 'skops', or to 'cloudpickle' in a Databricks runtime or with a Databricks tracking URI (read with inspect.signature and the mlflow/sklearn/__init__.py source on 2026-10-28; 3.16.1 had the literal default 'skops'; other releases not checked); with skops 0.16.0, autolog(serialization_format='skops') on a RandomForestClassifier left a FAILED logged model (untrusted sklearn.tree._tree.Tree), and log_model(serialization_format='skops', skops_trusted_types=['sklearn.tree._tree.Tree']) logged and loaded one (executed 2026-10-28)"
   - "wandb>=0.13: `wandb.init(...)` as a context manager and `run.log` (read from the wandb 0.31.0 wheel source on 2026-10-27, where Run.__exit__ finishes with exit_code=1 on an exception; executed only against a fake module; the 0.13 minimum is not verified)"
 ---
 
@@ -169,9 +169,11 @@ that prints to stdout.
   (`transition_model_version_stage`) is deprecated since MLflow 2.9 in favour of aliases
   (step 4) and tags — don't build new automation on stages.
 - **Loading an sklearn model logged as (cloud)pickle unpickles it**, which can execute
-  arbitrary code, and the default format depends on the entry point. On MLflow 3.16.1,
-  `mlflow.sklearn.log_model`/`save_model` default to `serialization_format="skops"`, but
-  `mlflow.sklearn.autolog` defaults to `"cloudpickle"`, so step 2's model is a pickle.
+  arbitrary code, and the default format depends on the entry point. On MLflow 3.17.2,
+  `mlflow.sklearn.log_model`/`save_model` default to `serialization_format=None`, which
+  resolves to `"skops"` (but to `"cloudpickle"` on Databricks or with a Databricks tracking
+  URI), while `mlflow.sklearn.autolog` defaults to `"cloudpickle"`, so step 2's model is a
+  pickle.
   Switching autolog to `"skops"` is not a drop-in fix for tree models: autolog has no
   `skops_trusted_types`, skops treats `sklearn.tree._tree.Tree` as untrusted, and the
   random forest's logged model is left `FAILED` with no usable artifact (one warning, no

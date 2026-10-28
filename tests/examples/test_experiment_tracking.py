@@ -30,7 +30,9 @@ pick a FAILED run as "best"; step 4 used ``transition_model_version_stage``
 unfinished when logging raised. Observed 2026-10-28: the serialization gotcha called
 cloudpickle MLflow's sklearn default, but on mlflow 3.16.1 only ``autolog`` defaults to
 it (``log_model``/``save_model`` default to skops); the defaults are now checked against
-``inspect.signature``, and the gotcha's skops advice is executed.
+``inspect.signature``, and the gotcha's skops advice is executed. On mlflow 3.17.2 (the
+CI pin) the ``log_model``/``save_model`` signature default became ``None``, resolved at
+call time, so the test also logs a model without the argument and checks what was written.
 """
 from __future__ import annotations
 
@@ -203,9 +205,21 @@ class TestExperimentTrackingSkill(unittest.TestCase):
 
         text = (harness.REPO_ROOT / SLUG / "SKILL.md").read_text(encoding="utf-8")
         gotcha = " ".join(text.split("**Loading an sklearn model logged as")[1].split("\n- ")[0].split())
-        self.assertEqual(default(mlflow.sklearn.log_model), default(mlflow.sklearn.save_model))
-        self.assertIn(f'`save_model` default to `serialization_format="{default(mlflow.sklearn.log_model)}"`', gotcha)
+        log_default = default(mlflow.sklearn.log_model)
+        self.assertEqual(log_default, default(mlflow.sklearn.save_model))
+        shown = "None" if log_default is None else f'"{log_default}"'  # None: resolved at call time
+        self.assertIn(f"`save_model` default to `serialization_format={shown}`", gotcha)
         self.assertIn(f'`mlflow.sklearn.autolog` defaults to `"{default(mlflow.sklearn.autolog)}"`', gotcha)
+        # The format log_model actually writes with no argument (outside Databricks)
+        from sklearn.linear_model import LogisticRegression
+
+        clf = LogisticRegression(max_iter=200).fit(self.ns["X_train"], self.ns["y_train"])
+        with mlflow.start_run(run_name="default-format"):
+            logged = mlflow.sklearn.log_model(clf, name="model")
+        written = mlflow.models.get_model_info(logged.model_uri).flavors["sklearn"]["serialization_format"]
+        self.assertEqual(written, "skops")
+        if log_default is None:
+            self.assertIn(f'which resolves to `"{written}"`', gotcha)
         # ...and step 2's autologged model really is a pickle, as the gotcha says
         info = mlflow.models.get_model_info("models:/churn-rf-classifier@staging")
         self.assertEqual(info.flavors["sklearn"]["serialization_format"], default(mlflow.sklearn.autolog))

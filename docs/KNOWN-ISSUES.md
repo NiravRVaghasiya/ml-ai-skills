@@ -81,8 +81,11 @@ Severity is the harm if a user relies on the affected claim without knowing abou
 8. **The example venv and CI pins differ for mlflow.** The local example venv has mlflow
    3.16.1, which has three published advisories. `requirements-examples.txt` pins 3.17.2. The
    runtime-test claim `mlflow-search-runs-includes-failed-runs` in `docs/claims.json` was
-   observed on 3.16.1. The Phase 2 CI workstream reported the experiment-tracking tests
-   passing on 3.17.2 in a separate overlay, which was not re-run.
+   observed on 3.16.1. An earlier report of the experiment-tracking tests passing on 3.17.2
+   was wrong: CI failed the serialization-defaults test there. After the fix, the
+   `test_experiment_tracking` and `test_ci_cd_for_ml` modules passed against 3.17.2 in a
+   separate venv (2026-10-28). The serialization gotcha now describes 3.17.2, so on the local
+   3.16.1 venv `test_serialization_defaults_match_the_gotcha` fails as expected.
 9. **The router has known failure modes** (measured in `docs/ROUTING.md`):
    - The domain-word gate rejects clear ML requests that use none of its listed words, and
      admits off-topic text with two everyday ML words ("model railway ... train station").
