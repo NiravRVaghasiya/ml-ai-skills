@@ -9,7 +9,8 @@ repository in `docs/RELEASE.md`.
 
 Summary of the Phase 1 and Phase 2 hardening work and of the audit-fix round that followed
 an independent audit (2026-10-28). The numbers below come from the engineering reports and
-from runs on Windows 11 / Git Bash / Python 3.13 on 2026-10-27 and 2026-10-28. No GitHub Actions workflow has run yet; see `docs/KNOWN-ISSUES.md`.
+from runs on Windows 11 / Git Bash / Python 3.13 on 2026-10-27 and 2026-10-28. Of the GitHub
+Actions jobs, only the `examples` job's results have been observed; see `docs/KNOWN-ISSUES.md` #4.
 
 ### Added
 
@@ -69,6 +70,12 @@ from runs on Windows 11 / Git Bash / Python 3.13 on 2026-10-27 and 2026-10-28. N
 
 ### Changed
 
+- **README**: rewritten for first-time readers. It now opens with what a skill is, a
+  two-command quick start and a domain overview. A short checked/not-checked table
+  replaces the long Evidence and Limitations sections, and the maintainer tooling and
+  project structure are in collapsed sections. Stale numbers were dropped (24 claims, a
+  327-test run, "CI has not run"); the generated stats block and the links to
+  `docs/KNOWN-ISSUES.md` carry the details. The CI badge now shows the live workflow status.
 - **Router** (`scripts/router.py`, `docs/ROUTING.md`): rewritten from a keyword matcher into
   a deterministic lexical scorer. It uses Porter stemming, BM25-style IDF over skill
   profiles, per-field weights, a domain anchor, confidence gating and negation scoping.

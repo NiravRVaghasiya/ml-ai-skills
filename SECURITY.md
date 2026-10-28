@@ -50,8 +50,8 @@ upstream), and the behaviour of Claude Code or any other agent that loads these 
   attacker who can write the target directory during a run, and malicious `SKILL.md`
   content in a checkout you chose to install, are out of scope (`docs/INSTALLER.md`).
 - **Dependency audits are point-in-time.** CI runs `pip-audit` on the pinned and installed
-  environments. A newly published advisory is caught only on the next CI run, and the
-  workflows have not yet run on GitHub (`docs/KNOWN-ISSUES.md`).
+  environments. A newly published advisory is caught only on the next CI run, and no
+  `pip-audit` result from GitHub Actions has been recorded yet (`docs/KNOWN-ISSUES.md` #4).
 - **Release provenance shows origin, not safety.** A verified checksum and build attestation
   (`docs/RELEASE.md`) show the tarball came from this repository's release workflow at the
   tagged commit. They say nothing about whether the content is correct or safe.
