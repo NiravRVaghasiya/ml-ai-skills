@@ -238,7 +238,21 @@
       "reviewer": null,
       "status": "current",
       "last_reviewed": "2026-10-28",
-      "notes": "Run against mlflow 3.16.1 (the local example venv). requirements-examples.txt now pins 3.17.2 because of three published advisories; the Phase 2 CI workstream reported test_experiment_tracking passing 7/7 against 3.17.2, which was not re-run here. The class is opt-in: it skips unless ML_AI_SKILLS_SLOW_EXAMPLES=1 or ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1."
+      "notes": "Run against mlflow 3.16.1 (the local example venv). requirements-examples.txt now pins 3.17.2 because of three published advisories; test_experiment_tracking also passed 7/7 against mlflow 3.17.2 in a separate venv on 2026-10-28. The class is opt-in: it skips unless ML_AI_SKILLS_SLOW_EXAMPLES=1 or ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1."
+    },
+    {
+      "id": "mlflow-sklearn-log-model-default-resolves-to-skops",
+      "skill": "experiment-tracking",
+      "claim": "mlflow.sklearn.log_model/save_model default to serialization_format=None, which resolves to skops outside Databricks, while mlflow.sklearn.autolog defaults to cloudpickle",
+      "verification": "runtime-test",
+      "evidence": "tests/examples/test_experiment_tracking.py::TestExperimentTrackingSkill::test_serialization_defaults_match_the_gotcha; passed against mlflow 3.17.2 in a separate venv on 2026-10-28 (ML_AI_SKILLS_SLOW_EXAMPLES=1, Windows 11, Python 3.13.2); the Databricks branch was read from mlflow/sklearn/__init__.py (_get_default_serialization_format), not executed",
+      "source_url": null,
+      "source_accessed": null,
+      "applies_to": {"package": "mlflow", "api": "mlflow.sklearn.log_model", "version": "3.17.2"},
+      "reviewer": null,
+      "status": "current",
+      "last_reviewed": "2026-10-28",
+      "notes": "On mlflow 3.16.1 the signature default was the literal 'skops'; CI on 3.17.2 failed the earlier wording. The class is opt-in: it skips unless ML_AI_SKILLS_SLOW_EXAMPLES=1 or ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1."
     },
     {
       "id": "deeplabv3-train-mode-rejects-batch-of-one",

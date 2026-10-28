@@ -117,6 +117,13 @@ from runs on Windows 11 / Git Bash / Python 3.13 on 2026-10-27 and 2026-10-28. N
 
 ### Fixed
 
+- **experiment-tracking**: the serialization gotcha described MLflow 3.16.1, where
+  `mlflow.sklearn.log_model`/`save_model` default to `serialization_format="skops"`. The
+  pinned 3.17.2 defaults to `None`, resolved at call time to `"skops"` (`"cloudpickle"` on
+  Databricks), so the CI `examples` job failed `test_serialization_defaults_match_the_gotcha`.
+  The gotcha now describes 3.17.2. The test also logs a model without the argument and checks
+  the format that was written. `test_experiment_tracking` and `test_ci_cd_for_ml` pass
+  (22 tests) against mlflow 3.17.2 (Windows, Python 3.13.2, 2026-10-28).
 - **rag-pipeline**: `retrieve()` indexed the chunk store with every FAISS id. FAISS pads
   short results with `-1` (and returns all `-1` on an empty index), so a dict store raised
   `KeyError: -1` and a list store silently returned the last chunk. `-1` ids are now

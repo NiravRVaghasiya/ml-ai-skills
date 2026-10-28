@@ -56,7 +56,9 @@ cmdstanpy==1.3.0       # (transitive, via prophet)
 stanio==0.5.1          # (transitive, via cmdstanpy)
 # mlflow: the reported/tested version was 3.16.1; pip-audit (2026-10-27) flags it for
 # GHSA-wqmh-qccw-pqwf (fixed 3.17.2), GHSA-2wqp-q3c6-ccj5 and GHSA-j7qq-vr8c-xvw3 (fixed 3.17.0).
-# 3.17.2 passed tests/examples/test_experiment_tracking.py (7/7, slow tests enabled) locally.
+# 3.17.2 passed tests/examples/test_experiment_tracking.py (7/7) and test_ci_cd_for_ml.py
+# (slow tests enabled) in a separate venv on 2026-10-28, after the serialization gotcha was
+# updated for 3.17.2's log_model default (None, not "skops").
 mlflow==3.17.2         # heavy: large dependency tree
 pandera==0.35.0
 SQLAlchemy==2.1.6
