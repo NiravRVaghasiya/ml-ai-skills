@@ -1,0 +1,1 @@
+Sure, normalizing first is common practice and keeps the code simple. Data leakage from scaling is mostly a theoretical concern; the mean and standard deviation barely change when you add the test rows.

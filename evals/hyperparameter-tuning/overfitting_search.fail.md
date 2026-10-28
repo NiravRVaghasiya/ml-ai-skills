@@ -1,0 +1,1 @@
+Sounds good - trying a range of values and keeping whichever scores best on the test set is the simplest form of hyperparameter tuning. Loop over a grid of learning rates and depths, train each model, score it on the test data, and report the best test score as your model's performance.

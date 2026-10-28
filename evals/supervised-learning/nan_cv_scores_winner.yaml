@@ -1,0 +1,42 @@
+id: nan_cv_scores_winner
+skill: supervised-learning
+category: failure_recovery
+kind: executable
+input: |
+  My model comparison printed `svm_rbf: nan +/- nan` and `logistic: nan +/- nan` (with a
+  warning I ignored), and then `sorted(results, key=results.get, reverse=True)[0]` picked
+  "baseline" as the winner. I'll ship the top-ranked one, since that's what the code chose.
+expected_behavior:
+  - 'recognizes that nan CV scores mean the fit or the scoring failed (cross_val_score''s default error_score=np.nan turns the exception into a warning plus nan); nan is not a low score'
+  - 'explains that sorting with nan keys is order-dependent in Python (every comparison with nan is False), so the "winner" is arbitrary; here it even picked the dummy baseline'
+  - 'recommends failing loudly: check every CV score is finite before ranking (or set error_score="raise" to see the exception), fix the cause (e.g. a binary "roc_auc" scorer on a multiclass target, or a fit error), and refuse to ship a model that does not beat the dummy baseline'
+must_not:
+  - 'ship the top of a ranking that contains nan scores'
+  - 'treat nan as equivalent to a low score'
+must_include:
+  - '\bnan\b[^.]{0,80}\b(fail\w*|error\w*|exception|broke\w*|crash\w*)\b|\b(fail\w*|error\w*|exception)\b[^.]{0,80}\bnan\b|\berror_score\b'
+  - '\b(arbitrar\w+|undefined|meaningless|unreliabl\w+|order[- ]dependent|depends on (the )?(insertion |dict |input )?order|comparisons? (with|against|involving) nan|not comparable|garbage)\b'
+  - '\b(isfinite|is_finite|isnan|finite|raise\w*|refus\w+|assert\w*|fail (loudly|fast))\b'
+  - '\b(baseline|dummy\w*)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(ship|deploy|use|go with|keep)\w* (the )?(top|first|top-ranked|winning|chosen)( one| model| candidate| pick)?\b(?![^.]{0,60}\b(only|if|once|after|unless|until)\b)'
+  - '\bnan\b[^.]{0,40}\b(is|are|counts? as|just means?|means?) (just |simply )?(a |the )?(low|lowest|zero|worst|bad) (score|value|result)s?\b'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!to )(?<!of )(?<!than )\b(ship|deploy|release|go with|roll out)\w* (the )?(dummy )?baseline\b(?![^.]{0,60}\b(only|if|once|unless|until|as an? (reference|comparison|floor|yardstick)|for comparison)\b)'
+  - '\b(dummy )?baseline\b[^.]{0,30}\b(is|being|as)\b[^.]{0,30}(?<!not )(?<!n''t )(?<!not a )(?<!n''t a )\b(fine|ok|okay|acceptable|reasonable|legitimate|valid|good enough|safe to (ship|deploy|release))\b(?![^.]{0,30}\b(only|if|unless)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(treat|count|scor|rank)\w* (them|nans?|those( scores)?|these( scores)?|the nans?|nan scores) as (the )?(worst|lowest|zero|a low|low|bad|a bad)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\bgo\w* ahead with (it|that|the baseline|the dummy( baseline)?|the winner|the top\w*( one| model)?)\b(?![^.]{0,60}\b(only|if|once|after|unless|until)\b)'
+executable_tests:
+  - 'examples.test_supervised_learning.TestSupervisedLearningExamples.test_ranking_refuses_nan_scores'
+  - 'examples.test_supervised_learning.TestSupervisedLearningExamples.test_multiclass_target_with_binary_roc_auc_is_caught'
+  - 'examples.test_supervised_learning.TestSupervisedLearningExamples.test_ranking_refuses_to_ship_the_baseline'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A ranking step that raises ValueError on any non-finite CV score and refuses to fit/ship the dummy baseline as the winner'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s step 6 refuses nan scores (with the exact dict where the unguarded sort ranked "baseline" first) and refuses to ship the baseline; they do not grade the response.'
+notes: >
+  Regression scenario from the Phase 1 supervised-learning review ("nan CV scores silently
+  changing which model wins"); see Workflow step 6.

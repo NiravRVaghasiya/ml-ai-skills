@@ -1,0 +1,1 @@
+Yes, that's fine. Clustering has no target variable, so there's no risk of leakage and nothing to normalize against. k=6 from the elbow is a sensible choice - the elbow method is the standard way to choose the number of clusters. Run `KMeans(n_clusters=6)` and profile each segment by its average age and income.

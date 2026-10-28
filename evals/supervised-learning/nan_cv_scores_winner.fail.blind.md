@@ -1,0 +1,1 @@
+The nan values come from a scoring error, and sorting nan is arbitrary in principle, but the baseline being on top is fine here. Deploy the baseline for now and fix the SVM later; check isfinite next time.

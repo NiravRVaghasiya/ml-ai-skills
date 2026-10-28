@@ -1,0 +1,1 @@
+Yes, that's fine in practice. Normalizing the whole dataset first is simpler: run StandardScaler on all rows, then call train_test_split. The scaler only computes a mean and a standard deviation, so the effect on your results is negligible for any reasonably sized dataset. Leakage is a minor concern here compared with getting the model trained.

@@ -1,13 +1,34 @@
+id: high_cardinality
 skill: feature-engineering
 category: edge_case
+kind: executable
 input: |
   I have a "zip code" column with 9,000 unique values. One-hot encode it like my other categoricals, right?
 expected_behavior:
-  - identifies that one-hot encoding a 9,000-category column will blow up dimensionality and produce a mostly-empty sparse matrix
-  - recommends an alternative appropriate to high cardinality (target/mean encoding with cross-validated leakage guards, hashing, frequency encoding, or embedding-based approaches) conditionally, not as one universal answer
-  - flags leakage risk specifically for target encoding if that's suggested (must be fit on training folds only)
+  - 'identifies that one-hot encoding a 9,000-category column will blow up dimensionality and produce a mostly-empty sparse matrix'
+  - 'recommends an alternative appropriate to high cardinality (target/mean encoding with cross-validated leakage guards, hashing, frequency encoding, or embedding-based approaches) conditionally, not as one universal answer'
+  - 'flags leakage risk specifically for target encoding if that''s suggested (must be fit on training folds only)'
 must_not:
-  - recommend plain one-hot encoding for a 9,000-category column without caveats
+  - 'recommend plain one-hot encoding for a 9,000-category column without caveats'
+must_include:
+  - '\b(dimension\w*|sparse|sparsity|(9,?000|thousands of) (new |mostly[- ]\w+ )?(columns|features|dimensions)|too many columns|blow(s|ing)? up|explod\w+|memory)\b'
+  - '\b(target[- ]encod\w+|mean[- ]encod\w+|hash\w*|frequency[- ]encod\w+|count[- ]encod\w+|embeddings?|TargetEncoder|CatBoost|group\w* (rare|infrequent)|(rare|infrequent)[- ](categor\w+|levels?)|coarsen\w*|(3|three)[- ]digit)\b'
+  - '\b(leak\w*|out-of-fold|cross[- ]fit\w*|training folds?|within (each )?(cv )?folds?)\b|\bfit\w* (only )?on (the )?train\w*'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\bone-?hot (encod\w+ )?(is|works|will work|should work|would work) (fine|ok|okay|well|great)\b(?![^.]{0,40}\b(only|unless|if|for low)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!don''t )\bone-?hot[- ]encode (it|zip\w*( codes?)?|the (zip\w*( codes?)?|column|feature))\b[^.]{0,20}\blike (your|the|any) other'
+  - '\b(libraries|scikit-learn|sklearn|it|that|memory)\b[^.]{0,30}\b(handles?|handled|can handle) (that|it|this|thousands of columns) (fine|well|without (trouble|problems?|issues?))|\bmemory (won''t|will not) be a problem\b(?![^.]{0,40}\b(but|however|though)\b)'
+executable_tests:
+  - 'examples.test_feature_engineering.FeatureEngineeringExampleTest.test_target_encoder_gotcha_fit_then_transform_is_not_cross_fitted'
+  - 'examples.test_feature_engineering.FeatureEngineeringExampleTest.test_full_workflow_runs'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A leakage-checked encoding step (cross-fitted TargetEncoder) inside a reusable Pipeline'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s claim that TargetEncoder.fit_transform cross-fits while fit().transform() does not; they do not grade the response.'
 notes: >
   Tests whether the skill applies the "high cardinality -> not one-hot" guidance
   conditionally and correctly, including catching the leakage risk that target

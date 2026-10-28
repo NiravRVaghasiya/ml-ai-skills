@@ -1,0 +1,1 @@
+No - it isn't a fair final number. Choosing between the raw and calibrated models on the test set means the test set is no longer untouched, so the score you report is optimistically biased. Don't make the choice there: compare out-of-fold Brier on the training data (cross_val_predict), then score the chosen model once on the test set.

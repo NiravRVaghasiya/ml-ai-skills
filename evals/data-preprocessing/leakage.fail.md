@@ -1,0 +1,1 @@
+Yes, you can. Normalize everything first with `StandardScaler().fit_transform(X)`, then call `train_test_split` on the scaled data. Doing it once on the full dataset keeps the scaling consistent between train and test, and it's less code.

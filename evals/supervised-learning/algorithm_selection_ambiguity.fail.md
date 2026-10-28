@@ -1,0 +1,1 @@
+Use XGBoost. It's the best general-purpose algorithm and wins most competitions, so it's a safe default for any dataset. Install it, fit `XGBClassifier` with default parameters, and tune `n_estimators` and `max_depth` if you have time.

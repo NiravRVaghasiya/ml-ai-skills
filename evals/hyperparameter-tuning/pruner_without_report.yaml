@@ -1,0 +1,41 @@
+id: pruner_without_report
+skill: hyperparameter-tuning
+category: misconception
+kind: executable
+input: |
+  I added `pruner=optuna.pruners.MedianPruner(n_warmup_steps=5)` to my study. My objective
+  returns `cross_val_score(model, X, y, cv=5).mean()`. Optuna will now kill the bad trials early
+  and save me compute, right?
+expected_behavior:
+  - 'says no: a pruner only acts on intermediate values the objective reports with trial.report(value, step) and checks with trial.should_prune(); an objective that only returns a final mean gives it nothing to compare, so every trial runs to completion'
+  - 'describes the fix: evaluate fold by fold (or epoch by epoch), report the running mean after each step, and raise optuna.TrialPruned when should_prune() is true'
+  - 'notes that n_warmup_steps=5 with only 5 reported steps (0-4) disables pruning on its own: the warm-up must be smaller than the number of reported steps'
+must_not:
+  - 'confirm that attaching the pruner alone will prune trials'
+must_include:
+  - '\btrial\.report\b|\breport\w* (the )?(intermediate|running|per-fold|partial)\b|\bintermediate (values?|scores?|results?)\b'
+  - '\bshould_prune\b|\bTrialPruned\b'
+  - '\bn_warmup_steps\b|\bwarm-?up\b'
+  - '\b(never|won''t|will not|doesn''t|does not|can''t|cannot|can not) (actually |ever )?(prune|stop|kill)\w*\b|\bnothing to (prune|compare)\b|\bruns? (every|each|all) trials? to completion\b|\bnever (fires|triggers|kicks in|acts|gets to prune)\b|\b(trials?|it|they) runs? in full\b|\bnothing (ever )?gets pruned\b|\bno trials? (is|are|gets?|will be) (ever )?pruned\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(the )?(pruner|optuna|MedianPruner)\b[^.]{0,20}\b(will|should|would) (now )?(automatically )?(prune|stop|kill|cut|terminate)\b(?![^.]{0,60}\b(only|if|once|after|unless|as long as)\b)'
+  - '\b(no need|(don''t|do not) (need|have)|needn''t|won''t need|will not need) to (call |add |use )?(trial\.report|report|should_prune|change (the|your) objective)'
+  - '\A\W*(mostly|basically|essentially|largely) (yes|correct|right)\b'
+  - '(?<!n''t )(?<!not )\bpruning (is|will be) (already )?(active|working|on|enabled|happening)\b(?![^.]{0,40}\b(only|if|once|after)\b)'
+  - '(?<!n''t )(?<!not )(?<!nothing )(?<!never )\b(feeds?|records?|reports?|collects?|passes)\b[^.]{0,60}\b(automatically|for you|on its own)\b'
+  - '\bn_warmup_steps ?= ?5\b[^.]{0,40}\b(is|looks) (fine|ok|okay|reasonable|good)\b'
+executable_tests:
+  - 'examples.test_hyperparameter_tuning.TestHyperparameterTuningExamples.test_optuna_objective_feeds_the_pruner'
+  - 'examples.test_hyperparameter_tuning.TestHyperparameterTuningExamples.test_pruner_prunes_a_trial_below_the_median'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'An Optuna study whose trials each report one intermediate value per CV fold, with a MedianPruner (n_warmup_steps=1) that prunes a trial below the median'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests need optuna in the example environment (skipped, never passed, without it); they prove the skill''s objective feeds the pruner and that a below-median trial is pruned, not that a response writes equivalent code.'
+notes: >
+  Regression scenario from the Phase 1 hyperparameter-tuning review: the original objective
+  returned cross_val_score(...).mean() without trial.report, so MedianPruner never pruned. See
+  the "Attaching a pruner without reporting" Gotcha.

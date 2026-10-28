@@ -1,0 +1,54 @@
+{
+  "skill": "supervised-learning",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Which model should I use for my dataset? (no details given)",
+      "expected_outcome": "Asks about task type, data size, feature types and constraints, or states assumptions before recommending"
+    },
+    {
+      "task": "Compare a few classifiers on a tabular dataset",
+      "expected_outcome": "Baseline plus candidates ranked by cross-validated score"
+    },
+    {
+      "task": "Ship the top of a model ranking that contains nan CV scores",
+      "expected_outcome": "Refuses: nan means failed fits/scoring, the nan sort is arbitrary; check finiteness, fix the cause, never ship the dummy baseline"
+    }
+  ],
+  "negative_cases": [
+    "algorithm_selection_ambiguity",
+    "nan_cv_scores_winner",
+    "Request to pick the model with the best training-set accuracy (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Clarifies or states assumptions",
+    "Conditional recommendation",
+    "Baseline-first comparison",
+    "Non-finite CV scores stop the comparison instead of silently changing the winner"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, scikit-learn) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Ranking step that raises on non-finite CV scores and on a baseline winner"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Building features (feature-engineering)",
+    "Rigorous model comparison (model-evaluation)",
+    "Hyperparameter tuning (hyperparameter-tuning)"
+  ]
+}

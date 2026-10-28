@@ -1,15 +1,35 @@
+id: leakage
 skill: data-preprocessing
 category: misconception
+kind: executable
 input: |
   I have train and test data. Can I normalize the whole dataset before splitting?
 expected_behavior:
-  - identifies that fitting a scaler/encoder on the combined train+test data leaks test-set statistics into training
-  - explains concretely what leaks (e.g. test-set mean/std influencing the scaler, or test categories influencing an encoder)
-  - recommends splitting first, then fitting transformations on the training split only
-  - shows or references a Pipeline/ColumnTransformer approach that enforces fit-on-train-only
+  - 'identifies that fitting a scaler/encoder on the combined train+test data leaks test-set statistics into training'
+  - 'explains concretely what leaks (e.g. test-set mean/std influencing the scaler, or test categories influencing an encoder)'
+  - 'recommends splitting first, then fitting transformations on the training split only'
+  - 'shows or references a Pipeline/ColumnTransformer approach that enforces fit-on-train-only'
 must_not:
-  - say it is fine or "usually fine" to normalize before splitting
-  - present leakage as a minor/cosmetic issue rather than a correctness bug
+  - 'say it is fine or "usually fine" to normalize before splitting'
+  - 'present leakage as a minor/cosmetic issue rather than a correctness bug'
+must_include:
+  - '\b(leak\w*|contaminat\w+|data snooping|peek\w*)\b'
+  - '\b(test|held-?out|holdout|validation)\b[^.]{0,80}\b(means?|std|standard deviations?|variance|min(imum)?|max(imum)?|statistics|stats|distribution|quantiles?|categor(y|ies)|medians?)\b|\b(mean|std|standard deviation|variance|min|max|statistics|stats|categories)\b[^.]{0,80}\b(test|held-?out|holdout)\b'
+  - '\b(fit|fits|fitted|fitting|learn\w*|comput\w+|estimat\w+|calculat\w+)\b[^.]{0,60}\b(on|from|using) (only )?(the )?train\w*'
+  - '\b(pipeline|columntransformer|make_pipeline)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(it''s|it is|that''s|that is|this is) (usually |generally |mostly |perfectly |totally |probably )?(fine|ok|okay|safe|harmless) to (normali[sz]e|scale|standardi[sz]e)\b'
+  - '\b(effect|impact|bias|difference|optimism|leak\w*)\b[^.]{0,30}\b(is|are|will be|would be) (usually |generally |typically |mostly |probably )?(a )?(negligible|minor|tiny|insignificant)\b(?![^.]{0,40}\b(only|unless|except|but)\b)'
+executable_tests:
+  - 'examples.test_data_preprocessing.DataPreprocessingExampleTest.test_full_workflow_runs_and_generalizes_to_unseen_categories'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A fitted scikit-learn Pipeline/ColumnTransformer (fit on the training split only) persisted as model.joblib'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable test proves the skill''s published Pipeline workflow runs and generalizes to unseen categories; it does not prove a given response wrote equivalent code.'
 notes: >
   The single most common leakage mistake; this is the worked example given in the
   mission brief itself. See data-preprocessing/SKILL.md Gotchas, item 1.

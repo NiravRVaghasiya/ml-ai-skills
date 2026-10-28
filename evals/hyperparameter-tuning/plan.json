@@ -1,0 +1,54 @@
+{
+  "skill": "hyperparameter-tuning",
+  "type": "workflow",
+  "representative_tasks": [
+    {
+      "task": "Tune hyperparameters by checking the test-set score",
+      "expected_outcome": "Explains the optimistic bias, moves the search to CV/validation, keeps the test set for one final evaluation, mentions nested CV"
+    },
+    {
+      "task": "Tune a gradient-boosting model with Optuna",
+      "expected_outcome": "A search with pruning whose reported estimate comes from nested CV"
+    },
+    {
+      "task": "Attach MedianPruner to an objective that only returns cross_val_score(...).mean()",
+      "expected_outcome": "Explains the pruner never acts without trial.report/should_prune, shows per-fold reporting, and flags n_warmup_steps >= number of steps"
+    }
+  ],
+  "negative_cases": [
+    "overfitting_search",
+    "pruner_without_report",
+    "Request to report the best inner-CV score as the generalization estimate (planned)"
+  ],
+  "assertion_strategy": [
+    "hard-assertions",
+    "executable",
+    "rubric"
+  ],
+  "rubric": [
+    "Test-set reuse identified as biasing",
+    "Search uses CV or a validation split",
+    "Nested CV for limited data",
+    "Pruning requires reported intermediate values and a warm-up below the number of steps"
+  ],
+  "prerequisites": [
+    "example-deps (numpy, scikit-learn, scipy; optuna for some tests) for executable tests"
+  ],
+  "execution_constraints": [
+    "Offline grading and fixture self-tests need only Python 3.10+ stdlib and no network.",
+    "Executable tests need the example-test dependencies (see docs/EXAMPLE-TESTS.md) and run via run_evals.py --run-executable.",
+    "Model-mode runs need --provider anthropic --model <id> --allow-network and ANTHROPIC_API_KEY; they cost money and are not deterministic."
+  ],
+  "expected_artifacts": [
+    "Nested-CV estimate that is finite on every outer fold",
+    "Optuna study whose trials report one intermediate value per CV fold, with a below-median trial pruned"
+  ],
+  "known_limitations": [
+    "Hard assertions are regexes over the response text: they verify that key concepts are stated, not that the reasoning connecting them is correct.",
+    "No baseline (with-skill vs without-skill) has been measured for this skill; any uplift claim requires a recorded or model run."
+  ],
+  "unsupported_use_cases": [
+    "Choosing the optimization metric (model-evaluation)",
+    "Choosing the model family (supervised-learning)"
+  ]
+}

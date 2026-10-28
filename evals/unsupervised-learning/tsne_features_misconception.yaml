@@ -1,0 +1,37 @@
+id: tsne_features_misconception
+skill: unsupervised-learning
+category: misconception
+kind: response
+input: |
+  My t-SNE plot of 20-dimensional customer features shows four clean, well-separated
+  clusters. I want to (1) feed the two t-SNE coordinates into my churn classifier as
+  features, and (2) tell stakeholders that cluster A is about twice as far from cluster B as
+  from cluster C. Both sound reasonable, right?
+expected_behavior:
+  - 'says no to both: t-SNE preserves local neighbourhoods but distorts global geometry, so inter-cluster distances, cluster sizes and densities in the plot are not meaningful'
+  - 'says t-SNE/UMAP output is for visual inspection only, not model input: the embedding is stochastic and perplexity-dependent, and scikit-learn''s TSNE has no transform for new points, so it cannot be applied consistently to new customers at prediction time'
+  - 'offers alternatives: PCA (fit inside the classifier''s Pipeline on training folds) for compressed features, and validating the clusters in the scaled original space (e.g. silhouette) rather than on the plot'
+  - 'if a quantitative statement is needed, suggests computing distances between centroids in the scaled original feature space'
+must_not:
+  - 'endorse using t-SNE coordinates as classifier features'
+  - 'endorse the "twice as far" claim or any quantitative reading of t-SNE inter-cluster distances'
+must_include:
+  - '\b(distort\w*|artifacts?|meaningless|not (meaningful|faithful|reliable|preserved|interpretable)|(doesn''t|does not|don''t|do not|won''t|isn''t|is not)( really| necessarily)? (preserv\w*|mean\w*|reflect\w*|keep\w*|retain\w*)|local (structure|neighbou?rhoods?))\b'
+  - '\b(PCA|principal components?( analysis)?|TruncatedSVD)\b'
+  - '\b(no|doesn''t have an?|does not have an?|lacks an?|has no|without an?|there is no|there''s no) (\.)?transform\b|\btransform\(\)|\b(new|unseen|future|incoming|test|inference)[- ](points?|data|samples?|rows?|customers?)\b|\b(stochastic|non-?deterministic|perplexity)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|of course|both (sound|are|seem) (reasonable|fine|good))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )\b(t-?SNE|embedding|2-?D)( coordinates| outputs?| components| dimensions| embeddings?)?\b[^.]{0,20}\b(make|makes|are|is|would be|would make|can be|work as) (great|good|fine|excellent|useful|ideal|compact|strong|informative|reasonable|solid)( input)? (features?|inputs?|predictors?)\b'
+  - '\b(t-?SNE|it)\b[^.]{0,20}(?<!n''t )(?<!not )(?<!never )\b(preserves?|keeps|retains|maintains|reflects)\b (the )?(global|inter-?cluster|pairwise|relative|between-cluster) (distances?|structure|geometry|spacing|layout)\b'
+  - '(?<!n''t )(?<!not )(?<!never )\b(you can|it''s (fine|safe|valid|reasonable) to|go ahead and|feel free to) (tell|report|claim|say|state|present)\b[^.]{0,60}\btwice\b'
+  - '\btwice as far\b[^.]{0,40}\b(is|seems|looks) (a )?(fair|reasonable|valid|accurate|correct|safe)\b'
+  - '(?<!n''t )(?<!not )\b(relative )?(positions|distances|layout|spacing|gaps)\b[^.,;]{0,20}\b(are|is) (good|accurate|close|reliable|faithful) enough\b'
+  - '\b(tsne_?[12]|t-?SNE (coordinates|dimensions|components|outputs?|embeddings?|axes))\b[^.]{0,60}\b(inputs?|features?|predictors?)\b[^.]{0,20}\b(should|will|would|could|can|might) (help|improve|boost|add signal)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The third assertion accepts any of "no transform for new points", "stochastic" or "perplexity"; it does not check that the response connects them to inference-time inconsistency.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  scikit-learn's sklearn.manifold.TSNE has fit/fit_transform but no transform method (checked
+  in the example venv: hasattr(TSNE, "transform") is False). See unsupervised-learning/SKILL.md
+  workflow step 6 and Gotchas, "Treating t-SNE/UMAP distances as meaningful".

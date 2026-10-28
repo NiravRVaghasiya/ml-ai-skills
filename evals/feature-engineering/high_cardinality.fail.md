@@ -1,0 +1,1 @@
+Yes, one-hot encoding works fine here. Use `OneHotEncoder(handle_unknown="ignore")` and keep the output sparse so it fits in memory; scikit-learn handles thousands of columns without trouble. Treat zip code like any other categorical so your preprocessing stays consistent.

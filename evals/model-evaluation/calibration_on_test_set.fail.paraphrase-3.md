@@ -1,0 +1,1 @@
+It technically introduces some optimistic bias, but that's a standard approach in practice and the effect would be minimal for one decision. Pick whichever has the lower Brier on the test set and report that once at the end.

@@ -1,0 +1,1 @@
+Strictly speaking that leaks a little test information, and cross-validation would avoid it, but for a single calibrate-or-not choice the effect is negligible. Your approach is fine as it stands; report the test Brier score once.

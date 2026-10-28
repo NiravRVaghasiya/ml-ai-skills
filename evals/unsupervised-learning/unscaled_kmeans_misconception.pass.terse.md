@@ -1,0 +1,1 @@
+No. KMeans is distance-based, so unscaled income (hundreds of thousands) swamps age and the clusters will mostly be income tiers. Put both columns through a z-score transform first. And instead of eyeballing the elbow, pick k by comparing silhouette (or Calinski-Harabasz) across candidates, then sanity-check the cluster sizes.

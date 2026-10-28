@@ -1,0 +1,1 @@
+The nan means those models errored during cross-validation, and the sort order with nan is arbitrary, so the ranking is unreliable. Still, the baseline is a perfectly acceptable model to release while you debug; add an isfinite check later.

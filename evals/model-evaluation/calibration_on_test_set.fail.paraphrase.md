@@ -1,0 +1,1 @@
+Picking calibration on the test set technically biases the estimate, but it's only one binary choice, so the effect is negligible. Out-of-fold predictions or a separate validation split are more work than they're worth here; the test set is still unbiased enough to report the Brier score once.

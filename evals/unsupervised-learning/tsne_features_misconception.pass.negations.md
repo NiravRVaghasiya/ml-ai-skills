@@ -1,0 +1,1 @@
+No. t-SNE does not preserve global distances, and it doesn't keep cluster sizes either, so you can't claim A is twice as far from B as from C. The coordinates aren't good features: they're stochastic and there's no transform for unseen customers. Never feed them to the classifier; use PCA in the pipeline instead.

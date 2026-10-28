@@ -1,0 +1,1 @@
+Yes, MedianPruner will prune: it compares intermediate values across trials, and Optuna derives those from cross_val_score automatically. TrialPruned and should_prune are handled internally, and n_warmup_steps=5 is fine.

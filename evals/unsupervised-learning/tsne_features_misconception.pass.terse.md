@@ -1,0 +1,1 @@
+No to both. t-SNE keeps local neighbourhoods but its global layout is not meaningful, so inter-cluster distances and sizes can't be quoted. As model input it's also unusable: there is no way to embed new data into an existing t-SNE map. Use principal components (fit within the model pipeline) for features, and measure cluster separation in the original scaled space.

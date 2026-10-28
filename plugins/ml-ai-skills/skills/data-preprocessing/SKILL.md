@@ -13,7 +13,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - missing-value-imputation
   - categorical-encoding
@@ -29,8 +29,8 @@ related:
 inputs: A raw tabular dataset (pandas DataFrame) with a defined target column, not yet split or transformed.
 outputs: A fitted scikit-learn Pipeline/ColumnTransformer that turns raw rows into a clean numeric matrix, plus a persisted joblib artifact.
 version_constraints:
-  - "scikit-learn: ColumnTransformer + OneHotEncoder(handle_unknown='ignore') API stable since 0.20+ — not live-verified this pass"
-  - "scikit-learn: SimpleImputer stable since 0.20+ — not live-verified this pass"
+  - "scikit-learn>=1.1: ColumnTransformer, SimpleImputer, OneHotEncoder(handle_unknown='ignore'), FunctionTransformer(feature_names_out=...) (added in 1.1) (executed against scikit-learn 1.9.0 on 2026-10-28; 1.1 lower bound not verified)"
+  - "pandas>=1.0: DataFrame.select_dtypes, DataFrame.mask, fillna (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified; pandas 3 not executed, its release notes deprecate select_dtypes object matching the new str dtype)"
 ---
 
 ## Overview
@@ -52,6 +52,7 @@ production data. The golden rule: **fit on train only, transform everywhere.**
    leaks test information. Split first, then fit only on train.
    ```python
    from sklearn.model_selection import train_test_split
+   X, y = df.drop(columns="target"), df["target"]     # "target" = your label column
    X_train, X_test, y_train, y_test = train_test_split(
        X, y, test_size=0.2, stratify=y, random_state=42)
    ```
@@ -60,20 +61,35 @@ production data. The golden rule: **fit on train only, transform everywhere.**
    ```python
    num_cols = X_train.select_dtypes("number").columns.tolist()
    cat_cols = X_train.select_dtypes(["object", "category"]).columns.tolist()
+   # ColumnTransformer silently DROPS unlisted columns (remainder="drop"); bool,
+   # datetime and pandas "string"-dtype columns match neither list, so fail loudly.
+   unassigned = X_train.columns.difference(num_cols + cat_cols).tolist()
+   if unassigned:
+       raise ValueError(f"unassigned columns {unassigned}: cast them (bool: .astype(int); "
+                        "string: .astype(object).fillna(np.nan)) or drop them explicitly")
    ```
 4. **Build per-type pipelines.** Impute → scale for numeric; impute → encode for
    categorical. Bundle in a `ColumnTransformer`.
    ```python
+   import numpy as np
+   import pandas as pd
    from sklearn.pipeline import Pipeline
    from sklearn.compose import ColumnTransformer
    from sklearn.impute import SimpleImputer
-   from sklearn.preprocessing import StandardScaler, OneHotEncoder
+   from sklearn.preprocessing import FunctionTransformer, StandardScaler, OneHotEncoder
 
    numeric = Pipeline([
        ("impute", SimpleImputer(strategy="median")),
        ("scale", StandardScaler()),
    ])
+   # SimpleImputer's default missing_values=np.nan does not match None (what JSON rows
+   # hold in object columns), so map None -> NaN as a pipeline step: the persisted
+   # artifact then does it at serving time too. mask keeps the dtype (fillna(np.nan)
+   # can downcast numeric-code object columns to float); pandas callables pickle cleanly.
+   none_to_nan = FunctionTransformer(pd.DataFrame.mask, kw_args={"cond": pd.isna, "other": np.nan},
+                                     feature_names_out="one-to-one")
    categorical = Pipeline([
+       ("none_to_nan", none_to_nan),
        ("impute", SimpleImputer(strategy="most_frequent")),
        ("encode", OneHotEncoder(handle_unknown="ignore")),
    ])
@@ -96,6 +112,8 @@ production data. The golden rule: **fit on train only, transform everywhere.**
    ```python
    import joblib
    joblib.dump(clf, "model.joblib")
+   # joblib.load unpickles, which can execute arbitrary code: load only artifacts you
+   # produced, with the same scikit-learn version that dumped them.
    ```
 
 ## Gotchas

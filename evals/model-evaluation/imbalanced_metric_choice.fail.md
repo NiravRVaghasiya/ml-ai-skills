@@ -1,0 +1,1 @@
+Yes, 99.4% accuracy is excellent - most production classifiers would be happy with that. You could compare a couple of other algorithms to see if you can push accuracy above 99.5%, but this model is ready to ship.

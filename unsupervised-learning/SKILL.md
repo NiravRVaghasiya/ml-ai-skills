@@ -13,7 +13,7 @@ level: intermediate
 lifecycle: stable
 risk_level: low
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - kmeans-clustering
   - cluster-count-selection
@@ -29,6 +29,8 @@ related:
   - supervised-learning
 inputs: A scaled numeric feature matrix with no target labels.
 outputs: Cluster assignments or a reduced-dimension embedding, plus diagnostics (silhouette score, explained variance) justifying the choice.
+version_constraints:
+  - "scikit-learn>=1.2: KMeans(n_init=10), silhouette_score(sample_size=, random_state=), DBSCAN, NearestNeighbors, PCA(n_components=0.95), TSNE(perplexity=) (executed against scikit-learn 1.9.0 on 2026-10-27; lower bound not verified)"
 ---
 
 ## Overview
@@ -50,15 +52,25 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
    ```
 2. **Choose a cluster count with silhouette score, not inertia alone.** Inertia
    (within-cluster sum of squares) always decreases as k grows, so its "elbow" is
-   often ambiguous — silhouette score has a real optimum.
+   often ambiguous — silhouette score has a maximum you can read off (though,
+   like KMeans, it favors convex clusters).
    ```python
+   import numpy as np
    from sklearn.cluster import KMeans
    from sklearn.metrics import silhouette_score
 
+   n = X_scaled.shape[0]
    scores = {}
-   for k in range(2, 10):
+   # silhouette_score needs 2 <= n_labels <= n_samples - 1, so cap k below n.
+   for k in range(2, min(10, n)):
        km = KMeans(n_clusters=k, n_init=10, random_state=42).fit(X_scaled)
-       scores[k] = silhouette_score(X_scaled, km.labels_)
+       if len(np.unique(km.labels_)) < k:   # duplicate rows -> fewer real clusters than k
+           continue
+       # Silhouette is O(n^2) in time; sample_size bounds the cost on large data.
+       scores[k] = silhouette_score(X_scaled, km.labels_,
+                                    sample_size=min(n, 10_000), random_state=42)
+   if not scores:
+       raise ValueError("no k produced a valid clustering — too few distinct rows")
    best_k = max(scores, key=scores.get)
    print(scores, "-> best k:", best_k)
    ```
@@ -66,8 +78,6 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
    produces one giant cluster and several singletons is usually not useful —
    sanity-check the split.
    ```python
-   import numpy as np
-
    kmeans = KMeans(n_clusters=best_k, n_init=10, random_state=42)
    labels = kmeans.fit_predict(X_scaled)
    print(np.bincount(labels))
@@ -76,15 +86,21 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
    convex, similarly-sized clusters; `DBSCAN` finds arbitrary shapes and flags
    outliers as noise (`label == -1`) instead of forcing them into a cluster.
    ```python
+   import numpy as np
    from sklearn.cluster import DBSCAN
    from sklearn.neighbors import NearestNeighbors
 
-   # Rough eps heuristic: look at the k-distance elbow for k = min_samples.
-   neighbors = NearestNeighbors(n_neighbors=5).fit(X_scaled)
+   min_samples = 5
+   # Rough eps heuristic: a high percentile of each point's distance to its
+   # min_samples-th neighbor (the query point counts as its own first neighbor,
+   # matching DBSCAN's core-point rule). Plot the sorted curve to refine.
+   neighbors = NearestNeighbors(n_neighbors=min_samples).fit(X_scaled)
    distances, _ = neighbors.kneighbors(X_scaled)
    eps_guess = np.percentile(distances[:, -1], 90)
+   if eps_guess <= 0:   # DBSCAN rejects eps=0; happens when most rows are duplicates
+       raise ValueError("k-distance is 0 — deduplicate rows (or pass sample_weight) first")
 
-   dbscan = DBSCAN(eps=eps_guess, min_samples=5)
+   dbscan = DBSCAN(eps=eps_guess, min_samples=min_samples)
    db_labels = dbscan.fit_predict(X_scaled)
    print("clusters:", len(set(db_labels)) - (1 if -1 in db_labels else 0),
          "noise points:", (db_labels == -1).sum())
@@ -92,7 +108,9 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
 5. **Reduce dimensionality with PCA, choosing components by explained variance.**
    Use this for compression or as a preprocessing step before a downstream model —
    PCA components preserve global linear structure and Euclidean distances are
-   still meaningful in the reduced space.
+   still meaningful in the reduced space. When the output feeds a supervised
+   model, put the scaler and PCA inside that model's `Pipeline` so they are fit
+   on training folds only (see `data-preprocessing`).
    ```python
    from sklearn.decomposition import PCA
 
@@ -107,7 +125,10 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
    ```python
    from sklearn.manifold import TSNE
 
-   X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X_scaled)
+   # perplexity must be < n_samples. For very wide data, sklearn recommends
+   # reducing to ~50 dims with PCA first (faster and less noisy).
+   perplexity = min(30, X_scaled.shape[0] - 1)
+   X_tsne = TSNE(n_components=2, perplexity=perplexity, random_state=42).fit_transform(X_scaled)
    # plot X_tsne[:, 0] vs X_tsne[:, 1], colored by `labels` from step 3, purely for inspection
    ```
 
@@ -126,10 +147,17 @@ before reaching for non-linear visualization tools like t-SNE/UMAP.
   roughly equal-variance, convex clusters and will slice an elongated or crescent-
   shaped group in half. Check the assumption or switch to `DBSCAN`/Gaussian
   mixtures.
-- **The curse of dimensionality.** In high-dimensional raw feature spaces, all
-  pairwise distances converge, making both clustering and kNN-style methods
-  unreliable — run PCA (or feature selection, see `feature-engineering`) first if
-  you have hundreds of columns.
+- **The curse of dimensionality.** In high-dimensional raw feature spaces,
+  pairwise distances tend to concentrate (nearest and farthest neighbors look
+  alike) unless the data lies near a low-dimensional structure, which makes
+  clustering and kNN-style methods less reliable — as a rule of thumb, with
+  hundreds of columns consider PCA (or feature selection, see
+  `feature-engineering`) first.
+- **Silhouette on large data or degenerate inputs.** Full `silhouette_score` is
+  quadratic in the number of rows (pass `sample_size`), and it raises when the
+  clustering has fewer than 2 or more than `n_samples - 1` labels — which
+  happens when k approaches n or duplicate rows make KMeans return fewer
+  distinct clusters than requested (it emits a `ConvergenceWarning`).
 
 ## References
 - [scikit-learn: Clustering](https://scikit-learn.org/stable/modules/clustering.html) — algorithm comparison table and assumptions per method.

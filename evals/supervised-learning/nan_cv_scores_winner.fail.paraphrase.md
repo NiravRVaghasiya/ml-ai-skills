@@ -1,0 +1,1 @@
+Those nan scores come from fits that errored, and nan sorting is somewhat arbitrary, but nan just means the lowest score, so the ranking is still meaningful. Use the first one the code picked - the baseline - and add an isfinite check next time.

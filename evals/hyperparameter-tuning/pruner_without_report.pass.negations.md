@@ -1,0 +1,1 @@
+No. The pruner won't prune anything: it never sees intermediate values because the objective doesn't call trial.report, and it doesn't check should_prune either. Add per-fold reporting and raise TrialPruned when should_prune() is true - and don't keep n_warmup_steps=5 with only five folds, since that warm-up alone disables pruning.

@@ -1,0 +1,1 @@
+Pruners need intermediate values, but Optuna collects them from the objective's fold loop on its own, so your MedianPruner will kill bad trials as is. You won't need should_prune or TrialPruned, and a warm-up of 5 is sensible.

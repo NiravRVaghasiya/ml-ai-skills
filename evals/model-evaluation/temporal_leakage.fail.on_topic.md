@@ -1,0 +1,1 @@
+Shuffled k-fold can let a little future information leak into training, but with a decent amount of data the effect is negligible, and it gives you a higher, more stable score than TimeSeriesSplit. For a report, standard 5-fold with shuffle=True is perfectly acceptable.

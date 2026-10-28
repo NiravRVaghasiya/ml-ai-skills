@@ -1,14 +1,29 @@
+id: imbalanced_metric_choice
 skill: model-evaluation
 category: misconception
+kind: response
 input: |
   My fraud classifier gets 99.4% accuracy. Is it good to ship?
 expected_behavior:
-  - points out that with severe class imbalance, accuracy is dominated by the majority (non-fraud) class and can be high even for a useless model
-  - recommends checking the base rate (what accuracy a "always predict majority class" baseline would get)
-  - recommends imbalance-aware metrics (precision/recall/PR-AUC, F1, or recall at a fixed false-positive budget) instead of or alongside accuracy
-  - connects the metric choice to the actual business cost of false negatives vs false positives
+  - 'points out that with severe class imbalance, accuracy is dominated by the majority (non-fraud) class and can be high even for a useless model'
+  - 'recommends checking the base rate (what accuracy a "always predict majority class" baseline would get)'
+  - 'recommends imbalance-aware metrics (precision/recall/PR-AUC, F1, or recall at a fixed false-positive budget) instead of or alongside accuracy'
+  - 'connects the metric choice to the actual business cost of false negatives vs false positives'
 must_not:
-  - treat 99.4% accuracy alone as sufficient evidence the model is good
+  - 'treat 99.4% accuracy alone as sufficient evidence the model is good'
+must_include:
+  - '\b(imbalanc\w+|unbalanc\w+|skew\w*|rare|rarely|(small|tiny) (fraction|share|percentage)|class (ratio|distribution|prior)s?|majority class|minority class)\b|\b(under|less than|below) \d+(\.\d+)? ?%'
+  - '\b(base ?rate|baseline|always predict\w*|predict\w* (only )?(the )?(majority|non-?fraud|negative|legitimate)|dummy ?classifier|null (model|accuracy)|prevalence)\b'
+  - '\b(precision|recall|PR[- ]AUC|average precision|F1|F-?beta|sensitivity|confusion matrix|MCC|matthews)\b'
+  - '\b(costs?|business|dollars?|money|losses|budget|chargebacks?)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct)|great|ship it)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b99\.4 ?% (accuracy )?(is|looks|sounds) (great|excellent|good|strong|ready|impressive|solid)\b(?![^.]{0,60}\bbut\b)'
+  - '(?<!not )(?<!n''t )(?<!yet )\b(you can|go ahead and|ready to|safe to|fine to) (ship|deploy|launch|release)\b(?![^.]{0,60}\b(only|if|once|after|unless|when)\b)'
+  - '\baccuracy (already |alone |still )?(summari[sz]es|captures) (the )?overall performance|\baccuracy (alone |by itself )?is (a )?(good|fine|sufficient|adequate|enough)\b'
+  - '\b99\.4 ?%[^.]{0,30}(?<!no )(?<!not )(?<!n''t )(?<!not far )(?<!n''t far )\b(far |well |way )?(above|better than) (what )?(a |the )?(random|chance|baseline)'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
-  Distinguishes "metric optimization" from "business objective optimization" per
-  Phase 10; also the exact scenario in the mission's router example.
+  Distinguishes "metric optimization" from "business objective optimization" per Phase
+  10; also the exact scenario in the mission's router example.

@@ -14,7 +14,7 @@ level: intermediate
 lifecycle: stable
 risk_level: medium
 evidence_level: established-practice
-last_verified: 2026-09-21
+last_verified: 2026-10-27
 capabilities:
   - feature-interaction-creation
   - target-encoding
@@ -31,7 +31,8 @@ related:
 inputs: A cleaned, imputed/scaled train/test split (see data-preprocessing) with a defined target column.
 outputs: A ranked, leakage-checked feature set plus a reusable Pipeline step for engineering and selection.
 version_constraints:
-  - "scikit-learn: preprocessing.TargetEncoder (cross-fitted target encoding) available since 1.3 — not live-verified this pass"
+  - "scikit-learn>=1.9: TargetEncoder accepting a CV splitter as cv (docstring versionchanged 1.9; its shuffle/random_state are deprecated in 1.9), plus SelectKBest, SelectFromModel, RFECV(importance_getter=...) (executed against scikit-learn 1.9.0 on 2026-10-27)"
+  - "pandas>=1.0: Series.dt accessors, DataFrame.assign (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified)"
 ---
 
 ## Overview
@@ -48,6 +49,7 @@ reusable `Pipeline` step plus a ranked list of the features that actually helped
    encoding, feature selection, PCA loadings) must be fit on train only.
    ```python
    from sklearn.model_selection import train_test_split
+   # X: cleaned feature DataFrame, y: binary target (see data-preprocessing).
    X_train, X_test, y_train, y_test = train_test_split(
        X, y, test_size=0.2, stratify=y, random_state=42)
    ```
@@ -56,20 +58,41 @@ reusable `Pipeline` step plus a ranked list of the features that actually helped
    are the highest-leverage, lowest-risk additions.
    ```python
    import numpy as np
+   import pandas as pd
+   from sklearn.impute import SimpleImputer
    from sklearn.preprocessing import PolynomialFeatures
 
-   # Pairwise interactions/ratios for a handful of numeric columns (not the whole matrix —
-   # this explodes combinatorially).
+   def add_domain_features(df: pd.DataFrame) -> pd.DataFrame:
+       """Row-wise (stateless) features: safe to apply to train and test separately."""
+       out = df.copy()
+       # A ratio that's meaningful to a human. sqft == 0 -> NaN (not inf), imputed below.
+       out["price_per_sqft"] = out["price"] / out["sqft"].replace(0, np.nan)
+       # Datetime decomposition — raw timestamps are useless to most models.
+       ts = pd.to_datetime(out.pop("order_ts"))
+       out["order_dow"] = ts.dt.dayofweek
+       out["order_hour"] = ts.dt.hour
+       out["order_is_weekend"] = out["order_dow"].isin([5, 6]).astype(int)
+       return out
+
+   # Apply to BOTH splits, or the test set lacks the columns the model expects.
+   X_train, X_test = add_domain_features(X_train), add_domain_features(X_test)
+
+   # Later steps (mutual information, LogisticRegression) reject NaN. The median is
+   # learned from data, so fit the imputer on train only.
+   ratio_imputer = SimpleImputer(strategy="median")
+   X_train[["price_per_sqft"]] = ratio_imputer.fit_transform(X_train[["price_per_sqft"]])
+   X_test[["price_per_sqft"]] = ratio_imputer.transform(X_test[["price_per_sqft"]])
+
+   # Pairwise products for a handful of numeric columns (not the whole matrix —
+   # this explodes combinatorially). Fit on train, reuse the fitted object on test.
+   inter_cols = ["price", "sqft"]
    poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
-   X_train_inter = poly.fit_transform(X_train[["price", "sqft"]])
-
-   # Domain feature: a ratio that's meaningful to a human.
-   X_train["price_per_sqft"] = X_train["price"] / X_train["sqft"].replace(0, np.nan)
-
-   # Datetime decomposition — raw timestamps are useless to most models.
-   X_train["order_dow"] = X_train["order_ts"].dt.dayofweek
-   X_train["order_hour"] = X_train["order_ts"].dt.hour
-   X_train["order_is_weekend"] = X_train["order_dow"].isin([5, 6]).astype(int)
+   X_train_inter = poly.fit_transform(X_train[inter_cols])
+   X_test_inter = poly.transform(X_test[inter_cols])
+   # Join only the new product column(s); the first len(inter_cols) outputs repeat the inputs.
+   new_cols = list(poly.get_feature_names_out(inter_cols)[len(inter_cols):])   # ["price sqft"]
+   X_train[new_cols] = X_train_inter[:, len(inter_cols):]
+   X_test[new_cols] = X_test_inter[:, len(inter_cols):]
    ```
 3. **Encode high-cardinality categoricals safely.** As a rule of thumb — not a hard
    threshold — once a categorical column's one-hot expansion starts rivaling or
@@ -79,18 +102,31 @@ reusable `Pipeline` step plus a ranked list of the features that actually helped
    built-in encoder — it internally cross-fits to avoid leaking the target into its
    own encoding.
    ```python
+   from sklearn.model_selection import StratifiedKFold
    from sklearn.preprocessing import TargetEncoder
 
-   te = TargetEncoder(target_type="continuous", cv=5, random_state=42)
-   zip_encoded_train = te.fit_transform(X_train[["zip_code"]], y_train)
+   # target_type must match the task: "binary" here; "continuous" for regression,
+   # "multiclass" for >2 classes (one column per class). A seeded splitter as cv needs
+   # scikit-learn >= 1.9 (older versions: cv=5, shuffle=True, random_state=42).
+   cv5 = StratifiedKFold(5, shuffle=True, random_state=42)
+   te = TargetEncoder(target_type="binary", cv=cv5)
+   zip_encoded_train = te.fit_transform(X_train[["zip_code"]], y_train)  # cross-fitted
    zip_encoded_test = te.transform(X_test[["zip_code"]])   # transform only — never re-fit
+
+   # All-numeric matrices for the selection steps below.
+   X_train_numeric = X_train.drop(columns=["zip_code"]).assign(zip_te=zip_encoded_train[:, 0])
+   X_test_numeric = X_test.drop(columns=["zip_code"]).assign(zip_te=zip_encoded_test[:, 0])
    ```
 4. **Filter features by univariate relevance.** Cheap first pass to drop obvious
    noise before running anything expensive.
    ```python
+   from functools import partial
    from sklearn.feature_selection import SelectKBest, mutual_info_classif
 
-   selector = SelectKBest(score_func=mutual_info_classif, k=20)
+   # Seed MI: it jitters tied values (ints, flags) with random noise, so unseeded
+   # scores — and possibly the selected set — change from run to run.
+   mi = partial(mutual_info_classif, random_state=42)
+   selector = SelectKBest(score_func=mi, k=min(20, X_train_numeric.shape[1]))
    X_train_filtered = selector.fit_transform(X_train_numeric, y_train)
    kept_cols = X_train_numeric.columns[selector.get_support()]
    ```
@@ -114,34 +150,53 @@ reusable `Pipeline` step plus a ranked list of the features that actually helped
    ```python
    from sklearn.feature_selection import RFECV
    from sklearn.linear_model import LogisticRegression
-   from sklearn.model_selection import StratifiedKFold
+   from sklearn.pipeline import make_pipeline
+   from sklearn.preprocessing import StandardScaler
 
+   # RFE drops the smallest |coef_| each round; coefficients are only comparable
+   # across features on a common scale, so scale inside the estimator.
    rfecv = RFECV(
-       estimator=LogisticRegression(max_iter=1000),
-       cv=StratifiedKFold(5), scoring="roc_auc", min_features_to_select=5,
+       estimator=make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000)),
+       importance_getter="named_steps.logisticregression.coef_",
+       cv=cv5, scoring="roc_auc", min_features_to_select=5,
    )
-   rfecv.fit(X_train[final_cols], y_train)
+   rfecv.fit(X_train_numeric[final_cols], y_train)
    selected = final_cols[rfecv.support_]
+   # rfecv.cv_results_ is optimistic: final_cols were chosen on these same rows.
    ```
 7. **Wrap engineering + selection in one `Pipeline` and validate honestly.** Never
    report a score computed on the same fold used to pick features — that number is
    inflated by selection leakage.
    ```python
+   from sklearn.compose import ColumnTransformer
    from sklearn.pipeline import Pipeline
    from sklearn.model_selection import cross_val_score
 
+   # Re-run the SAME procedure as steps 3-5 inside every fold, starting from the
+   # un-encoded frame, so held-out labels never shape their own features. Input rows
+   # must already carry step 2's row-wise columns (add_domain_features + products).
    full_pipe = Pipeline([
-       ("select", SelectFromModel(RandomForestClassifier(n_estimators=300, random_state=42))),
+       ("encode", ColumnTransformer(
+           [("zip_te", TargetEncoder(target_type="binary", cv=cv5), ["zip_code"])],
+           remainder="passthrough")),
+       ("impute", SimpleImputer(strategy="median")),   # new rows: sqft == 0 -> NaN ratio
+       ("filter", SelectKBest(score_func=mi, k=min(20, X_train_numeric.shape[1]))),
+       ("embedded", SelectFromModel(RandomForestClassifier(n_estimators=300, random_state=42),
+                                    threshold="median")),
+       ("scale", StandardScaler()),
        ("model", LogisticRegression(max_iter=1000)),
    ])
-   scores = cross_val_score(full_pipe, X_train_numeric, y_train, cv=5, scoring="roc_auc")
+   scores = cross_val_score(full_pipe, X_train, y_train, cv=cv5, scoring="roc_auc")
    print(scores.mean(), scores.std())
+   full_pipe.fit(X_train, y_train)   # reusable artifact; score X_test once, at the very end
    ```
 
 ## Gotchas
 - **Target/mean encoding fit on the full dataset leaks the label into itself.**
   Always use a cross-fitted encoder (`sklearn.preprocessing.TargetEncoder`) or fit
-  strictly on train and `transform` (never `fit_transform`) on test.
+  strictly on train and `transform` (never `fit_transform`) on test. Note that
+  `TargetEncoder.fit(X, y).transform(X)` is *not* `fit_transform(X, y)`: only
+  `fit_transform` cross-fits, so encode training rows with `fit_transform`.
 - **Selecting features outside cross-validation inflates the reported score.**
   Selection must happen *inside* each CV fold (via `Pipeline` + `cross_val_score`),
   not once on the whole training set before CV.

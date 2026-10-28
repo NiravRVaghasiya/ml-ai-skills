@@ -1,0 +1,1 @@
+Standardization is not required here; income may dominate the distance, but that matches how the business thinks about customers. Use the silhouette score across a few candidate k values to choose k rather than the fuzzy elbow.

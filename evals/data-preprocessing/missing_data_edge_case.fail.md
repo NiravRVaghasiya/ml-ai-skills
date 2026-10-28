@@ -1,0 +1,1 @@
+Yes, median imputation is the standard choice for numeric columns, so use `SimpleImputer(strategy="median")` on that column like the others. It's robust to outliers and keeps every row, which is better than losing data. Then scale it along with your other features.

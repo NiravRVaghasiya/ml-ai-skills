@@ -1,0 +1,1 @@
+Yes - four clean clusters is a great result, and that kind of structure is exactly what a classifier can use. Add `tsne_1` and `tsne_2` as columns next to your other features and retrain; for the stakeholder deck, the plot itself makes the relative distances between segments easy to explain.

@@ -1,14 +1,37 @@
+id: overfitting_search
 skill: hyperparameter-tuning
 category: misconception
+kind: executable
 input: |
   I'll just tune my hyperparameters by trying different values and checking which gives the best score on my test set, then report that number.
 expected_behavior:
-  - flags that repeatedly evaluating on the test set during tuning turns it into a de facto validation set, invalidating the final reported number as an unbiased estimate of generalization
-  - recommends a held-out validation set or cross-validation for the search loop, keeping the test set untouched until the very end
-  - mentions nested cross-validation as the rigorous option when data is limited
+  - 'flags that repeatedly evaluating on the test set during tuning turns it into a de facto validation set, invalidating the final reported number as an unbiased estimate of generalization'
+  - 'recommends a held-out validation set or cross-validation for the search loop, keeping the test set untouched until the very end'
+  - 'mentions nested cross-validation as the rigorous option when data is limited'
 must_not:
-  - endorse tuning directly against the test set
+  - 'endorse tuning directly against the test set'
+must_include:
+  - '\b(optimistic\w*|biased|bias|inflat\w+|overfit\w*|leak\w*|no longer (an? )?(unbiased|honest|independent)|selection bias|de facto validation|contaminat\w+)\b'
+  - '\b(validation (set|split|fold|data)|cross-?validat\w+|k-?fold|GridSearchCV|RandomizedSearchCV|optuna)\b'
+  - '\btest (set|data|split)\b[^.]{0,80}\b(once|only at the (very )?end|untouched|held out|lock\w*|final (evaluation|check|estimate|report)|never|set aside|until the (very )?end|at the end)\b|\b(once|untouched|set aside|lock\w*)\b[^.]{0,40}\btest (set|data|split)\b'
+  - '\bnested (cross-?validation|cv)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct)|that works|sounds good|good plan)\b(?![\s,!.:;-]*(not|but)\b)'
+  - '\b(that''s|that is|this is) (a )?(fine|good|reasonable|valid|standard|sound) (approach|way|plan|method)\b'
+  - '\b(effect|impact|bias|difference|optimism|leak\w*)\b[^.]{0,30}\b(is|are|will be|would be) (usually |generally |typically |mostly |probably )?(a )?(negligible|minor|tiny|insignificant)\b(?![^.]{0,40}\b(only|unless|except|but)\b)'
+  - '\b(cross-?validation|nested (cv|cross-?validation)|validation (set|split))\b[^.]{0,60}\b(it''s|is|are|would be) (probably |just )?(overkill|unnecessary|not (needed|necessary))\b'
+  - '\btest (set|data)\b[^.]{0,60}\b(is|it''s) (fine|ok|okay|acceptable)\b(?![^.]{0,40}\b(only|if|once|as long as)\b)'
+executable_tests:
+  - 'examples.test_hyperparameter_tuning.TestHyperparameterTuningExamples.test_nested_cv_on_imbalanced_target_has_no_nan_folds'
+  - 'examples.test_hyperparameter_tuning.TestHyperparameterTuningExamples.test_nested_cv_refuses_to_report_nan'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A nested-CV performance estimate (finite on every outer fold) separate from the tuned configuration'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s nested-CV code produces a finite estimate on a small imbalanced set and refuses to report NaN; they do not grade the response.'
 notes: >
-  A very common and specific way beginners inflate reported performance; distinct
-  from the train/test leakage case in data-preprocessing because it happens even
-  with a "correct" initial split.
+  A very common and specific way beginners inflate reported performance; distinct from
+  the train/test leakage case in data-preprocessing because it happens even with a
+  "correct" initial split.

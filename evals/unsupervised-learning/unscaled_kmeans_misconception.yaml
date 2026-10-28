@@ -1,0 +1,52 @@
+id: unscaled_kmeans_misconception
+skill: unsupervised-learning
+category: misconception
+kind: executable
+input: |
+  I'm segmenting customers with KMeans on `age` (18-90) and `annual_income` (20,000-500,000).
+  Since clustering is unsupervised I don't think I need to scale anything. Also, my inertia
+  elbow plot is fuzzy, so I'll just pick k=6 from it. Is that OK?
+expected_behavior:
+  - 'says scaling is required: KMeans uses Euclidean distance, so annual_income (a range in the hundreds of thousands) dominates and the clusters effectively become income bands; standardize the features (e.g. StandardScaler) first'
+  - 'explains that being unsupervised does not make an algorithm scale-invariant - the distance metric, not the presence of labels, is what matters'
+  - 'says inertia always decreases as k grows, so a fuzzy elbow is not a reliable basis on its own; recommends comparing silhouette score (or Calinski-Harabasz) across candidate k and inspecting cluster sizes'
+  - 'optionally mentions n_init/random_state for stable results and DBSCAN/Gaussian mixtures if clusters are not convex'
+must_not:
+  - 'agree that scaling is unnecessary for KMeans because it is unsupervised'
+  - 'endorse picking k from a fuzzy inertia elbow alone'
+must_include:
+  - '\b(scal(e|es|ed|ing)|standardi[sz]\w*|normali[sz]\w*|StandardScaler|RobustScaler|z-?scor\w*)\b'
+  - '\b(dominat\w+|swamp\w*|overwhelm\w*|outweigh\w*|drown\w*)\b|\bincome (bands|brackets|tiers)\b'
+  - '\b(silhouette|calinski|davies[- ]bouldin|gap statistic)\b'
+must_not_include:
+  - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|of course|that''s (ok|okay|fine|right|correct)|sounds (good|fine|right))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!n''t )(?<!not )(?<!never )(?<!mean )(?<!means )(?<!mean there''s )(?<!means there''s )(?<!mean there is )\b(no need|not necessary|unnecessary|don''t need|do not need|not needed|not required) (to )?(scal\w*|standardi[sz]\w*|normali[sz]\w*)\b'
+  - '(?<!misconception that )(?<!belief that )(?<!myth that )(?<!idea that )(?<!notion that )(?<!assumption that )(?<!claim that )(?<!imply that )(?<!implies that )(?<!mean that )(?<!means that )(?<!imply )(?<!implies )(?<!might think )(?<!may think )(?<!would think )(?<!to think )(?<!you think )(?<!might assume )(?<!to assume )(?<!you assume )(?<!tree models )(?<!tree models, )(?<!tree-based models )(?<!tree-based models, )(?<!trees )(?<!trees, )\b(scaling|standardi[sz]ation|normali[sz]ation) (isn''t |is not |is un)(necessary|needed|required|important)\b(?! (for|with) (tree|decision|random forest|gradient[- ]boost|xgboost|lightgbm))'
+  - '(?<!n''t )(?<!not )(?<!never )\b(k-?means|clustering|it|unsupervised (learning|methods?|algorithms?))( is| are)( inherently| naturally)? scale[- ]invariant\b'
+  - '\b(units?|scales?|ranges?)\b[^.]{0,20}\b(don''t|do not|doesn''t|does not|won''t|will not) (really )?matter\b(?![^.]{0,30}\b(once|after|if)\b)'
+  - '\b(k ?= ?6|six clusters|the elbow)\b(?![^.]{0,40}\b(only|not|n''t)\b)[^.]{0,40}\b(is|seems|looks|sounds) (a )?(fine|ok|okay|reasonable|good|sensible|safe)\b(?![^.]{0,40}\b(only if|unless|as long as|provided|but (first |only )?(check|verify|confirm|validate|compare)\w*)\b)'
+  - '\bk ?= ?6\b(?![^.]{0,30}\b(only|not|n''t)\b)[^.]{0,30}\b(works|will work|will do|is good enough)\b(?![^.]{0,40}\b(only if|unless|as long as|provided|but (first |only )?(check|verify|confirm|validate|compare)\w*)\b)'
+  - '(?<!n''t )(?<!not )\b(scaling|standardi[sz]ation|normali[sz]ation|feature scaling) is (purely |entirely |just |really )?optional\b'
+  - '(?<!n''t )(?<!not )\bthe elbow (method |plot |rule )?is the (standard|usual|best|right|go-to|recommended) (way|method|approach|tool|technique)\b(?![^.;]{0,60}\b(but|unreliable|not reliable|however)\b)'
+executable_tests:
+  - 'examples.test_unsupervised_learning.UnsupervisedLearningExamples.test_full_workflow_runs'
+  - 'examples.test_unsupervised_learning.UnsupervisedLearningExamples.test_k_search_caps_k_below_n_samples'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'StandardScaler-scaled matrix, silhouette scores per k with best_k (3 on the test''s blobs with one column inflated 1000x), KMeans labels, PCA (95% variance) and t-SNE embeddings'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The executable tests prove the skill''s scale-then-silhouette workflow recovers the true k on synthetic blobs with one large-range column; they do not prove a given response wrote equivalent code or that silhouette picks a useful k on real data.'
+  - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
+notes: >
+  See unsupervised-learning/SKILL.md workflow steps 1-3 and Gotchas, "Forgetting to scale
+  before distance-based clustering or PCA" and "Picking k from the inertia elbow alone".
+  fail.isnt_necessary / fail.is_not_required are targeted fixtures (written by the fix
+  engineer after reading the patterns) for the "scaling isn't / is not necessary" pattern,
+  whose alternation once lacked a space and could only match the "is un..." branch.
+  That pattern is guarded (fixed-width lookbehinds/lookahead) against quoting the
+  misconception to rebut it ("misconception that", "you might think", "does not imply")
+  and against tree-model contrasts; pass.rebuttal is the targeted fixture for those guards.
+  Bare "that "/"think " are deliberately not guarded, so "I'd say that ..." and
+  "I think scaling isn't necessary" still fail.

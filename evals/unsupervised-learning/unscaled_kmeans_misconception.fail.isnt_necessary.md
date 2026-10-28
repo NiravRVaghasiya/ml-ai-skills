@@ -1,0 +1,1 @@
+Mostly fine. Some people worry that income will dominate the distance, but for customer segmentation scaling isn't necessary: income bands are what the business wants anyway. For k, compare the silhouette score across a few values instead of relying on the elbow.

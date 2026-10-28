@@ -1,0 +1,1 @@
+Technically, fitting the scaler on the full dataset lets the test set's mean and standard deviation leak into training, but with a few thousand rows the effect is negligible. It's fine to normalize everything first and then split - you don't need a Pipeline or to fit on the training data only for something as simple as standardization.

@@ -1,0 +1,1 @@
+Picking hyperparameters by test score can be slightly optimistic in theory, but if you only try a modest grid the bias is negligible. Cross-validation or nested CV would be more rigorous, but it's overkill here - tuning directly on the test set and reporting the best score is fine for a report.

@@ -1,0 +1,1 @@
+I wouldn't just impute it with the median. At 85% missing, a single fill value creates an artificial spike and biases the feature. Find out whether it's missing at random; consider dropping the column, or keep it with a missing indicator if the missingness is informative.

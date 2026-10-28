@@ -1,0 +1,1 @@
+No. The leakage is not negligible: fitting the scaler on all rows puts test-set mean and variance into training. Split first, fit the scaler on the training data only, and use a Pipeline so cross-validation does the same.

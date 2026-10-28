@@ -1,0 +1,1 @@
+That turns the test set into a selection set, so the final Brier is optimistic. Decide raw versus calibrated on out-of-fold predictions from the training data, then report the chosen model's Brier on the untouched test set once.

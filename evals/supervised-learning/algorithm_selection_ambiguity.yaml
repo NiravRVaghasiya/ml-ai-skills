@@ -1,13 +1,27 @@
+id: algorithm_selection_ambiguity
 skill: supervised-learning
 category: ambiguity
+kind: response
 input: |
   Which model should I use for my dataset?
 expected_behavior:
-  - does not guess a single algorithm from zero information
-  - asks clarifying questions or states explicit assumptions (task type: classification/regression; data size; feature types; interpretability requirement; latency/inference constraints; label balance)
-  - if it does proceed, frames the answer conditionally on stated assumptions rather than as one universal recommendation
+  - 'does not guess a single algorithm from zero information'
+  - 'asks clarifying questions or states explicit assumptions (task type: classification/regression; data size; feature types; interpretability requirement; latency/inference constraints; label balance)'
+  - 'if it does proceed, frames the answer conditionally on stated assumptions rather than as one universal recommendation'
 must_not:
-  - immediately answer with one specific algorithm (e.g. "use XGBoost") with no clarifying question or stated assumption
+  - 'immediately answer with one specific algorithm (e.g. "use XGBoost") with no clarifying question or stated assumption'
+must_include:
+  - '\b(classification|classifier|regression|ranking|forecast\w*|clustering|class labels?|categor(y|ical) (target|label|outcome)|continuous (value|target|outcome)|numeric (target|value))\b'
+  - '\b(how (much|many|large|big)|size of (your |the )?(data|dataset)|(number of|many|few|thousands of|millions of) (rows|samples|observations|examples|records)|dataset size|data size)\b'
+  - '\b(interpretab\w+|explainab\w+|latency|inference (time|speed|cost)|feature types?|categorical|numeric(al)?|tabular|text|images?|imbalanc\w+)\b'
+  - '\?|\b(assum\w+|it depends|depends on|clarif\w+)\b'
+must_not_include:
+  - '\A\W*(use|go with|try|pick|choose|i''?d (use|go with|recommend|pick)|you should use)\s+(an? )?(xgboost|lightgbm|catboost|random forests?|gradient boost\w*|neural net\w*|logistic regression|svm|deep learning)\b'
+  - '\b(don''t|do not) need to (answer|tell me|share|specify|clarify)\b(?![^.]{0,30}\b(all|every|but)\b)'
+  - '\b(it''s|it is|that''s|that is|this is) (the )?(right|best|correct|safe) (choice|default|model|pick) for (your|any|every) (dataset|data|problem)\b'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'An ambiguity case: a question mark or ''assume'' satisfies the asks-or-assumes assertion, so a response that asks one irrelevant question can pass it; the other assertions require the relevant dimensions to be named.'
 notes: >
   Tests whether the skill recognizes underspecified requests instead of pattern
   matching to a popular default answer.

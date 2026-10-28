@@ -1,0 +1,1 @@
+Both are reasonable as long as you fix the random seed so the embedding is reproducible. Saving the fitted coordinates alongside each customer gives the classifier a nice low-dimensional summary, and the spacing in the chart is a fair way to describe how different the segments are.

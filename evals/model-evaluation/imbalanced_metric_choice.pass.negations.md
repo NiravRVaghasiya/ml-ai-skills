@@ -1,0 +1,1 @@
+Not on that number alone. Fraud is rare, so the classes are imbalanced and a model that always predicts the majority class could score about the same - 99.4% may be no better than that baseline. Check precision, recall and PR-AUC, and set the threshold from the business cost of misses versus false alarms.
