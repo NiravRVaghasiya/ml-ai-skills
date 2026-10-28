@@ -34,8 +34,9 @@ competing list elsewhere.
 name: kebab-case-name          # MUST equal the folder name
 display_name: Human Readable Name
 description: >                  # discovery-critical: "Use when the user wants to…"
-  Use when the user wants to <X>. Trigger phrases: "<p1>", "<p2>", "<p3>".
-  NOT for <adjacent thing owned by another skill>.
+  Use when the user wants to impute missing values or encode categorical columns.
+  Trigger phrases: "handle missing values", "encode categorical features",
+  "build a preprocessing pipeline". NOT for creating new features (see feature-engineering).
 type: workflow                 # workflow | reference — MUST match the [W]/[R] tag in INDEX.md
 domain: classical-ml           # foundations|classical-ml|deep-learning|llm|specialized|mlops|responsible-ai|security
 level: beginner                # beginner | intermediate | advanced
@@ -50,6 +51,10 @@ related: [sibling-a, sibling-b]
 inputs: One-line description of what this skill expects.
 outputs: One-line description of what this skill produces.
 ```
+
+The description is plain text: no angle-bracket placeholders or tags (the validator's
+`description-xml-tag` rule rejects anything that looks like `<tag>`, as Claude's Agent
+Skills rules require), at most 1,024 characters, and at least 3 quoted trigger phrases.
 
 Any heuristic (a rule with real exceptions) MUST be phrased conditionally in
 the body — "as a rule of thumb, above roughly N..., consider..." — never as an
@@ -75,9 +80,13 @@ worked before/after examples. After editing a skill, run
 - [ ] `related` lists real sibling slugs that exist (or are planned) in `INDEX.md`.
 - [ ] `lifecycle`/`risk_level`/`evidence_level`/`last_verified`/`capabilities`/`requires`/`conflicts`/`inputs`/`outputs` are all present and justified (see `docs/SKILL-SPEC.md`, `docs/EVIDENCE.md`).
 - [ ] No claim with real exceptions is phrased as a universal law — heuristics are conditional in the body.
-- [ ] `python scripts/validate_skills.py` reports zero errors for this skill.
-- [ ] At least one case in `evals/<slug>/` for non-trivial workflow/security-relevant skills (see `evals/SCHEMA.md`).
-- [ ] Run `python scripts/generate_index.py --fix` (updates `INDEX.md`'s checkbox and progress counter for you — don't hand-edit it).
+- [ ] `python scripts/validate_skills.py --warnings` reports zero errors for this skill, and `python scripts/check_freshness.py` reports no STALE finding.
+- [ ] Code-bearing skills: `tests/examples/test_<slug_with_underscores>.py` runs the skill's own blocks via `tests/examples/harness.py` (blocks that cannot run standalone start with `# illustrative`), and passes in the example environment (`requirements-examples.txt`; see `docs/EXAMPLE-TESTS.md`).
+- [ ] `evals/<slug>/` has a `plan.json`, at least one non-happy-path case, and pass/fail fixtures, including an on-topic wrong answer that a `must_not_include` pattern catches. Workflow skills also have a `kind: executable` case. `python scripts/validate_evals.py --strict --coverage` reports zero errors and warnings (see `evals/SCHEMA.md`).
+- [ ] `evals/routing/benchmark.json` has cases expecting this skill in both the dev and test splits; `python scripts/eval_router.py --split dev` was checked, and any re-baseline is deliberate and explained (see `evals/routing/README.md`).
+- [ ] Checkable API/version claims the skill relies on are recorded in `docs/claims.json` with the verification actually performed (`unverified` is fine); `python scripts/check_claims.py` reports zero errors.
+- [ ] Generated files are regenerated, never hand-edited: `python scripts/generate_index.py --fix`, `python scripts/generate_plugins.py --write`, `python scripts/generate_readme_stats.py --write`, `python scripts/build_dependency_graph.py --write`, `python scripts/generate_schema.py --write` (needed after any `schema/allowed_values.py` change), then `python scripts/check_generated.py` reports no drift.
+- [ ] `python scripts/check_contract.py --check` passes (after `--write` for an intended contract change; removing or renaming a skill is breaking, see `docs/RELEASE.md`), and `CHANGELOG.md` has an `[Unreleased]` entry.
 
 ## Workflow (how to work)
 1. Open `INDEX.md`. Work top-to-bottom through unchecked (`⬜`) items.
@@ -85,8 +94,10 @@ worked before/after examples. After editing a skill, run
 3. Match the gold-standard example that corresponds to the skill's type.
 4. Keep skills **focused** — link to siblings via `related` instead of duplicating content
    (e.g. `data-preprocessing` must not re-teach pandas — that's `python-for-ml`).
-5. After each skill, update `INDEX.md` (checkbox + progress counter). Commit per skill or
-   per domain with message `add(<domain>): <slug> skill`.
+5. After each skill, run the Definition-of-Done commands above (`generate_index.py --fix`
+   updates `INDEX.md`'s checkbox and progress counter). Commit per skill or per domain with
+   message `add(<domain>): <slug> skill`. `CONTRIBUTING.md` walks through the same steps
+   with examples and a review checklist.
 
 ## Guardrails
 - Do **not** edit `README.md`, `_TEMPLATE/SKILL.md`, or the two gold-standard examples
@@ -94,6 +105,8 @@ worked before/after examples. After editing a skill, run
 - Do **not** invent references — if you can't cite a real, well-known source, note it and move on.
 - Do **not** collapse multiple skills into one file, and do **not** nest folders deeper than one level.
 - Prefer accuracy over length. A tight, correct skill beats a padded one.
+- Do **not** claim more than was run: "tested", "verified" and "executed against X" need the
+  run that backs them. Passing the validator shows structure only, not that the advice is right.
 
 ## Conventions
 - Naming: lowercase-kebab, domain-prefixed only where it aids sorting (`llm-rag-pipeline`).

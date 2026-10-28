@@ -26,11 +26,17 @@ identical results. It does **not** guarantee reproducibility:
   fixed seed, unless you also fix worker seeding and disable relevant async paths.
 
 **Precise claim to make:** "seeding makes THIS run reproducible on THIS
-environment," never "seeding guarantees reproducibility." See the
-`llm-evaluation` skill's Gotchas for the equivalent point about `temperature=0`
-not guaranteeing bit-for-bit determinism for LLM sampling specifically, and
-`evals/llm-evaluation/temperature_determinism_misconception.yaml` for the
-eval case built around exactly that misconception.
+environment," never "seeding guarantees reproducibility."
+
+The same applies to hosted LLMs, with one more caveat: a sampling setting such as
+`temperature=0` does not guarantee bit-for-bit identical outputs, and on some current
+APIs and SDKs it is not available at all. The `llm-evaluation` skill says the current
+Claude Messages API rejects sampling parameters. The repo has runtime-tested only that
+anthropic SDK 2.3.0 raises `TypeError` for `temperature=`; see
+`anthropic-sdk-rejects-temperature` in `docs/claims.json`. Treat run-to-run variation as
+something to measure: pin the model ID, log the request parameters, and repeat calls to
+estimate the noise floor. `evals/llm-evaluation/temperature_determinism_misconception.yaml`
+is the eval case built around this misconception.
 
 ## What to specify, per skill, when reproducibility matters
 

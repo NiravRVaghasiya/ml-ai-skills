@@ -46,7 +46,7 @@ graph LR
 
 ### `cnn-vision` (reference, deep-learning)
 - requires: _none_
-- related: `neural-net-fundamentals`, `training-deep-models`, `pytorch-patterns`
+- related: `neural-net-fundamentals`, `training-deep-models`, `pytorch-patterns`, `computer-vision`, `attention-mechanisms`
 - conflicts: _none_
 
 ### `computer-vision` (workflow, specialized)
@@ -101,7 +101,7 @@ graph LR
 
 ### `ml-math-essentials` (reference, foundations)
 - requires: _none_
-- related: `statistics-for-ml`, `python-for-ml`, `neural-net-fundamentals`
+- related: `statistics-for-ml`, `python-for-ml`, `neural-net-fundamentals`, `training-deep-models`
 - conflicts: _none_
 
 ### `ml-monitoring` (workflow, mlops)
@@ -141,7 +141,7 @@ graph LR
 
 ### `prompt-engineering` (reference, llm)
 - requires: _none_
-- related: `rag-pipeline`, `agents-and-tools`, `fine-tuning-llms`, `attention-mechanisms`
+- related: `rag-pipeline`, `agents-and-tools`, `fine-tuning-llms`, `llm-evaluation`, `ai-ml-security`, `attention-mechanisms`
 - conflicts: _none_
 
 ### `python-for-ml` (reference, foundations)
