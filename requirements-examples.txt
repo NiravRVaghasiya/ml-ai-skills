@@ -76,8 +76,8 @@ pendulum==3.3.0
 fsspec==2026.7.0
 
 # --- deep learning / computer vision (heavy) -----------------------------------------
-torch==2.14.1+cpu
-torchvision==0.29.1+cpu
+torch==2.15.0+cpu
+torchvision==0.29.2+cpu
 torchmetrics==1.9.0
 albumentations==2.0.8
 albucore==0.0.24                # (transitive) albumentations 2.0.8 pins ==0.0.24; Dependabot ignores newer
