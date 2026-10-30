@@ -128,7 +128,7 @@ opentelemetry-semantic-conventions==0.66b2
 optuna==5.0.0
 orjson==3.13.0
 packaging==26.3
-pandas==2.2.3
+pandas==2.3.3
 pandera==0.35.0
 patsy==1.0.3
 peft==0.21.2
