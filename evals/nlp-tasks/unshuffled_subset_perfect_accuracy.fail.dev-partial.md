@@ -1,0 +1,1 @@
+IMDB is stored sorted by label, so the first 500 test rows are a single class, which is worth knowing. But macro-F1 averages both classes, so a perfect macro-F1 means the model is not just predicting one class here. It's fine to report the 1.0 accuracy and macro-F1; shuffle the subset next time to be safe.

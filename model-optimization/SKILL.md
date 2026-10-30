@@ -31,7 +31,7 @@ related:
 inputs: A trained model (typically PyTorch) plus a representative sample input and, for static quantization, a calibration dataset.
 outputs: A smaller/faster model artifact (quantized weights, an ONNX file, or a distilled student model) with a benchmarked latency/size/accuracy comparison against the fp32 baseline.
 version_constraints:
-  - "torch>=2.6: torch.ao.quantization.quantize_dynamic, torch.onnx.export(dynamo=True, dynamic_shapes=..., opset_version=18), torch.export.Dim.DYNAMIC (executed against torch 2.13.0+cpu on 2026-10-27; 2.6 lower bound not verified; torch 2.13 emits a DeprecationWarning for torch.ao.quantization recommending torchao)"
+  - "torch>=2.6: torch.ao.quantization.quantize_dynamic, torch.onnx.export(dynamo=True, dynamic_shapes=..., opset_version=18), torch.export.Dim.DYNAMIC (executed against torch 2.13.0+cpu on 2026-10-27; 2.6 lower bound documented by source: torch/export/dynamic_shapes.py defines Dim.DYNAMIC at tag v2.6.0 but not at v2.5.0, read on GitHub 2026-10-29; 2.6 itself not executed; torch 2.13 emits a DeprecationWarning for torch.ao.quantization recommending torchao)"
   - "onnxscript>=0.7: required by the torch.export-based ONNX exporter (executed against onnxscript 0.7.2 on 2026-10-27; export raises ModuleNotFoundError without it)"
   - "onnxruntime>=1.16: quantize_static, CalibrationDataReader, quant_pre_process (executed against onnxruntime 1.31.1 on 2026-10-27; lower bound not verified)"
 ---

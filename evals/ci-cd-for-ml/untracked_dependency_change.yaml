@@ -17,7 +17,7 @@ must_include:
   - '\b(real|genuine|actual) (regression|failure|change|problem|issue)\b|\bsomething (else )?(did |has )?chang\w+'
 must_not_include:
   - '\b(probably|likely|just|most likely) (a )?(fluke|flaky|flake|transient|one-?off|glitch|blip)\b(?![^.]{0,60}\b(but|however|don''t|do not|before|rather)\b)'
-  - '(?:^|[.!?:;]\s|\s-\s|\s\d\.\s)(just |simply )?(re-?run|retry|re-?trigger|restart)\w*\b[^.]{0,60}\buntil\b(?![^.]{0,60}\b(hides?|masks?|won''t|doesn''t|does not|isn''t|is not|bad|anti-?pattern|wrong|never)\b)'
+  - '(?:^|[.!?:;,]\s|\s-\s|\s\d\.\s)(then |and )?(just |simply )?(re-?run|retry|re-?trigger|restart)\w*\b(?:(?!\b(never|not|don''t|do not|download\w*|install\w*|fetch\w*|network|connection)\b|n''t)[^.]){0,60}\buntil\b(?!\s+(the )?(download|install\w*|fetch\w*|request|connection|network|package|mirror|registry)\b)(?![^.]{0,60}\b(hides?|masks?|won''t|doesn''t|does not|isn''t|is not|bad|anti-?pattern|wrong|never)\b)'
   - '\b(logs?|failure|error|it)\b[^.]{0,30}\b(will|would|should) (most likely |probably |likely )?(point to|show|be|turn out to be) (a |an )?(flaky|flake|fluke|transient|one-?off|glitch)'
   - '\bnothing (else )?(could|can|would) have chang\w+'
   - '(?<!n''t )(?<!not )(?<!never )(?<!n''t just )(?<!not just )(?<!before )\b(mark|label|tag|flag|quarantine)\w*\b[^.]{0,25}\bas (flaky|a flake|skipped)\b'
@@ -27,3 +27,10 @@ notes: >
   Tests failure-recovery behavior: diagnosing root cause instead of retry-until-green,
   which directly echoes this repo's own operating principle against bypassing
   failures.
+  A fix probe (fail.fixprobe, written from the rubric before the patterns were read, graded once)
+  failed only on missing concepts. On 2026-10-29 the re-run-until pattern was widened to start
+  after a comma (", just re-run the pipeline until it goes green") and now skips a negated
+  re-run ("re-run once, but never re-run until it passes", pass.dev-borderline).
+  Review fix (same day): the comma start made the re-run pattern fail a legitimate download retry
+  ("retry with backoff until the download succeeds", pass.dev-borderline-backoff), so a retry of a
+  download, install, fetch or network step no longer matches; ", then retry ... until" now does.

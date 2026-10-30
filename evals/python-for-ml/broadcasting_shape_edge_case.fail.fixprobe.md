@@ -1,0 +1,1 @@
+The shapes differ, (1000,) and (1000, 1), but NumPy broadcasting lines them up element-wise, so the subtraction still gives 1000 residuals and the MSE is correct. Since it ran without error, the number is right; a high value just means the model is underfitting. You can still add y_pred.ravel() for readability.

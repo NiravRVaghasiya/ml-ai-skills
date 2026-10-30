@@ -45,6 +45,20 @@ command line) and reports:
   ERROR  secrets-in-pr-workflow   ``${{ secrets.* }}`` (other than GITHUB_TOKEN), the whole
                                   ``secrets`` context, or ``secrets: inherit`` in a
                                   workflow that ``pull_request*`` triggers
+  WARN   continue-on-error        a job or step with ``continue-on-error`` other than
+                                  ``false``: its failure no longer fails the run, so a gate
+                                  there cannot fail
+  WARN   swallowed-failure        ``|| true`` / ``|| :`` / ``|| exit 0`` in ``run:``, or
+                                  ``|| echo``/``|| printf`` not followed on that line by a
+                                  non-zero ``exit``/``return`` or ``false``, or ``set +e`` in
+                                  a script that never reads ``$?``/``PIPESTATUS``: the
+                                  command's failure is discarded. Capture the code instead
+                                  (``set +e; cmd; code=$?``) and judge it in a later step
+  WARN   pipe-without-pipefail    a pipeline (``cmd | tee log``) in a ``run:`` script that
+                                  runs under GitHub's default ``bash -e`` (no pipefail)
+                                  before any ``set -o pipefail``: the step's status is the
+                                  last command's, so a failing ``cmd`` passes. Add
+                                  ``set -euo pipefail`` or ``shell: bash`` (which adds it)
   ERROR  parse-error / unsupported-yaml  the file is outside the YAML subset this
                                   parser understands - the audit fails closed rather
                                   than vouching for a file it could not read
@@ -62,7 +76,10 @@ Usage:
 
 Limits (static analysis, not a proof of safety): expressions are matched textually,
 so data laundered through a file, ``$GITHUB_ENV``/``$GITHUB_OUTPUT`` or a composite
-action's inputs is not traced; step/job outputs are only warned about.
+action's inputs is not traced; step/job outputs are only warned about. The shell checks
+(swallowed-failure, pipe-without-pipefail) read the script line by line after dropping
+quoted strings, comments and heredoc bodies; they do not parse shell, so a pipe built
+inside ``eval`` or a sourced file is not seen.
 
 Exit codes: 0 clean; 1 findings at the failing level; 2 usage error / no files.
 """
@@ -617,6 +634,101 @@ def _check_script(text: str, line: int, add, where: str, what: str, tainted_env:
                 "carries attacker data - pass it through env: and use \"$VAR\"")
 
 
+# Shell hygiene (swallowed-failure, pipe-without-pipefail). Heuristic, line based: see the
+# module docstring for what it cannot see.
+_HEREDOC_RE = re.compile(r"(?<!<)<<(-?)\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([A-Za-z_][A-Za-z0-9_]*))")
+_SQ_RE = re.compile(r"'[^']*'")
+_DQ_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+_COMMENT_RE = re.compile(r"(?:^|(?<=[\s;]))#.*$")
+_PIPE_RE = re.compile(r"(?<![|>])\|(?!\|)")
+_PIPEFAIL_RE = re.compile(r"\bset\s+[^;&|]*?-[A-Za-z]*o\s+pipefail\b")
+_SWALLOW_RE = re.compile(r"\|\|\s*(?:true\b|:(?=\s|;|\)|$)|exit\s+0\b)")
+# `cmd || echo failed` exits 0 (echo's status) unless the line goes on to fail explicitly.
+# Quoted strings are already reduced to '' / "" here, so `exit "$code"` reads `exit ""`.
+_ECHO_SWALLOW_RE = re.compile(r"\|\|\s*(?:echo|printf)\b(?P<rest>.*)$")
+_FAILS_LATER_RE = re.compile(r"\b(?:exit|return)\s+(?:[1-9]|\$|''|\"\")|\bfalse\b")
+# `set +e` turns errexit off; unless the script then reads an exit status, failures vanish.
+_SET_PLUS_E_RE = re.compile(r"\bset\s+(?:[^;&|]*\s)?\+[A-Za-z]*e")
+_READS_STATUS_RE = re.compile(r"\$\?|\$\{\?\}|PIPESTATUS")
+_CASE_PATTERN_RE = re.compile(r"^\s*\(?[^()\s]*(?:\s*\|\s*[^()\s]+)*\s*\)")
+# Shells GitHub runs with pipefail on (`shell: bash` is `bash --noprofile --norc -eo pipefail {0}`),
+# and shells whose pipelines the check does not model.
+_NOT_CHECKED_SHELLS = ("pwsh", "powershell", "cmd", "python")
+
+
+def _shell_code_lines(script: str):
+    """Yield (offset, code) per line of a shell script: quoted strings, comments and heredoc
+    bodies removed, case-pattern alternatives (`a|b)`) dropped."""
+    heredoc = None  # (delimiter, strip_tabs)
+    case_depth = 0
+    for offset, line in enumerate(script.splitlines()):
+        if heredoc:
+            if (line.lstrip("\t") if heredoc[1] else line).strip() == heredoc[0]:
+                heredoc = None
+            continue
+        m = _HEREDOC_RE.search(line)
+        code = _COMMENT_RE.sub("", _DQ_RE.sub('""', _SQ_RE.sub("''", line)))
+        if m:
+            heredoc = (m.group(2) or m.group(3) or m.group(4), m.group(1) == "-")
+        words = re.findall(r"[A-Za-z_]+", code)
+        if case_depth:
+            code = _CASE_PATTERN_RE.sub("", code, count=1)
+        if "case" in words:
+            case_depth += words.count("case")
+            code = re.sub(r"\bin\b\s*\(?[^()\s]*(?:\s*\|\s*[^()\s]+)*\s*\)", "in ", code, count=1)
+        if "esac" in words:
+            case_depth = max(0, case_depth - words.count("esac"))
+        yield offset, code
+
+
+def _effective_shell(step: dict, job: dict, doc: dict) -> str | None:
+    """The step's `shell:`, else the job's then the workflow's `defaults.run.shell`; None = default."""
+    if step.get("shell") is not None:
+        return str(step["shell"]).strip()
+    for node in (job, doc):
+        defaults = node.get("defaults")
+        run = defaults.get("run") if isinstance(defaults, dict) else None
+        if isinstance(run, dict) and run.get("shell") is not None:
+            return str(run["shell"]).strip()
+    return None
+
+
+def _check_shell_hygiene(script: str, line: int, add, where: str, shell: str | None, runs_on) -> None:
+    """`line`: the file line of the script's first line."""
+    reads_status = bool(_READS_STATUS_RE.search(script))
+    for offset, code in _shell_code_lines(script):
+        echo = _ECHO_SWALLOW_RE.search(code)
+        if _SWALLOW_RE.search(code) or (echo and not _FAILS_LATER_RE.search(echo.group("rest"))):
+            add(line + offset, "WARN", "swallowed-failure",
+                f"{where}: run: discards a command's failure ({code.strip()!r}); capture the exit code "
+                "(set +e; cmd; code=$?) and judge it explicitly")
+        elif _SET_PLUS_E_RE.search(code) and not reads_status:
+            add(line + offset, "WARN", "swallowed-failure",
+                f"{where}: run: 'set +e' turns errexit off but the script never reads $? or PIPESTATUS, "
+                "so only the last command's failure can fail the step; record each exit code and judge it")
+    if shell is None:
+        if "windows" in str(runs_on).lower():
+            return  # default shell there is pwsh
+    elif shell == "bash" or "pipefail" in shell or shell.split()[0].lower() in _NOT_CHECKED_SHELLS:
+        return
+    for offset, code in _shell_code_lines(script):
+        if _PIPEFAIL_RE.search(code):
+            return
+        if _PIPE_RE.search(code):
+            add(line + offset, "WARN", "pipe-without-pipefail",
+                f"{where}: run: pipes ({code.strip()!r}) without 'set -o pipefail' under the default "
+                "'bash -e' shell, so a failure left of the pipe does not fail the step; add "
+                "'set -euo pipefail' first (or 'shell: bash')")
+            return
+
+
+def _check_continue_on_error(node: dict, line: int, add, where: str) -> None:
+    if "continue-on-error" in node and str(node["continue-on-error"]).strip().lower() != "false":
+        add(node.lines.get("continue-on-error", line) if isinstance(node, YMap) else line, "WARN",
+            "continue-on-error", f"{where}: 'continue-on-error: {node['continue-on-error']}' lets this fail "
+            "without failing the run; a check here cannot gate anything")
+
+
 def audit_text(text: str, name: str) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -686,6 +798,7 @@ def audit_text(text: str, name: str) -> list[Finding]:
             continue
         if "permissions" in job:
             _check_permissions(job["permissions"], where, job.lines["permissions"], False, pr_triggered, add)
+        _check_continue_on_error(job, jline, add, where)
         if "uses" in job:  # reusable workflow call: timeout-minutes is not allowed there
             uses_found += 1
             ul = job.lines["uses"]
@@ -713,9 +826,14 @@ def audit_text(text: str, name: str) -> list[Finding]:
             swhere = f"{where} step {idx + 1}" + (f" ({step['name']})" if step.get("name") else "")
             step_tainted_env = _tainted_env(step.get("env"), job_tainted_env)
             step_ref_env = _tainted_env(step.get("env"), job_ref_env, EVENT_OR_REF_RE)
+            _check_continue_on_error(step, sline, add, swhere)
             if "run" in step:
-                _check_script(str(step["run"]), step.lines["run"], add, swhere, "run:", step_tainted_env,
+                rl = step.lines["run"]
+                _check_script(str(step["run"]), rl, add, swhere, "run:", step_tainted_env,
                               step_ref_env)
+                block = re.search(r"\brun\s*:\s*[|>]", raw_lines[rl - 1]) is not None
+                _check_shell_hygiene(str(step["run"]), rl + block, add, swhere, _effective_shell(step, job, doc),
+                                     job.get("runs-on"))
             uses = step.get("uses")
             if uses is not None:
                 uses_found += 1

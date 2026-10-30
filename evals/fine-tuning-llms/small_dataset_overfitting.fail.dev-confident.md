@@ -1,0 +1,1 @@
+40 examples is small, but LoRA only trains a few million adapter parameters, so overfitting isn't really a concern here. Use the standard recipe: rank 16, 3 epochs, learning rate 2e-4. You could hold out a validation set of 5 examples, or try few-shot prompting as a comparison, but with LoRA that's optional.

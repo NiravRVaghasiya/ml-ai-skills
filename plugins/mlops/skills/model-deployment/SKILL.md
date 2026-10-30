@@ -32,7 +32,7 @@ outputs: A containerized, health-checked serving endpoint that returns predictio
 version_constraints:
   - "fastapi>=0.100: lifespan= context manager, docs_url/redoc_url/openapi_url=None, Depends, Header, HTTPException, exception_handler(RequestValidationError) (executed via fastapi.testclient against fastapi 0.141.1 on 2026-10-27; 0.100.0 is the first release whose PyPI metadata allows pydantic 2, read on 2026-10-27; 0.100 itself not executed)"
   - "pydantic>=2.0: ConfigDict(allow_inf_nan=False, extra='forbid'), Field(min_length, max_length) on a list (executed against pydantic 2.13.4 on 2026-10-27)"
-  - "torch>=1.13: torch.load(weights_only=True) (executed against torch 2.13.0+cpu on 2026-10-27; torch 2.13 refuses a __reduce__ payload with the default and with weights_only=True; the release that changed the default is not verified here)"
+  - "torch>=1.13: torch.load(weights_only=True) (executed against torch 2.13.0+cpu on 2026-10-27; torch 2.13 refuses a __reduce__ payload with the default and with weights_only=True; 1.13 lower bound documented: the PyTorch 1.13 release notes add the weights_only option, and the 2.6.0 release notes flip its default to True, both read 2026-10-29; 1.13 and 2.6 not executed)"
 ---
 
 ## Overview
@@ -325,8 +325,8 @@ in a script.
 - **`joblib.load` / `pickle.load` / `torch.load(weights_only=False)` run code embedded in
   the file.** Treat a model artifact like an executable: load only artifacts whose hash
   matches the one recorded at training time (step 2 refuses to start otherwise), keep
-  `torch.load(..., weights_only=True)` explicit (it is the default in recent PyTorch
-  releases, but not in older ones), and for
+  `torch.load(..., weights_only=True)` explicit (it is the default from PyTorch 2.6,
+  but not in older releases), and for
   scikit-learn consider `skops.io`, which loads only types you explicitly trust.
 - **No health check distinct from a liveness check** means an orchestrator can report
   "healthy" for a container whose model failed to load — traffic gets routed and every

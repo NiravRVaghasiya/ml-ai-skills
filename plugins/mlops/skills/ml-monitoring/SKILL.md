@@ -34,7 +34,7 @@ outputs: A scheduled drift/performance check plus alerts that fire before custom
 version_constraints:
   - "evidently>=0.7,<0.8: from evidently import Report; from evidently.presets import DataDriftPreset(num_method='psi', cat_method='psi'); Report.run(...) returning a Snapshot with .dict() and .save_html() (executed against evidently 0.7.23 on 2026-10-27; the 0.7.23 wheel has no evidently.report or evidently.metric_preset module)"
   - "pandas>=1.5,<3: read_json(lines=True), DataFrame.merge(validate='one_to_one') (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified; <3 because evidently 0.7.23 failed to import on pandas 3.1.0 in CI on 2026-10-28)"
-  - "apache-airflow>=2.4: DAG(schedule=...) (not executed: Airflow is stubbed in tests; apache-airflow-task-sdk 1.3.2 source read on 2026-10-27 has schedule but no schedule_interval)"
+  - "apache-airflow>=2.4: DAG(schedule=...) (not executed: Airflow is stubbed in tests; apache-airflow-task-sdk 1.3.2 source read on 2026-10-27 has schedule but no schedule_interval; 2.4 lower bound documented: the Airflow 2.4.0 release notes add the schedule argument and deprecate schedule_interval, read 2026-10-29)"
 ---
 
 ## Overview

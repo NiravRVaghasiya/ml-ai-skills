@@ -33,7 +33,7 @@ inputs: A fitted model plus a held-out test set (or a train set and CV strategy)
 outputs: A metric report with fold-to-fold spread, confusion matrix, and calibration diagnostics establishing whether the model's reported performance and probabilities can be trusted.
 version_constraints:
   - "scikit-learn>=1.4: cross_validate, learning_curve(shuffle=, random_state=), calibration_curve, CalibratedClassifierCV(method=, cv=), cross_val_predict(method=predict_proba), brier_score_loss, ConfusionMatrixDisplay.from_predictions as used in steps 1-7 (executed against scikit-learn 1.9.0 on 2026-10-27; lower bound not verified)"
-  - "matplotlib>=3.6.1: ConfusionMatrixDisplay plotting in step 5 (executed against matplotlib 3.11.1 with the Agg backend on 2026-10-27; lower bound is the matplotlib minimum declared by scikit-learn 1.9.0)"
+  - "matplotlib>=3.6.1: ConfusionMatrixDisplay plotting in step 5 (executed against matplotlib 3.11.1 with the Agg backend on 2026-10-27; lower bound is the matplotlib minimum in scikit-learn 1.9.0's examples/tests extras on PyPI, read 2026-10-29; 3.6.1 itself not executed)"
 ---
 
 ## Overview

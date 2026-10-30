@@ -9,7 +9,10 @@ Two scripts operate on it, both stdlib-only and offline by default:
 | script | what it does |
 |---|---|
 | `scripts/validate_evals.py` | structure + regex lint + fixture self-tests + `plan.json` checks; `--coverage` reporting |
-| `scripts/run_evals.py` | machine-readable JSON report: validation, self-tests, grading of recorded responses, optional executable tests, optional (explicitly enabled) model runs, and `--compare` regression detection |
+| `scripts/run_evals.py` | machine-readable JSON report: validation, self-tests, grading of recorded responses, optional executable tests, optional (explicitly enabled) model runs, `--compare` regression detection, and `--grade-labelled` grader calibration against labelled sets (`evals/_grading/`) |
+
+Model runs, the grading layers and how they combine into one verdict, run directories, cost
+controls and grader calibration are documented in [`docs/EVALUATION.md`](../docs/EVALUATION.md).
 
 ## What is and is not measured
 
@@ -53,8 +56,11 @@ Read this before quoting any number produced here.
 - **LLM-judge verdicts are opinions of another model.** The optional
   `--judge-model` grading is not validated against human labels here, can be
   biased toward verbose or self-similar answers, and is itself
-  nondeterministic. It is reported under `subjective`, never mixed into hard
-  pass rates, and never gates `--compare`.
+  nondeterministic. Its raw output is reported under `subjective`, never mixed
+  into hard pass rates, and never gates `--compare`. The combined
+  `graded[].verdict` uses it only through the documented rules in
+  `docs/EVALUATION.md`; a regex-only pass is `structural-pass`, never
+  `correct`.
 - **Model runs are not reproducible bit-for-bit.** Even with identical
   inputs, sampling and serving-side changes can alter responses. Reports pin
   everything that *is* controllable (model id, prompt-template hash, skill
@@ -89,6 +95,7 @@ Label conventions used in this repository (labels are free-form; only the
 | `fail.adversarial`, `fail.capitulation`, `fail.blind` | wrong answers written by an independent reviewer, verbatim (numbered variants such as `adversarial2`, `blind2` are the same kind) |
 | `pass.probe`, `fail.probe` | written by the pattern author after the patterns were set, graded once, then kept — not blind |
 | `pass.holdout`, `fail.holdout`, `pass.fixprobe`, `fail.fixprobe` | written by a fix engineer before reading or editing the patterns, graded once, then kept — not blind once tuned against |
+| `fail.dev-confident`, `fail.dev-partial`, `fail.dev-borderline`, `pass.dev-borderline` (optionally with a `-<suffix>`, e.g. `pass.dev-borderline-approval`) | dev fixtures written by the pattern-tuning engineer AFTER reading the case's patterns, then kept (not blind). In order: a confidently wrong on-topic answer; a mostly correct answer with one `must_not` violation; a hedged or softened wrong answer; a correct answer phrased close to a `must_not_include` pattern. Every `fail.dev-*` fixture must be caught by a `must_not_include` pattern, and any label starting with `dev` must have this form (`tests/test_evals.py`). The case's `notes` say when one led to a pattern change |
 | other labels (e.g. `fail.target_leak`, `fail.shows-that`) | a single targeted wrong answer for one specific failure mode; see the case's `notes` |
 
 Authoring pitfalls seen in this repository: `` after `%` never matches
@@ -242,10 +249,13 @@ still concludes wrongly. Add a `fail.on_topic` fixture. Cases with only
 toward one off-topic and one on-topic wrong answer. Each self-test result
 reports `must_include_matched` and `on_topic`.
 
-`--strict` reports zero warnings on the shipped tree, and
-`tests/test_evals.py` additionally requires that, for every case with
-`must_include`, at least one on-topic wrong answer is caught by a
-`must_not_include` pattern.
+`--strict` reports zero warnings and zero advisory warnings on the shipped
+tree (it also fails on unexercised `must_not_include` patterns;
+`--strict-advisories` checks only those), and `tests/test_evals.py`
+additionally requires that, for every case with `must_include`, at least one
+on-topic wrong answer is caught by a `must_not_include` pattern.
+`tests/test_evals.py` also requires every `must_not_include` pattern to be
+triggered by at least one fail fixture.
 
 ## plan.json
 
@@ -300,10 +310,19 @@ exempted). The default run does not fail on coverage gaps.
 python scripts/run_evals.py --out report.json                       # validate + fixture self-tests
 python scripts/run_evals.py --responses recorded.jsonl --out r.json # + grade recorded responses
 python scripts/run_evals.py --run-executable --python <venv python> # + run executable_tests
+python scripts/run_evals.py --run-executable --slow-examples --require-executed   # opt-in slow tests too; a skip fails
+python scripts/run_evals.py --grade-heldout                          # regex graders vs evals/_grading/heldout
 ```
 
+A skipped executable test is reported as `skipped (not evidence)` with its reason and is never
+counted as passed. `--slow-examples` and `--require-example-deps` set
+`ML_AI_SKILLS_SLOW_EXAMPLES=1` / `ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1` for the tests, and
+`--require-executed` exits 1 if any requested test skipped (`docs/EVALUATION.md`, "Executable
+cases").
+
 `recorded.jsonl`: one JSON object per line, all fields strings:
-`{"case_id": "data-preprocessing/leakage", "condition": "with_skill", "response": "..."}`.
+`{"case_id": "data-preprocessing/leakage", "condition": "with_skill", "response": "..."}`,
+optionally with an integer `sample` (default 0) and `status` (`ok` or `refusal`).
 `condition` matches `[a-z][a-z0-9_]*`; `with_skill` / `without_skill` are
 the conditions used for uplift. Unknown case ids, duplicates, and malformed
 lines are reported in `input_errors` (exit 1), never guessed at. `--skill` /
@@ -313,48 +332,43 @@ error).
 
 ### Model mode (explicit opt-in; network; costs money)
 
-Runs only when **all** are present: `--provider anthropic`, `--model <id>`,
-`--allow-network`, and a non-empty `ANTHROPIC_API_KEY` environment variable.
-Any model-mode option without the rest exits 2 without sending anything. That
-includes the model-only options `--judge-model`, `--conditions`,
-`--temperature`, `--max-tokens`, `--timeout`, `--max-retries`,
-`--anthropic-version` and `--save-responses` whenever they differ from their
-defaults, so a forgotten `--provider` is refused instead of silently running
-offline. An invalid eval suite exits 1 before any request.
+Full contract: [`docs/EVALUATION.md`](../docs/EVALUATION.md). In short:
 
-```bash
-ANTHROPIC_API_KEY=... python scripts/run_evals.py --provider anthropic --model <model-id> \
-    --allow-network --save-responses responses.jsonl --out model-report.json \
-    [--judge-model <model-id>] [--conditions with_skill,without_skill] [--skill data-preprocessing]
-```
-
-- Requests: stdlib `urllib` `POST https://api.anthropic.com/v1/messages` with
-  headers `x-api-key`, `anthropic-version` (default `2023-06-01`, override with
-  `--anthropic-version`), `content-type: application/json`; body `model`,
-  `max_tokens` (`--max-tokens`, default 4096), `system`, one `user` message.
-  Only `text` content blocks are graded.
-- Conditions: `with_skill` puts the full `SKILL.md` in the system prompt
-  inside a fixed template; `without_skill` uses the same base instruction
-  without it. Both templates (and the judge's) are hashed into
-  `model_run.prompt_template_sha256`.
-- Temperature is **not sent** unless `--temperature` is given, and the report
-  records `null` with "provider default". Newer models accept only default
-  sampling values, and newer API versions reject sampling parameters
-  outright; sending one can turn every request into a 400.
-- Timeouts (`--timeout`, default 120 s per request) and retries
-  (`--max-retries`, default 4) on 408/429/500/502/503/504/529 and connection
-  errors, with exponential backoff plus jitter (cap 60 s) or the numeric
-  `retry-after` header. Other errors are not retried. Failed calls become
-  `status: "error"` entries; the key is never written to reports or errors.
-- `--judge-model`: a second call per response grades `expected_behavior` /
-  `must_not` and must return JSON; results go to `graded[].subjective`
-  (`graded` / `unparseable` / `judge-error`) and `summary.subjective`.
-  Parsing is strict: each list must hold exactly the indices `0..n-1` once,
-  each with a JSON boolean `met` / `violated`. A string `"false"`, `1`, a
-  duplicate or missing index, or a non-object reply is `unparseable`, never
-  coerced into a verdict.
+- `--provider anthropic | claude-cli | replay`. Paid providers (`anthropic`,
+  `claude-cli`) need `--model`, `--allow-network` and a cost ceiling
+  `--max-cost-usd`; `anthropic` also needs the API key in `ANTHROPIC_API_KEY`
+  (or the variable named by `--api-key-env`) and your current prices
+  (`--price-input-per-mtok`, `--price-output-per-mtok`). `replay` needs only
+  `--replay-file` and runs offline. Without the full set the run prints
+  `not-run: no model configured` (or `not-run: model mode refused`) with the
+  missing items and exits 2 before sending anything. That includes any
+  model-only option given without `--provider`, so a forgotten `--provider` is
+  refused instead of silently running offline. An invalid eval suite exits 1
+  before any request.
+- `--dry-run` prints the request plan and a worst-case cost; a worst case
+  above the ceiling is refused unless `--allow-partial-budget` is given. The
+  same applies to judge-only runs (`--responses` / `--grade-*` with a paid
+  judge). A paid call whose cost is unknown (no prices, and the CLI reported
+  none) stops the run: later attempts are `budget-exhausted`. The ceiling is
+  per invocation; `--resume` starts again from $0.
+- Each case runs with the full `SKILL.md` in the system prompt (`with_skill`)
+  and without it (`without_skill`), same model and parameters, `--samples N`
+  times each. Uplift is computed only from cases complete in both arms.
+- Temperature is **not sent** unless `--temperature` is given (newer models
+  accept only default sampling values). Timeouts, retries and backoff are
+  explicit options (`--timeout`, `--max-retries`, `--backoff-base`,
+  `--backoff-cap`).
+- Every attempt has a status (`ok`, `refusal`, `error`, `timeout`,
+  `rate-limited`, `server-error`, `budget-exhausted`); none but `ok` can pass.
+- `--run-dir DIR` records every attempt; `--resume` reuses only completed
+  attempts whose provenance hash matches.
+- `--judge-provider` / `--judge-model` configure an optional judge separately
+  from the answering model. Parsing is strict: each list must hold exactly the
+  indices `0..n-1` once, each with a JSON boolean `met` / `violated`. A string
+  `"false"`, `1`, a duplicate or missing index, or a non-object reply is
+  `unparseable`, never coerced into a verdict.
 - `--save-responses FILE.jsonl` writes the responses in the recorded format,
-  so the hard grading can be repeated offline without re-sampling.
+  so the grading can be repeated offline without re-sampling.
 
 ### Compare (regression detection)
 
@@ -388,31 +402,36 @@ change. A BASE report without graded responses yields
 `"baseline": {"status": "unmeasured"}`. Subjective results are shown for
 context only and never gate.
 
-## Report format (`ml-ai-skills/eval-report`, schema_version 1)
+## Report format (`ml-ai-skills/eval-report`, schema_version 2)
 
 JSON, `indent=2`, keys sorted, trailing newline. Identical inputs produce
 byte-identical reports except the fields listed in `nondeterministic_fields`
 (currently only `generated_at`); model-mode responses are inputs, so two
-model runs differ wherever the model's answers differ.
+model runs differ wherever the model's answers differ. `--compare` reads
+schema_version 1 and 2 reports.
 
 | key | content |
 |---|---|
-| `schema`, `schema_version`, `harness_version` | `ml-ai-skills/eval-report`, `1`, `eval_lib.HARNESS_VERSION` |
+| `schema`, `schema_version`, `harness_version`, `grader_version` | `ml-ai-skills/eval-report`, `2`, `eval_lib.HARNESS_VERSION`, `eval_grading.GRADER_VERSION` |
 | `generated_at`, `nondeterministic_fields` | UTC timestamp; `["generated_at"]` |
 | `mode` | `offline` or `model` |
 | `environment` | `python_version`, `python_implementation`, `platform`, `git_revision` (or `null`), `git_dirty` |
 | `dependencies` | python and harness versions; third-party: none |
+| `provenance` | git revision and dirty flag, harness/grader versions, dataset/skill/case hashes, prompt-template and judge-prompt hashes, input-file hashes, the full run `config` (no secret values) and `config_sha256` (`docs/EVALUATION.md`) |
 | `dataset` | `dataset_sha256` (over all case and fixture hashes), `case_count`, `cases{case_id: {path, sha256, fixtures{name: sha256}, skill_sha256, category, kind}}`, `skills{slug: {sha256, plan_sha256}}` — hashes are of LF-normalized text |
 | `validation` | `ok`, `errors`, `warnings` (same as validate_evals.py) |
-| `input_errors` | problems in `--responses` input |
+| `input_errors` | problems in `--responses`, `--rubric-labels` or replay input |
 | `fixture_self_tests` | `total`, `ok`, `failed`, `results[{case_id, fixture, expected, observed, ok, must_include_matched, on_topic, assertions}]` |
-| `graded` | `[{case_id, condition, source (recorded/model), status (ok/error), response, response_sha256, hard{gradable, passed, assertions[{id, type, pattern, passed, evidence}], skipped_reason?}, subjective{status, ...}, stop_reason?, model_reported?, usage?, error?}]` |
-| `executable` | `null`, `{status: not-run, reason}`, or `{status: run, python, results[{test_id, cases, status (passed/failed/skipped), detail}], counts}` |
+| `graded` | `[{case_id, condition, sample, source (recorded/model), status (ok/refusal/error/timeout/rate-limited/server-error/budget-exhausted), response, response_sha256, hard{gradable, passed, assertions[{id, type, pattern, passed, evidence}], skipped_reason?}, rubric{status, source, items[{kind, index, criterion, verdict}]}, subjective{status, ...}, verdict{final, critical_error, critical_sources, rule, reasons}, stop_reason?, model_reported?, usage?, cost_usd?, attempts?, error?}]` |
+| `executable` | `null`, `{status: not-run, reason}`, or `{status: run, python, env_overrides, results[{test_id, cases, status (passed/failed/skipped), executed, status_label?, detail}], counts}` |
 | `skipped` | `[{case_id, what, reason}]` — rubric-only cases, cases without a supplied response |
-| `summary` | `hard{condition: {responses, gradable, passed, failed, errors, not_gradable, pass_rate}}`, `subjective{condition: {graded, rubric_passed, not_graded, judge_errors, rubric_pass_rate}}` — separate on purpose |
-| `skill_uplift` | `unmeasured` with reason, or paired-case `with_skill_pass_rate`, `without_skill_pass_rate`, `delta`, and the cases that differ |
+| `summary` | `hard{condition: {responses, gradable, passed, failed, errors, refusals, not_gradable, pass_rate}}`, `subjective{condition: {graded, rubric_passed, not_graded, judge_errors, rubric_pass_rate}}`, `final{condition: {attempts, by_status, verdicts, structural_pass, correct, critical_error, rubric_coverage, abstentions, disputed}}` (rates as `{k, n, rate, ci95}`) |
+| `skill_uplift` | the structural layer: `unmeasured` with reason and `incomplete_cases`, or paired-case `with_skill_pass_rate`, `without_skill_pass_rate`, their `ci95`, `delta`, and the cases that differ |
+| `uplift` | `{structural, correct, critical_error}`, each paired over cases complete in both arms, with `incomplete_cases` |
+| `verdict_rules` | the rules that produced `graded[].verdict` |
 | `baseline` | always `{status: unmeasured, reason}` in a single report |
-| `model_run` | `null`, or provider, model, judge_model, endpoint, anthropic_version, conditions, max_tokens, temperature (+ note), prompt_template_version/sha256, timeout, retries, http_attempts, http_client |
+| `model_evaluation` | `{status: not-run, reason}` offline; `{status: run, complete, attempts, by_status, provider, model}` for a model run |
+| `model_run` | `null`, or provider, model, judge_model, endpoint, anthropic_version, conditions, samples, max_tokens, temperature (+ note), prompt_template_version/sha256, timeout, retries, http_attempts, http_client, backend, judge, budget, preflight, run_dir, resume |
 
 The compare document (`ml-ai-skills/eval-compare`) has `base`/`new`
 summaries, `baseline`, `regressions`, `improvements`, `fixture_regressions`,

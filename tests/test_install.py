@@ -16,6 +16,8 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import skills_lib as sl  # noqa: E402
 
 BASH = shutil.which("bash")
+# Upper bound per run of the full library (38 skills; forks are slow on Windows).
+SCRIPT_TIMEOUT = 600
 INSTALL_SH = REPO_ROOT / "install.sh"
 UNINSTALL_SH = REPO_ROOT / "uninstall.sh"
 MANIFEST_NAME = ".ml-ai-skills-manifest"
@@ -36,31 +38,33 @@ class InstallerTestBase(unittest.TestCase):
     def run_install(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [BASH, str(INSTALL_SH), "--target", str(self.target), *args],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=SCRIPT_TIMEOUT,
         )
 
     def run_uninstall(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(
             [BASH, str(UNINSTALL_SH), "--target", str(self.target), *args],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=SCRIPT_TIMEOUT,
         )
 
     def manifest_slugs(self) -> set[str]:
-        # Format 2 lines are 'slug<TAB>sha256' (docs/INSTALLER.md); format 1 was bare slugs.
+        # Skill lines only (docs/INSTALLER.md, format 3): 'slug<TAB>sha256'; format 1
+        # was bare slugs. File lines ('slug<TAB>sha256<TAB>path') have two TABs and
+        # don't count, so a skill whose skill line is lost is not listed.
         text = (self.target / MANIFEST_NAME).read_text(encoding="utf-8")
         return {ln.split("\t", 1)[0].strip() for ln in text.splitlines()
-                if ln.strip() and not ln.startswith("#")}
+                if ln.strip() and not ln.startswith("#") and ln.count("\t") < 2}
 
 
 class TestHelp(InstallerTestBase):
     def test_install_help_exits_zero_and_does_not_touch_target(self):
-        result = subprocess.run([BASH, str(INSTALL_SH), "--help"], capture_output=True, text=True)
+        result = subprocess.run([BASH, str(INSTALL_SH), "--help"], capture_output=True, text=True, timeout=SCRIPT_TIMEOUT)
         self.assertEqual(result.returncode, 0)
         self.assertIn("Usage", result.stdout)
         self.assertFalse(self.target.exists())
 
     def test_uninstall_help_exits_zero(self):
-        result = subprocess.run([BASH, str(UNINSTALL_SH), "--help"], capture_output=True, text=True)
+        result = subprocess.run([BASH, str(UNINSTALL_SH), "--help"], capture_output=True, text=True, timeout=SCRIPT_TIMEOUT)
         self.assertEqual(result.returncode, 0)
         self.assertIn("Usage", result.stdout)
 
@@ -147,7 +151,7 @@ class TestInvalidEnvironment(InstallerTestBase):
         not_a_repo.mkdir()
         result = subprocess.run(
             [BASH, str(INSTALL_SH), "--source", str(not_a_repo), "--target", str(self.target)],
-            capture_output=True, text=True,
+            capture_output=True, text=True, timeout=SCRIPT_TIMEOUT,
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("does not look like an ml-ai-skills checkout", result.stderr)
@@ -220,7 +224,7 @@ class TestWrapper(InstallerTestBase):
 
     def wrapper(self, path: Path, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run([BASH, str(path), *args], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+                              encoding="utf-8", errors="replace", timeout=SCRIPT_TIMEOUT)
 
     def test_wrapper_reached_through_a_linked_bin_dir_uses_the_real_checkout(self):
         link = self.elsewhere / "bin2"
@@ -257,7 +261,7 @@ class TestWrapper(InstallerTestBase):
         (self.elsewhere / "bin").mkdir()
         r = subprocess.run([BASH, "bin/ml-ai-skills", "install", "--dry-run"], capture_output=True,
                            text=True, encoding="utf-8", errors="replace", cwd=self.fake,
-                           env={**os.environ, "CDPATH": "../elsewhere"})
+                           env={**os.environ, "CDPATH": "../elsewhere"}, timeout=SCRIPT_TIMEOUT)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertEqual(r.stdout.strip(), "REAL install.sh: --dry-run")
 

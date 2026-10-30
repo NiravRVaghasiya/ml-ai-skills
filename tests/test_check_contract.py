@@ -248,10 +248,15 @@ class TestBaseRef(TestLockWorkflow):
 
 class TestWiredIntoWorkflows(unittest.TestCase):
     def test_ci_and_release_compare_against_the_base_lock(self):
-        for wf in ("ci.yml", "release.yml"):
+        # ci.yml passes the base commit its "Resolve the base commit" step resolved (a push of
+        # several commits is compared against the push's `before`, not just the last parent);
+        # release.yml runs on a tag push and compares against the tagged commit's parent.
+        expected = {"ci.yml": 'scripts/check_contract.py --check --base-ref "$BASE_SHA"',
+                    "release.yml": "scripts/check_contract.py --check --base-ref HEAD^1"}
+        for wf, call in expected.items():
             text = (tu.REPO_ROOT / ".github" / "workflows" / wf).read_text(encoding="utf-8")
             with self.subTest(workflow=wf):
-                self.assertIn("scripts/check_contract.py --check --base-ref HEAD^1", text)
+                self.assertIn(call, text)
                 self.assertNotRegex(text, r"(?m)check_contract\.py --check\s*$")
 
 

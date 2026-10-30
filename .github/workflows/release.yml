@@ -1,18 +1,23 @@
 name: release
 
 # Builds and publishes the release tarball when a version tag (v*) is pushed. Never runs on
-# pull requests. Two jobs:
-#   verify   read-only token: the tagged commit is on the default branch and has a green
-#            ci.yml push run (so every CI job - examples, installer on macOS, plugins,
-#            routing - passed for exactly this commit), VERSION == tag, the fast gates
-#            again (same list as ci.yml's lint + validate jobs, plus unit tests), and a
-#            reproducible build whose SHA-256 is handed to the next job
-#   publish  the only job with write scopes: rebuilds on a fresh runner, requires the
-#            byte-identical SHA-256, refuses (before attesting anything) to replace an existing
-#            release's assets unless its SHA256SUMS is byte-identical to the rebuild (an
-#            idempotent re-run), attests build provenance, uploads to the GitHub release.
+# pull requests, so no pull-request code ever runs with this workflow's token. Two jobs:
+#   verify   read-only token: the tag is an annotated tag whose signature GitHub verified and
+#            which points at the checked-out commit; that commit is on the default branch and
+#            has a green ci.yml push run (so every CI job - examples, installer on macOS,
+#            plugins, routing - passed for exactly this commit); VERSION == tag; the fast
+#            gates again (same list as ci.yml's lint + validate jobs, plus unit tests); the
+#            archive self-containment tests (tests/test_release_archive.py with the slow
+#            checks on); and a reproducible build whose SHA-256 is handed to the next job
+#   publish  the only job with write scopes: re-checks that the tag still points at the same
+#            commit, rebuilds on a fresh runner, requires the byte-identical SHA-256, refuses
+#            (before attesting anything) to replace an existing release's assets unless its
+#            SHA256SUMS is byte-identical to the rebuild (an idempotent re-run), attests
+#            build provenance, uploads to the GitHub release.
 # The build is scripts/build_release.py (sorted entries, SOURCE_DATE_EPOCH = tag commit
-# time, uid/gid 0, normalized modes). Pin bump procedure: see the header of ci.yml.
+# time, uid/gid 0, content-derived modes, fixed gzip header; it refuses generated-artifact
+# drift). How to create the signed tag: docs/RELEASE.md, "Release steps" and "The first
+# tagged release". Pin bump procedure: see the header of ci.yml.
 
 on:
   push:
@@ -31,9 +36,9 @@ env:
 jobs:
   verify:
     name: Verify tag, run gates, reproducible build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
       actions: read  # gh run list: look up the ci.yml run for the tagged commit
@@ -44,6 +49,40 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0  # all branches, for the default-branch ancestry check
+      - name: The tag is annotated, GitHub-verified, and points at this commit
+        # Read from the GitHub API rather than the local clone, which may hold the tag as a
+        # lightweight ref. "verified" means GitHub checked the GPG/SSH/S/MIME signature against
+        # a key registered on the tagger's GitHub account (docs/RELEASE.md, "The first tagged
+        # release"). A lightweight or unsigned tag is refused.
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::tag '$TAG' is not v<MAJOR>.<MINOR>.<PATCH>[-prerelease]"
+            exit 1
+          fi
+          head="$(git rev-parse HEAD)"
+          ref="$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha')"
+          read -r ref_type ref_sha <<< "$ref"
+          if [ "$ref_type" != "tag" ]; then
+            echo "::error::$TAG is a lightweight tag (ref points at a $ref_type); push an annotated, signed tag (git tag -s)"
+            exit 1
+          fi
+          tag="$(gh api "repos/$GH_REPO/git/tags/$ref_sha" \
+            --jq '[.object.type, .object.sha, (.verification.verified | tostring), .verification.reason] | join(" ")')"
+          read -r obj_type obj_sha verified reason <<< "$tag"
+          if [ "$obj_type" != "commit" ] || [ "$obj_sha" != "$head" ]; then
+            echo "::error::$TAG points at $obj_type $obj_sha, but the checked-out commit is $head"
+            exit 1
+          fi
+          if [ "$verified" != "true" ]; then
+            echo "::error::GitHub did not verify the signature of $TAG (reason: $reason). Sign it with a key registered on your GitHub account."
+            exit 1
+          fi
+          echo "$TAG: annotated tag $ref_sha, signature verified by GitHub, points at $head"
       - name: The tagged commit is on the default branch and its CI passed
         # A v* tag can be pushed on any commit; only reviewed, merged commits whose full
         # ci.yml run succeeded are released. If the tag was pushed before CI finished, wait
@@ -59,12 +98,12 @@ jobs:
             echo "::error::tagged commit $sha is not on origin/$DEFAULT_BRANCH"
             exit 1
           fi
-          green="$(gh run list --workflow ci.yml --commit "$sha" --event push --status success --limit 20 --json databaseId --jq 'length')"
+          green="$(gh run list --workflow ci.yml --branch "$DEFAULT_BRANCH" --commit "$sha" --event push --status success --limit 20 --json databaseId --jq 'length')"
           if [ "$green" -lt 1 ]; then
-            echo "::error::no successful ci.yml push run for $sha (still running, failed, cancelled, or this commit was not the tip of a push). Re-run that commit's ci.yml push run (Actions > skill-library-ci, filter by the commit), wait for it to pass, then re-run this workflow."
+            echo "::error::no successful ci.yml push run on $DEFAULT_BRANCH for $sha (still running, failed, cancelled, or this commit was not the tip of a push). Re-run that commit's ci.yml push run (Actions > skill-library-ci, filter by the commit), wait for it to pass, then re-run this workflow."
             exit 1
           fi
-          echo "ci.yml succeeded for $sha ($green run(s))"
+          echo "ci.yml succeeded on $DEFAULT_BRANCH for $sha ($green run(s))"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
@@ -78,8 +117,10 @@ jobs:
             exit 1
           fi
           grep -qF "## [$version]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## [$version]' section"; exit 1; }
-      - name: Install the pinned ruff and shellcheck from requirements-dev.txt
-        run: python -m pip install "$(grep -E '^ruff==' requirements-dev.txt)" "$(grep -E '^shellcheck-py==' requirements-dev.txt)"
+      - name: Install the pinned ruff and shellcheck from requirements-dev.txt (with its lock, as in ci.yml)
+        run: |
+          set -euo pipefail
+          python -m pip install -c constraints/dev-linux-cp313.txt "$(grep -E '^ruff==' requirements-dev.txt)" "$(grep -E '^shellcheck-py==' requirements-dev.txt)"
       - name: Validation gates (ci.yml lint + validate, generated-artifact drift, offline evals)
         run: |
           set -euo pipefail
@@ -99,28 +140,35 @@ jobs:
           set -euo pipefail
           mods=()
           for f in tests/test_*.py; do
-            case "$f" in tests/test_install*) continue ;; esac
+            case "$f" in tests/test_install*|tests/test_release_archive.py) continue ;; esac
             m="${f#tests/}"; mods+=("${m%.py}")
           done
           PYTHONPATH=tests python -m unittest "${mods[@]}"
-      - name: Build twice and require identical bytes
+      - name: The archive is self-contained (documented checks + unit suite run from the extracted tarball)
+        env:
+          ML_AI_SKILLS_RELEASE_SLOW: "1"
+        run: PYTHONPATH=tests python -m unittest -v test_release_archive
+      - name: Build twice, require identical bytes, verify the archive
         id: build
         env:
           TAG: ${{ github.ref_name }}
+        # The first build runs scripts/check_generated.py (refusing drift); the second only
+        # has to reproduce the bytes.
         run: |
           set -euo pipefail
           SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
           export SOURCE_DATE_EPOCH
           python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir "$RUNNER_TEMP/a"
-          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir "$RUNNER_TEMP/b"
+          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir "$RUNNER_TEMP/b" --skip-generated-check
           cmp "$RUNNER_TEMP"/a/*.tar.gz "$RUNNER_TEMP"/b/*.tar.gz
           (cd "$RUNNER_TEMP/a" && sha256sum -c SHA256SUMS)
+          python scripts/build_release.py --verify-archive "$RUNNER_TEMP"/a/*.tar.gz
           echo "sha256=$(cut -d' ' -f1 "$RUNNER_TEMP/a/SHA256SUMS")" >> "$GITHUB_OUTPUT"
 
   publish:
     name: Rebuild, attest, upload to the GitHub release
     needs: verify
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -134,15 +182,35 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
+      - name: The tag still points at the verified commit
+        # Closes the window between verify and publish: a tag deleted and re-pushed on another
+        # commit meanwhile must not be published under the earlier verification.
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          ref_sha="$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.sha')"
+          target="$(gh api "repos/$GH_REPO/git/tags/$ref_sha" --jq '.object.sha')"
+          if [ "$target" != "$head" ]; then
+            echo "::error::$TAG now points at $target, not the verified commit $head"
+            exit 1
+          fi
       - name: Rebuild and compare with the verify job's SHA-256
         env:
           TAG: ${{ github.ref_name }}
           EXPECTED_SHA256: ${{ needs.verify.outputs.sha256 }}
+        # This job can mint OIDC tokens, so the repo's own build script runs with the token
+        # request variables removed from its environment, and without the generated-artifact
+        # check (which runs every generator; the verify job already ran it on this commit).
         run: |
           set -euo pipefail
           SOURCE_DATE_EPOCH="$(git log -1 --format=%ct HEAD)"
           export SOURCE_DATE_EPOCH
-          python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir dist
+          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
+            python scripts/build_release.py --require-clean --expect-version "$TAG" --out-dir dist --skip-generated-check
           (cd dist && sha256sum -c SHA256SUMS)
           actual="$(cut -d' ' -f1 dist/SHA256SUMS)"
           if [ "$actual" != "$EXPECTED_SHA256" ]; then
@@ -200,7 +268,8 @@ jobs:
           text = open("CHANGELOG.md", encoding="utf-8").read()
           m = re.search(rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text, re.S | re.M)
           body = (m.group(1).strip() if m else "") or f"Release {version}."
-          body += "\n\nVerify: `sha256sum -c SHA256SUMS`, then `gh attestation verify <tarball> --repo <owner>/<repo>`."
+          body += ("\n\nVerify: `sha256sum -c SHA256SUMS`, `gh attestation verify <tarball> --repo <owner>/<repo>`, "
+                   "then `python scripts/build_release.py --verify-archive <tarball>` from a checkout of the tag.")
           open("release-notes.md", "w", encoding="utf-8").write(body + "\n")
           PY
       - name: Upload to the GitHub release

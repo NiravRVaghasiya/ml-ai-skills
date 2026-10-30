@@ -10,7 +10,8 @@ schema/public-contract.json.
 
     python scripts/check_contract.py           # print the current contract and its diff vs the lock
     python scripts/check_contract.py --check   # exit 1 if the contract differs from the lock
-    python scripts/check_contract.py --check --base-ref HEAD^1   # ...and vs the base commit's lock (CI)
+    python scripts/check_contract.py --check --base-ref "$BASE_SHA"   # ...and vs the base commit's lock (CI)
+    python scripts/check_contract.py --check --base-ref HEAD^1   # ...the same against the first parent (local)
     python scripts/check_contract.py --write   # re-lock, refusing unversioned BREAKING changes
 
 Rules (see docs/SKILL-SPEC.md "Public contract lock"):
@@ -210,7 +211,7 @@ def load_base_lock(root: Path, ref: str, lock_path: Path) -> tuple[dict | None, 
 
     try:
         if git("rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}").returncode != 0:
-            return None, f"base ref {ref!r} does not resolve to a commit (fetch it, e.g. checkout fetch-depth: 2)"
+            return None, f"base ref {ref!r} does not resolve to a commit (fetch it, e.g. actions/checkout fetch-depth: 0)"
         if git("cat-file", "-e", f"{ref}:./{rel}").returncode != 0:
             return None, None
         shown = git("show", f"{ref}:./{rel}")

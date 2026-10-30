@@ -71,21 +71,45 @@ class Skill:
         except KeyError as e:
             raise AttributeError(item) from e
 
+    def markdown(self) -> MarkdownScan:
+        """The body's line/block structure (fences, HTML comments, headings), cached per body."""
+        cached = self.__dict__.get("_scan")
+        if cached is None or cached[0] is not self.body:
+            cached = (self.body, scan_markdown(self.body))
+            self.__dict__["_scan"] = cached
+        return cached[1]
+
     def headers(self) -> list[str]:
-        """Return every level-2 (`## `) markdown header in the body, in order."""
-        return re.findall(r"^##\s+(.+?)\s*$", self.body, flags=re.MULTILINE)
+        """Return the text of every level-2 ATX heading (`## X`) in the body, in order.
+
+        Headings inside fenced code blocks and HTML comments are not headings;
+        a closing `#` sequence (`## Gotchas ##`) is not part of the text.
+        """
+        return [h.text for h in self.markdown().headings if h.level == 2]
 
     def bullets_under(self, header: str) -> list[str]:
-        """Return top-level `- ` bullet lines under a given `## Header` section."""
-        pattern = rf"^##\s+{re.escape(header)}\s*$(.*?)(?=^##\s+|\Z)"
-        m = re.search(pattern, self.body, flags=re.MULTILINE | re.DOTALL)
-        if not m:
+        """Return top-level `- ` bullet lines under the first `## Header` section.
+
+        The section runs to the next level-1 or level-2 heading. Lines inside
+        fenced code blocks and HTML comments are not bullets.
+        """
+        scan = self.markdown()
+        k = next((k for k, h in enumerate(scan.headings) if h.level == 2 and h.text == header), None)
+        if k is None:
             return []
-        section = m.group(1)
-        return re.findall(r"^-\s+.+$", section, flags=re.MULTILINE)
+        h = scan.headings[k]
+        end = next((x.line for x in scan.headings[k + 1:] if x.level <= 2), len(scan.lines))
+        return [scan.lines[i] for i in range(h.line + 1, end)
+                if scan.kinds[i] == "text" and _BULLET_RE.match(scan.lines[i])
+                and not _THEMATIC_BREAK_RE.match(scan.lines[i])]
 
     def code_blocks(self, lang: str | None = "python") -> list[tuple[str, str]]:
         """Return (lang, code) for every fenced code block in the body.
+
+        Both ```` ``` ```` and `~~~` fences count (any length >= 3; the
+        closing fence uses the same character and is at least as long), and
+        `lang` is the first word of the info string. An unclosed fence runs
+        to the end of the body, as in CommonMark.
 
         Code fences nested under a numbered-list step are themselves indented
         in the raw Markdown (e.g. 3 spaces to align with "1. "). That
@@ -93,8 +117,7 @@ class Skill:
         so downstream consumers (e.g. validate_skills.py's ast.parse check)
         see the code as it's meant to run, not as it's laid out on the page.
         """
-        blocks = re.findall(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", self.body, flags=re.DOTALL)
-        blocks = [(lang_tag, textwrap.dedent(c)) for lang_tag, c in blocks]
+        blocks = [(b.lang, textwrap.dedent(b.code)) for b in self.markdown().fences]
         if lang is None:
             return blocks
         return [(lang_tag, c) for lang_tag, c in blocks if lang_tag.lower() == lang]
@@ -121,25 +144,192 @@ class Skill:
         return self.raw.count("\n") - self.body.count("\n")
 
 
-_FENCE_RE = re.compile(r"^\s*(```|~~~)")
+# --------------------------------------------------------------------------
+# Markdown structure (line based; see docs/SKILL-SPEC.md known limitation 6)
+# --------------------------------------------------------------------------
+# A deliberately small subset of CommonMark: enough to tell headings, bullets
+# and code apart, not a renderer. Fences may be indented by any amount
+# (skills nest them under numbered steps); a backtick fence's info string may
+# not contain a backtick (so "```x```" on one line is inline code, not a fence).
+_FENCE_OPEN_RE = re.compile(r"^[ \t]*(?P<fence>`{3,}(?=[^`]*$)|~{3,})(?P<info>.*)$")
+_ATX_RE = re.compile(r"^ {0,3}(?P<hashes>#{1,6})(?:[ \t]+(?P<text>.*?))?[ \t]*$")
+_ATX_CLOSE_RE = re.compile(r"(?:^|[ \t]+)#+[ \t]*$")
+# Setext detection works on a line's text after its indentation (`_indent`), so
+# it also sees headings inside list items; the column checks are in scan_markdown.
+_SETEXT_UNDERLINE_RE = re.compile(r"^(?:=+|-+)[ \t]*$")
+_LIST_MARKER_RE = re.compile(r"^(?P<marker>[-*+]|(?P<num>[0-9]{1,9})[.)])(?P<gap>[ \t]+|$)")
+# Blocks a `---` under which is not a setext underline: quotes, tables, HTML, ATX headings.
+_OTHER_BLOCK_START_RE = re.compile(r"^(?:>|\||<|#{1,6}(?:[ \t]|$))")
+_BULLET_RE = re.compile(r"^-[ \t]+\S")
+_THEMATIC_BREAK_RE = re.compile(r"^ {0,3}(?:(?:-[ \t]*){3,}|(?:\*[ \t]*){3,}|(?:_[ \t]*){3,})$")
+_HTML_COMMENT_START_RE = re.compile(r"^ {0,3}<!--")
 _INLINE_CODE_RE = re.compile(r"(`+)(?:(?!\1).)+?\1")
 
 
-def strip_code(markdown: str) -> str:
-    out: list[str] = []
-    fence: str | None = None
-    for line in markdown.split("\n"):
-        m = _FENCE_RE.match(line)
-        if fence is None and m:
-            fence = m.group(1)
-            out.append("")
-        elif fence is not None:
-            if line.strip().startswith(fence):
-                fence = None
-            out.append("")
+class Heading(NamedTuple):
+    line: int  # 0-based line index in the body
+    level: int
+    text: str
+
+
+class Fence(NamedTuple):
+    line: int  # 0-based index of the opening fence line
+    end: int | None  # 0-based index of the closing fence line; None if never closed
+    marker: str  # the opening fence, e.g. "```" or "~~~~"
+    lang: str  # first word of the info string ("" if none)
+    code: str  # content lines, each ending in "\n" (not yet dedented)
+
+
+class MarkdownScan(NamedTuple):
+    lines: list[str]
+    # Per line: "text", "fence" (an opening/closing fence line), "code" (inside
+    # a fence) or "html" (inside an HTML comment block).
+    kinds: list[str]
+    headings: list[Heading]  # ATX headings outside code and comments
+    fences: list[Fence]
+    setext: list[Heading]  # setext-style headings (text + `===`/`---` underline); the validator rejects them
+
+
+def _indent(line: str) -> tuple[int, str]:
+    """(column of the first non-blank character, tabs at 4-column stops; the rest of the line)."""
+    rest = line.lstrip(" \t")
+    return len(line[:len(line) - len(rest)].expandtabs(4)), rest
+
+
+def scan_markdown(markdown: str) -> MarkdownScan:
+    """Classify each line of `markdown` as text, fenced code or HTML comment."""
+    lines = markdown.split("\n")
+    kinds: list[str] = []
+    headings: list[Heading] = []
+    fences: list[Fence] = []
+    setext: list[Heading] = []
+    open_fence: tuple[int, str, str] | None = None  # (line, marker, lang)
+    code: list[str] = []
+    in_comment = False
+    # Setext state, a CommonMark approximation: the current run of text lines,
+    # its kind ("para"; or "code", "other" (a quote) or "toblank" (an HTML block
+    # or table, which runs to the next blank line), under which `---` is never
+    # an underline), the column its paragraph text starts at, and the content columns of the
+    # list items it may sit in (innermost last).
+    para_start: int | None = None
+    para_kind = ""
+    para_base = 0
+    items: list[int] = []
+    empty_item = False  # the previous line was a list marker with no content
+    for i, line in enumerate(lines):
+        if open_fence is not None:
+            start, marker, lang = open_fence
+            close = line.strip(" \t")
+            if close and set(close) == {marker[0]} and len(close) >= len(marker):
+                fences.append(Fence(start, i, marker, lang, "".join(code)))
+                open_fence, code = None, []
+                kinds.append("fence")
+            else:
+                code.append(line + "\n")
+                kinds.append("code")
+            continue
+        if in_comment:
+            kinds.append("html")
+            in_comment = "-->" not in line
+            continue
+        m = _FENCE_OPEN_RE.match(line)
+        if m:
+            info = m.group("info").strip()
+            open_fence = (i, m.group("fence"), info.split()[0] if info else "")
+            kinds.append("fence")
+            para_start = None
+            continue
+        c = _HTML_COMMENT_START_RE.match(line)
+        if c:
+            kinds.append("html")
+            in_comment = "-->" not in line[c.end():]
+            para_start = None
+            continue
+        kinds.append("text")
+        if not line.strip(" \t"):
+            if empty_item:  # a list item that starts with a blank line ends at the next one
+                items.pop()
+            para_start, empty_item = None, False
+            continue
+        h = _ATX_RE.match(line)
+        if h:
+            text = _ATX_CLOSE_RE.sub("", h.group("text") or "")
+            headings.append(Heading(i, len(h.group("hashes")), text.strip(" \t")))
+        col, rest = _indent(line)
+        # A `===`/`---` line directly under a paragraph turns it into a heading
+        # (CommonMark setext heading), including inside a list item when it is
+        # indented to the item's content: "1. Step\n   text\n   ---".
+        if para_start is not None and para_kind == "para" and para_base <= col < para_base + 4 \
+                and _SETEXT_UNDERLINE_RE.match(rest):
+            level = 1 if rest[0] == "=" else 2
+            text = [lines[para_start].expandtabs(4)[para_base:].strip(), *(x.strip() for x in lines[para_start + 1:i])]
+            setext.append(Heading(i, level, " ".join(x for x in text if x)))
+            para_start = None
+            continue
+        base = max((c for c in items if c <= col), default=0)  # innermost list item this line is inside
+        block = col - base <= 3  # 4+ columns past it is indented code, or a paragraph's continuation
+        li = _LIST_MARKER_RE.match(rest) if block else None
+        if li and para_start is not None and li.group("num") not in (None, "1") \
+                and (para_kind == "other" or para_kind == "para" and col >= para_base):
+            li = None  # an ordered item not starting at 1 cannot interrupt a paragraph (or a quote's lazy text)
+        elif li and para_start is not None and para_kind == "para" and col >= para_base and not rest[li.end():]:
+            li = None  # nor can an empty item; outside the paragraph's own container it is a sibling item
+        rule = block and _THEMATIC_BREAK_RE.match(rest)
+        other = block and _OTHER_BLOCK_START_RE.match(rest)
+        if para_start is not None and (para_kind == "toblank" or para_kind in ("para", "other") and not (h or li or rule or other)):
+            if para_kind == "para" and col < para_base and _THEMATIC_BREAK_RE.match(rest):
+                para_kind = "other"  # a rule-like lazy line: parsers disagree, so no underline may follow
+            continue  # continuation: of a paragraph (lazy or indented), a quote, or an HTML block or table
+        items = [c for c in items if c <= col]
+        empty_item = False
+        if h or rule:
+            para_start = None
+        elif li:
+            # Push the item's content column (and those of items nested on the same
+            # line, "- 1. x"); its text is a paragraph unless it opens another block.
+            while li:
+                marker = li.group("marker")
+                gap = len((" " * col + marker + li.group("gap")).expandtabs(4)) - col - len(marker)
+                content = rest[li.end():]
+                col += len(marker) + (gap if 1 <= gap <= 4 and content else 1)
+                rest = content if gap <= 4 else " " * (gap - 1) + content  # 5+ spaces: indented code
+                items.append(col)
+                li = _LIST_MARKER_RE.match(rest) if rest and not _THEMATIC_BREAK_RE.match(rest) else None
+            if not rest:
+                para_start, empty_item = None, True
+            elif _ATX_RE.match(rest) or _THEMATIC_BREAK_RE.match(rest):
+                para_start = None  # a one-line block
+            elif rest[0] in "<|":
+                para_start, para_kind = i, "toblank"
+            else:
+                para_start, para_kind, para_base = i, "para", col
+                if rest[0] in " \t":
+                    para_kind = "code"
+                elif _OTHER_BLOCK_START_RE.match(rest):
+                    para_kind = "other"
+        elif other:
+            # A raw HTML block or a table runs to the next blank line; a quote absorbs
+            # lazy continuation lines. A `---` under any of them is not a heading.
+            para_start, para_kind = i, "toblank" if rest[0] in "<|" else "other"
+        elif block:
+            para_start, para_kind, para_base = i, "para", base
         else:
-            out.append(_INLINE_CODE_RE.sub("", line))
-    return "\n".join(out)
+            para_start, para_kind = i, "code"
+    if open_fence is not None:
+        start, marker, lang = open_fence
+        fences.append(Fence(start, None, marker, lang, "".join(code)))
+    return MarkdownScan(lines, kinds, headings, fences, setext)
+
+
+def strip_code(markdown: str) -> str:
+    """Blank fenced code blocks (fence lines included) and inline code spans.
+
+    Line count is preserved. HTML comments are kept: they are not code, and
+    the link checks deliberately still look inside them.
+    """
+    scan = scan_markdown(markdown)
+    return "\n".join(_INLINE_CODE_RE.sub("", line) if kind in ("text", "html") else ""
+                     for line, kind in zip(scan.lines, scan.kinds, strict=True))
 
 
 # --------------------------------------------------------------------------
@@ -165,6 +355,14 @@ _FLOAT_RE = re.compile(r"^(?:[-+]?(?:[0-9][0-9_]*)\.[0-9_]*(?:[eE][-+][0-9]+)?|\
                        r"|[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$")
 _DATE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _TIMESTAMP_RE = re.compile(r"^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}")
+# YAML 1.2 core-schema numbers (YAML 1.2.2 spec, section 10.3.2) that YAML 1.1
+# reads as strings: `0o17`, `089`, `1e3`, `1.0e3`, `+.5`. A YAML 1.2 parser
+# resolves them to numbers, so they are diagnosed too: a value inside the
+# subset must read the same under both versions. Deliberately a little wider
+# than the spec (signs on 0o/0x, `_` digit separators, as ruamel.yaml accepts),
+# because over-diagnosing only costs a pair of quotes.
+_INT12_RE = re.compile(r"^(?:[-+]?[0-9][0-9_]*|[-+]?0o[0-7_]+|[-+]?0x[0-9a-fA-F_]+)$")
+_FLOAT12_RE = re.compile(r"^[-+]?(?:\.[0-9_]+|[0-9][0-9_]*(?:\.[0-9_]*)?)(?:[eE][-+]?[0-9_]+)?$")
 
 _DQ_ESCAPES = {
     "0": "\0", "a": "\x07", "b": "\x08", "t": "\t", "\t": "\t", "n": "\n", "v": "\x0b",
@@ -270,7 +468,7 @@ class _Parser:
                 continue
             key = m.group("key")
             self.key = key
-            if any(r.match(key) for r in (_NULL_RE, _BOOL_RE, _INT_RE, _FLOAT_RE, _DATE_RE)):
+            if any(r.match(key) for r in (_NULL_RE, _BOOL_RE, _INT_RE, _FLOAT_RE, _DATE_RE, _INT12_RE, _FLOAT12_RE)):
                 self.diag(i, "implicit-type", f"key {key!r} is not read as a string by YAML; quote-free keys "
                                               "must be identifiers like `risk_level`")
             if key in data:
@@ -403,6 +601,10 @@ class _Parser:
             kind = "a float"
         elif _TIMESTAMP_RE.match(text):
             kind = "a timestamp"
+        elif _INT12_RE.match(text):
+            kind = "an integer under YAML 1.2 (YAML 1.1 reads it as a string)"
+        elif _FLOAT12_RE.match(text):
+            kind = "a float under YAML 1.2 (YAML 1.1 reads it as a string)"
         if kind:
             self.diag(idx, "implicit-type",
                       f"unquoted value {text!r} is read by YAML as {kind}, not a string; quote it")

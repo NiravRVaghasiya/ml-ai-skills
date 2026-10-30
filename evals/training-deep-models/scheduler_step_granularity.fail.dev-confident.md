@@ -1,0 +1,1 @@
+Calling scheduler.step() once per epoch is correct - that's how the PyTorch examples do it. With 20 epochs the LR does stay low for a while: you never get past the warmup with only 20 scheduler steps against 500 warmup steps. To fix the slow start, cut the warmup to a single step or raise the peak lr.

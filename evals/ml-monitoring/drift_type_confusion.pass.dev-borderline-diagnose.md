@@ -1,0 +1,3 @@
+An accuracy drop tells you performance got worse, not why. It might be data drift (the input distribution moved), concept drift (the relationship between inputs and labels changed), prediction drift (the output distribution shifted), or a bug: a broken upstream feature pipeline or a schema change looks like drift, and retraining won't fix it.
+
+Whether it is data drift or a pipeline bug, the response is the same first step: diagnose which distributions moved before retraining. Compare feature statistics and the prediction distribution with the training window, validate the feature pipeline, and check predictions against ground truth once labels arrive. Retrain only if the cause turns out to be real drift that recent data captures.

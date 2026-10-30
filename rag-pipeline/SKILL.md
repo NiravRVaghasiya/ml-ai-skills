@@ -3,7 +3,8 @@ name: rag-pipeline
 display_name: RAG Pipeline
 description: >
   Use when the user wants to build or debug a retrieval-augmented generation
-  system — chunking documents, embedding them, indexing into a vector store,
+  system (such as a chatbot or support bot that answers from your own
+  documents) — chunking documents, embedding them, indexing into a vector store,
   retrieving relevant passages for a query, and reranking before generation.
   Trigger phrases: "build a RAG pipeline", "chunk these documents for
   retrieval", "set up a vector database for search", "retrieve context for the

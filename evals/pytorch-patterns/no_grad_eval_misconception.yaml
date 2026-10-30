@@ -24,7 +24,7 @@ must_not_include:
   - '\b(model\.)?eval\(\)( call| as well| too)? (is|would be|becomes) (redundant|unnecessary|optional|not needed|superfluous)\b'
   - '\b(no_grad|no-grad|inference_mode)\b[^.,;]{0,40}(?<!n''t )(?<!not )\b(is|are) (enough|sufficient|all you need)\b'
   - '\b(dropout|batch ?norm\w*)\b[^.,;]{0,40}\b(is|are) (already |automatically |effectively )?(disabled|turned off|switched off|frozen|inactive|bypassed) (by|under|inside|within|in) (torch\.)?(no_grad|no-grad|inference_mode)\b'
-  - '\byou (don''t|do not) need (to call )?(model\.)?eval\(\)'
+  - '(?<!think )(?<!thinks )(?<!assume )(?<!assuming )(?<!believe )(?<!think that )(?<!thinks that )(?<!assume that )(?<!believe that )(?<!misconception that )(?<!myth that )(?<!idea that )(?<!if )\byou (don''t|do not) need (to call )?(model\.)?eval\(\)'
   - '(?<!without )(?<!without model\.)(model\.)?\beval(\(\)| mode)\b[^.]{0,20}\b(won''t|doesn''t|will not|does not) make (a|any|much of a) difference\b'
   - '(?<!not )(?<!n''t )\b(mostly|just|merely|only|purely) (a )?(convention|formality)\b'
   - '(\A|[.!?:;] )(?![^.!?]*\b(eval\w*|train(ing)?[- ]mode)\b)[^.!?]*\b(dropout|batch ?norm)\w*\b[^.!?]{0,60}\b(acts?|behaves?|works?) (as|like) (an? )?(identity|no-?op|pass-?through)\b'
@@ -38,3 +38,9 @@ notes: >
   Checked in the example venv (torch, CPU): inside torch.no_grad() a train-mode Dropout still
   zeroes activations and a train-mode BatchNorm1d still updates running_mean. See
   pytorch-patterns/SKILL.md workflow step 3 and Gotchas, "Forgetting model.eval()".
+  The "you don't need model.eval()" pattern skips a quoted belief since 2026-10-29: it failed
+  the correct "You might think you don't need model.eval() ..., but you do"
+  (pass.dev-borderline).
+  Review fix (same day): the quoted-belief guard skipped any "that you don't need model.eval()",
+  so it missed "The short answer is that you don't need model.eval()" (fail.dev-confident). It now
+  skips only "think/assume/believe that" and "misconception/myth/idea that".

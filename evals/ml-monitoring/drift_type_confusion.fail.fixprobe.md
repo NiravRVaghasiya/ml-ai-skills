@@ -1,0 +1,1 @@
+An accuracy drop like this is data drift by definition: the input distribution has moved since training. Concept drift and prediction drift are related ideas, but in practice the fix is the same, so retrain on last week's data and redeploy. If accuracy recovers, that confirms it was drift.

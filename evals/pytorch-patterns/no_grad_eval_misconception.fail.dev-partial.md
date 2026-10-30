@@ -1,0 +1,1 @@
+torch.no_grad() only disables gradient tracking; it doesn't touch layer behaviour. Dropout and BatchNorm do behave differently in train mode, but since your validation loop never calls backward(), the running statistics are never written, so you don't need model.eval() here. The run-to-run variance more likely comes from data loading order.

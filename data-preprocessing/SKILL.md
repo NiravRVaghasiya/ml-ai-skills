@@ -29,7 +29,7 @@ related:
 inputs: A raw tabular dataset (pandas DataFrame) with a defined target column, not yet split or transformed.
 outputs: A fitted scikit-learn Pipeline/ColumnTransformer that turns raw rows into a clean numeric matrix, plus a persisted joblib artifact.
 version_constraints:
-  - "scikit-learn>=1.1: ColumnTransformer, SimpleImputer, OneHotEncoder(handle_unknown='ignore'), FunctionTransformer(feature_names_out=...) (added in 1.1) (executed against scikit-learn 1.9.0 on 2026-10-28; 1.1 lower bound not verified)"
+  - "scikit-learn>=1.1: ColumnTransformer, SimpleImputer, OneHotEncoder(handle_unknown='ignore'), FunctionTransformer(feature_names_out=...) (executed against scikit-learn 1.9.0 on 2026-10-28; 1.1 lower bound documented: the scikit-learn 1.1 release notes add feature_names_out to FunctionTransformer, read 2026-10-29; 1.1 itself not executed)"
   - "pandas>=1.0: DataFrame.select_dtypes, DataFrame.mask, fillna (executed against pandas 2.2.3 on 2026-10-27; lower bound not verified; pandas 3 not executed, its release notes deprecate select_dtypes object matching the new str dtype)"
 ---
 
@@ -49,12 +49,21 @@ production data. The golden rule: **fit on train only, transform everywhere.**
    print(df.select_dtypes("object").nunique())            # categorical cardinality
    ```
 2. **Split BEFORE preprocessing.** Fitting any transformer on the full dataset
-   leaks test information. Split first, then fit only on train.
+   leaks test information. Split first, then fit only on train. Stratify class
+   labels only (see Gotchas).
    ```python
    from sklearn.model_selection import train_test_split
+   TASK = "classification"                            # or "regression" (continuous target)
    X, y = df.drop(columns="target"), df["target"]     # "target" = your label column
+   stratify = None
+   if TASK == "classification":                       # keep class proportions in both splits
+       rare = y.value_counts()[lambda counts: counts < 2].index.tolist()
+       if rare:   # train_test_split cannot stratify a class with a single row
+           raise ValueError(f"classes with 1 row: {rare[:10]}; merge or drop them, "
+                            "or set TASK = 'regression' if the target is continuous")
+       stratify = y
    X_train, X_test, y_train, y_test = train_test_split(
-       X, y, test_size=0.2, stratify=y, random_state=42)
+       X, y, test_size=0.2, stratify=stratify, random_state=42)
    ```
 3. **Declare column groups.** Separate numeric vs. categorical so each gets the
    right treatment.
@@ -102,7 +111,7 @@ production data. The golden rule: **fit on train only, transform everywhere.**
    estimator live in one object, so cross-validation refits preprocessing on each
    fold (no leakage).
    ```python
-   from sklearn.ensemble import RandomForestClassifier
+   from sklearn.ensemble import RandomForestClassifier   # RandomForestRegressor for regression
    clf = Pipeline([("prep", preprocess),
                    ("model", RandomForestClassifier(random_state=42))])
    clf.fit(X_train, y_train)
@@ -125,6 +134,16 @@ production data. The golden rule: **fit on train only, transform everywhere.**
   scale-invariant. Scaling only matters for distance/gradient-based models
   (SVM, kNN, linear, neural nets).
 - **Imputing the target** — never impute or scale `y`. Handle target issues separately.
+- **Stratifying a target that has no classes.** `stratify=y` treats every distinct
+  value as a class, so a continuous target raises in `train_test_split` (nearly every
+  value has one row); step 2 stratifies only when `TASK = "classification"`. A
+  classification label needs at least 2 rows per class, and each split needs at
+  least one row per class (sklearn raises if the test or train split has fewer rows
+  than there are classes). Step 2 fails with the rare classes named rather than silently splitting
+  unstratified, because a 1-row class lands in only one split. For a small or
+  heavily skewed regression target, a plain split can be unrepresentative; if so,
+  consider stratifying on quantile bins (`stratify=pd.qcut(y, 5, labels=False)`),
+  keeping every bin at 2 or more rows.
 - **High-cardinality categoricals** blow up with one-hot. As a rule of thumb —
   not a hard threshold — once a column has on the order of dozens of unique
   values, start evaluating target/ordinal encoding (see feature-engineering)

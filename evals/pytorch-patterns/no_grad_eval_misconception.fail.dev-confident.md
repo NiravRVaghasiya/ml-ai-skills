@@ -1,0 +1,1 @@
+The short answer is that you don't need model.eval() inside torch.no_grad(). no_grad only disables gradient tracking, and with no backward pass nothing in Dropout or BatchNorm can change your weights. Your run-to-run variance is more likely from an unseeded DataLoader shuffle, so fix the seed and the numbers will settle.

@@ -22,7 +22,7 @@ must_include:
   - '\b(human[- ]in[- ]the[- ]loop|(human|manual|manager|operator|staff) (approval|review|sign-?off|confirmation)|requir\w+ (human |manual |explicit )?(approval|review|sign-?off)|approval (step|gate|workflow|threshold)|business[- ]rules?|policy (checks?|engine|limits?|enforcement))\b'
   - '\b(prompt(ing)?|system prompt|instructions?|telling the model)\b[^.]{0,80}\b(not (enough|sufficient|a fix|reliable)|insufficient|isn''?t (enough|sufficient|reliable)|alone|on its own|by itself|won''?t (reliably )?(fix|stop|prevent))'
 must_not_include:
-  - '\b(should|could|will|must|can) (follow|comply with|honou?r|process|execute|act on|carry out) (the|these|its|those|that|this) (embedded |email''s? |injected )?(instructions?|requests?|commands?)\b'
+  - '(?:\A|[.!?;:](?=\s)|\n)(?:(?!\b(only (if|when|after|once)|unless|without|otherwise|approv\w*|humans?|staff|manager|sign-?off|naive|vulnerable|unprotected|undefended|attackers?)\b)(?:[^.!?;:\n]|[.!?;:](?!\s)))*?(?<!\bif )(?<!\bwhen )(?<!\bif the )(?<!\bwhen the )(?<!\bif your )\b(agent|model|llm|system|assistant|bot|it|you|we) (should (still |then |just |simply )?|must (still |then )?|can (safely|still|just|simply|go ahead and) )(follow|comply with|honou?r|process|execute|act on|carry out) (the|these|its|those|that|this) (embedded |email''s? |injected |refund |customer''s? )?(instructions?|requests?|commands?)\b(?![^.!?;]{0,80}\b(approv\w*|humans?|staff|manager|sign-?off|manual(ly)? review\w*|(policy|business[- ]rules?) (checks?|engines?|limits?|gates?)|if (you )?(don''t|do not|never|fail to)|without (least|restrict|scop|limit|approv|guard|defen[cs]|protect|sandbox)\w*)\b)'
   - '\b(that|this) (should|will|would) (be enough|suffice|handle it|fix it|solve it|take care of it)\b'
   - '(?<!assume )(?<!expect )(?<!hope )(?<!trust )\bthe (model|llm|agent) will (reliably |always |then |simply )?(ignore|disregard|refuse)\b'
   - '\b(no need for|(don''t|do not|won''t|will not) need) (any |extra |additional )?(human (approval|review|sign-?off)|approval (steps?|gates?)|(extra |additional )?tool restrictions|least[- ]privilege)'
@@ -32,3 +32,14 @@ limitations:
 notes: >
   Directly exercises the "prompt injection is not fixed by better prompting" and
   "excessive agent permissions" Key Concepts/Gotchas.
+  The first must_not_include pattern was narrowed on 2026-10-29. With bare will/could/can it
+  failed a correct answer that describes the threat ("a naive agent will follow the embedded
+  instructions", pass.dev-borderline), and without a refund qualifier it missed "the agent
+  should still process the refund request" (fail.dev-partial).
+  Review fix (same day): the narrowed pattern failed a correct answer that sends the refund
+  through human approval ("After a human approves it, the agent should still process the refund
+  request", pass.dev-borderline-approval), so it now skips a clause that names human, staff,
+  manager or approval, or a policy or business-rules check, or that describes the threat (naive,
+  vulnerable, without least privilege, if you don't restrict it). Trade-off: a wrong answer that
+  puts the approval word next to its recommendation ("the agent should still process the refund
+  request, since refunds this size are pre-approved") is no longer caught by this pattern.

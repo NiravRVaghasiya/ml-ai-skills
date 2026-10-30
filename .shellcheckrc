@@ -3,7 +3,8 @@
 #
 # SC2329 (info, new in ShellCheck 0.11: "function is never invoked") is disabled because
 # every current hit is a false positive: cleanup() is registered with `trap cleanup EXIT`,
-# and release_lock / write_manifest / rollback_tx / kv_set are called from cleanup() or
-# other trap-reached code, which ShellCheck does not follow. Measured 2026-10-27 with
-# ShellCheck 0.11.0: these 8 SC2329 infos were the only findings across the three scripts.
+# and release_lock / write_manifest / rollback_tx / record_entry are called from cleanup()
+# or other trap-reached code, which ShellCheck does not follow. Measured 2026-10-29 with
+# ShellCheck 0.11.0 (`shellcheck --norc`): these 9 SC2329 infos were the only findings
+# across the three scripts.
 disable=SC2329

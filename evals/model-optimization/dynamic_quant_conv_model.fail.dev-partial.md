@@ -1,0 +1,1 @@
+quantize_dynamic only converted the nn.Linear layers, and ResNet-50's convolutions stay fp32, so the 4x estimate won't hold in full. Still, the fc layer is now int8 and nothing broke. Benchmark latency on one edge device if you get a chance; static quantization with calibration would compress more later. You can ship it to the edge devices today.

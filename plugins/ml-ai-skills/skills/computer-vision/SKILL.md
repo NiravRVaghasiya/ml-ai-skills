@@ -32,9 +32,9 @@ related:
 inputs: An image dataset with bounding-box or segmentation-mask annotations plus a target class list.
 outputs: A fine-tuned torchvision detector or segmentation model, an augmentation pipeline, and mAP/IoU evaluation results.
 version_constraints:
-  - "torchvision>=0.13: weights= API, fasterrcnn_resnet50_fpn_v2, deeplabv3_resnet50 aux_classifier, ops.batched_nms (0.13 minimum is a model-knowledge estimate; executed with weights=None against torchvision 0.28.0 + torch 2.13.0 CPU on 2026-10-27; pretrained-weight download not executed)"
+  - "torchvision>=0.13: weights= API, fasterrcnn_resnet50_fpn_v2, deeplabv3_resnet50 aux_classifier, ops.batched_nms (0.13 lower bound documented: the torchvision v0.13.0 release notes introduce the multi-weight weights= API and fasterrcnn_resnet50_fpn_v2, read 2026-10-29; 0.13 itself not executed; executed with weights=None against torchvision 0.28.0 + torch 2.13.0 CPU on 2026-10-27; pretrained-weight download not executed)"
   - "albumentations>=2.0: RandomResizedCrop(size=...), BboxParams(min_visibility=...), ToFloat, ToTensorV2 (executed against albumentations 2.0.8 on 2026-10-27; whether 1.4.x also accepts size= was not verified)"
-  - "torchmetrics>=1.0: detection.MeanAveragePrecision (pycocotools backend) and JaccardIndex(task=..., ignore_index=...) (1.0 minimum is a model-knowledge estimate; executed against torchmetrics 1.9.0 + pycocotools 2.0.11 on 2026-10-27)"
+  - "torchmetrics>=1.0: detection.MeanAveragePrecision (pycocotools backend) and JaccardIndex(task=..., ignore_index=...) (1.0 lower bound documented for the backend: the torchmetrics v1.0.0 release notes say MeanAveragePrecision changed to the pycocotools backend, read 2026-10-29; JaccardIndex(task=) on 1.0 and 1.0 itself not verified; executed against torchmetrics 1.9.0 + pycocotools 2.0.11 on 2026-10-27)"
 ---
 
 ## Overview

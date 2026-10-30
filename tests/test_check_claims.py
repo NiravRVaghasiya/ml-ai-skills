@@ -157,10 +157,27 @@ class TestCheckClaims(unittest.TestCase):
         disputed = good_claim(id="tooling-claim", skill=None, status="disputed")
         _, findings = cc.check_registry(registry(disputed), SKILLS, policy, TODAY, testutil.REPO_ROOT)
         self.assertIn("stale-pattern-unverified", {f["code"] for f in findings})
+        # automated-doc-check / local-version-check are recorded kinds but say nothing about API
+        # behaviour, so they cannot back a STALE verdict either (same rule as check_freshness)
+        for kind in ("automated-doc-check", "local-version-check"):
+            with self.subTest(verification=kind):
+                weak = {"id": "tooling-claim", "verification": kind, "status": "current"}
+                _, findings = cc.check_registry(registry(dict(good_claim(id="tooling-claim", skill=None),
+                                                              **weak)),
+                                                SKILLS, policy, TODAY, testutil.REPO_ROOT)
+                self.assertIn("stale-pattern-unverified", {f["code"] for f in findings})
+                self.assertIsNotNone(cf.stale_backing_problem(policy.patterns[0], {"tooling-claim": weak}))
         # backed by a verified (runtime-test) claim: nothing to report
         verified = good_claim(id="tooling-claim", skill=None)
         errors, findings = cc.check_registry(registry(verified), SKILLS, policy, TODAY, testutil.REPO_ROOT)
         self.assertEqual((errors, findings), ([], []))
+        # a verified claim whose review clock ran out keeps its STALE verdict (only the clock is reported),
+        # matching check_freshness.stale_backing_problem
+        overdue = good_claim(id="tooling-claim", skill=None, status="review-due")
+        _, findings = cc.check_registry(registry(overdue), SKILLS, policy, TODAY, testutil.REPO_ROOT)
+        self.assertEqual([f["code"] for f in findings], ["status-review-due"])
+        self.assertIsNone(cf.stale_backing_problem(policy.patterns[0], {"tooling-claim": overdue}))
+        self.assertIsNotNone(cf.stale_backing_problem(policy.patterns[0], {"tooling-claim": tooling_claim()}))
 
     def test_stale_pattern_without_claim_is_review_due(self):
         _, findings = cc.check_registry(registry(good_claim()), SKILLS, make_policy(level="STALE", claim=None),

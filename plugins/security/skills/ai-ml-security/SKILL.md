@@ -3,11 +3,11 @@ name: ai-ml-security
 display_name: AI/ML Security
 description: >
   Use when the user wants to identify, mitigate, or reason about security threats
-  specific to ML/LLM/agent systems — as distinct from responsible-AI policy concerns
+  specific to ML/LLM/agent systems, protecting them against attackers — as distinct from responsible-AI policy concerns
   like fairness or privacy. Trigger phrases: "prompt injection", "is my RAG pipeline
   vulnerable to injected instructions", "how do I secure my agent's tool access",
   "model supply-chain risk", "is loading this pickle file safe", "data poisoning
-  attack". NOT for fairness/bias (see ai-ethics-fairness) or PII/anonymization (see
+  attack", "is there a backdoor in this model". NOT for fairness/bias (see ai-ethics-fairness) or PII/anonymization (see
   data-privacy) — those are responsible-AI policy concerns, not security controls;
   NOT for membership inference or training-data extraction/memorization (see
   data-privacy, which owns these privacy attacks together with their DP defenses);

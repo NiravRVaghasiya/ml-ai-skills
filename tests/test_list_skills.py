@@ -20,6 +20,7 @@ from testutil import REPO_ROOT
 import list_skills as ls  # scripts/ is on sys.path via testutil
 
 BASH = shutil.which("bash")
+SCRIPT_TIMEOUT = 300  # seconds per install.sh/uninstall.sh run (forks are slow on Windows)
 SKILL = "---\nname: {slug}\ndisplay_name: {title}\ntype: workflow\n---\nbody\n"
 
 
@@ -102,7 +103,7 @@ class TestReadManifest(Base):
 
     def test_unknown_format_is_refused(self):
         with self.assertRaises(ls.ManifestError):
-            ls.read_manifest(self.write_manifest("# format: 3\nalpha\n"))
+            ls.read_manifest(self.write_manifest("# format: 4\nalpha\n"))
 
     def test_format_is_compared_as_a_string_like_bash(self):
         # bash's `case "$fmt" in 1|2)` refuses "02"; int("02") would accept it.
@@ -229,13 +230,15 @@ class TestAgreesWithInstaller(Base):
             (src / slug / "SKILL.md").write_bytes(SKILL.format(slug=slug, title=slug).replace("\n", "\r\n").encode())
         env = dict(os.environ, HOME=str(self.root / "home"))
         r = subprocess.run([BASH, str(REPO_ROOT / "install.sh"), "--source", str(src), "--target", str(self.target)],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
+                           timeout=SCRIPT_TIMEOUT)
         self.assertEqual(r.returncode, 0, r.stderr)
         m = ls.read_manifest(self.target / ls.MANIFEST_NAME)
-        self.assertEqual(m.format, 2)
+        self.assertEqual(m.format, 3)
         self.assertEqual(set(m.entries), {"alpha", "beta"})
+        self.assertEqual(set(m.files), {"alpha", "beta"}, "install.sh records every file")
         for slug, recorded in m.entries.items():
-            self.assertEqual(ls.skill_status(self.target, slug, recorded), "ok", slug)
+            self.assertEqual(ls.skill_status(self.target, slug, recorded, m.files[slug]), "ok", slug)
 
     def test_python_and_bash_agree_on_unicode_whitespace_slugs(self):
         h = self.add_skill("alpha")
@@ -244,7 +247,7 @@ class TestAgreesWithInstaller(Base):
         python_view = set(ls.read_manifest(self.target / ls.MANIFEST_NAME).entries)
         r = subprocess.run([BASH, str(REPO_ROOT / "uninstall.sh"), "--target", str(self.target), "--dry-run"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=dict(os.environ, HOME=str(self.root / "home")))
+                           env=dict(os.environ, HOME=str(self.root / "home")), timeout=SCRIPT_TIMEOUT)
         self.assertEqual(r.returncode, 0, r.stderr)
         bash_view = {ln.split()[1] for ln in r.stdout.splitlines() if ln.startswith("  remove  ")}
         self.assertEqual(python_view, {"beta"})
@@ -263,7 +266,7 @@ class TestAgreesWithInstaller(Base):
         python_unsafe = {s for s, rec in m.entries.items() if ls.skill_status(self.target, s, rec) == "unsafe"}
         r = subprocess.run([BASH, str(REPO_ROOT / "uninstall.sh"), "--target", str(self.target), "--dry-run"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=dict(os.environ, HOME=str(self.root / "home")))
+                           env=dict(os.environ, HOME=str(self.root / "home")), timeout=SCRIPT_TIMEOUT)
         self.assertEqual(r.returncode, 1, r.stderr)
         bash_refused = {ln.split()[2] for ln in r.stderr.splitlines() if ln.startswith("WARN:   refuse  ")}
         self.assertEqual(python_unsafe, {"alpha", "delta"})
@@ -276,13 +279,231 @@ class TestAgreesWithInstaller(Base):
             ls.read_manifest(self.target / ls.MANIFEST_NAME)
         r = subprocess.run([BASH, str(REPO_ROOT / "uninstall.sh"), "--target", str(self.target), "--dry-run",
                             "--force"], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                           env=dict(os.environ, HOME=str(self.root / "home")))
+                           env=dict(os.environ, HOME=str(self.root / "home")), timeout=SCRIPT_TIMEOUT)
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertIn("NUL", r.stderr)
         self.assertNotIn("remove  alpha", r.stdout)
 
 
+@unittest.skipUnless(BASH, "bash not found on PATH")
+class TestAgreesWithInstallerPerFile(Base):
+    def test_python_and_bash_agree_on_which_files_changed(self):
+        src = self.root / "src"
+        (src / "schema").mkdir(parents=True)
+        (src / "INDEX.md").write_text("", encoding="utf-8")
+        (src / "schema" / "allowed_values.py").write_text("", encoding="utf-8")
+        slugs = ("alpha", "beta", "gamma", "delta", "epsilon")
+        for slug in slugs:
+            (src / slug / "ref").mkdir(parents=True)
+            (src / slug / "SKILL.md").write_text(SKILL.format(slug=slug, title=slug), encoding="utf-8")
+            (src / slug / "ref" / "notes é.md").write_text("orig", encoding="utf-8")
+        env = dict(os.environ, HOME=str(self.root / "home"))
+        r = subprocess.run([BASH, str(REPO_ROOT / "install.sh"), "--source", str(src), "--target", str(self.target)],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
+                           timeout=SCRIPT_TIMEOUT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        (self.target / "alpha" / "ref" / "notes é.md").write_text("edited", encoding="utf-8")
+        (self.target / "beta" / "ref" / "notes é.md").unlink()
+        (self.target / "gamma" / "ref" / "mine.md").write_text("new", encoding="utf-8")
+        (self.target / "delta" / "ref").rename(self.target / "delta" / "moved")
+        m = ls.read_manifest(self.target / ls.MANIFEST_NAME)
+        python_view = {s: ls.skill_check(self.target, s, rec, m.files.get(s)) for s, rec in m.entries.items()}
+        r = subprocess.run([BASH, str(REPO_ROOT / "uninstall.sh"), "--target", str(self.target), "--dry-run"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", env=env,
+                           timeout=SCRIPT_TIMEOUT)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        bash_kept = {ln.split()[2]: ln for ln in r.stderr.splitlines() if ln.startswith("WARN:   keep    ")}
+        self.assertEqual(set(bash_kept), {s for s, (status, _) in python_view.items() if status != "ok"})
+        self.assertEqual(set(bash_kept), {"alpha", "beta", "gamma", "delta"})
+        for slug, (_, detail) in python_view.items():
+            if slug in bash_kept:
+                self.assertIn(f"({detail})", bash_kept[slug], "both name the same files the same way")
+        self.assertIn("remove  epsilon", r.stdout)
+
+
+class TestFormat3(Base):
+    """Per-file records (manifest format 3, docs/INSTALLER.md "Manifest format")."""
+
+    def files_of(self, slug: str) -> dict[str, str]:
+        return ls.tree_files(self.target / slug)
+
+    def v3(self, slugs, extra_lines: str = "") -> Path:
+        lines = ["# format: 3"]
+        for slug in slugs:
+            files = self.files_of(slug)
+            lines.append(f"{slug}\t{files['SKILL.md']}")
+            lines += [f"{slug}\t{h}\t{rel}" for rel, h in sorted(files.items())]
+        return self.write_manifest("\n".join(lines) + "\n" + extra_lines)
+
+    def test_file_lines_are_parsed_per_skill(self):
+        self.add_skill("alpha")
+        (self.target / "alpha" / "ref").mkdir()
+        (self.target / "alpha" / "ref" / "notes with space .md").write_text("n", encoding="utf-8")
+        m = ls.read_manifest(self.v3(["alpha"]))
+        self.assertEqual(m.format, 3)
+        self.assertEqual(set(m.files["alpha"]), {"SKILL.md", "ref/notes with space .md"},
+                         "a trailing space in a name survives, like in bash")
+        self.assertEqual(m.warnings, [])
+        self.assertEqual(ls.skill_check(self.target, "alpha", m.entries["alpha"], m.files["alpha"]), ("ok", ""))
+
+    def test_any_file_edit_is_modified_and_named(self):
+        for slug in ("alpha", "beta", "gamma", "delta"):
+            self.add_skill(slug)
+            (self.target / slug / "extra.md").write_text("orig", encoding="utf-8")
+        self.v3(["alpha", "beta", "gamma", "delta"])
+        (self.target / "alpha" / "extra.md").write_text("edited", encoding="utf-8")       # changed
+        (self.target / "beta" / "extra.md").unlink()                                         # removed
+        (self.target / "gamma" / "mine.md").write_text("new", encoding="utf-8")              # added
+        (self.target / "delta" / "extra.md").rename(self.target / "delta" / "renamed.md")    # renamed
+        m = ls.read_manifest(self.target / ls.MANIFEST_NAME)
+        got = {s: ls.skill_check(self.target, s, m.entries[s], m.files[s]) for s in m.entries}
+        self.assertEqual(got["alpha"], ("modified", "changed: extra.md"))
+        self.assertEqual(got["beta"], ("modified", "removed: extra.md"))
+        self.assertEqual(got["gamma"], ("modified", "added: mine.md"))
+        self.assertEqual(got["delta"], ("modified", "added: renamed.md; removed: extra.md"))
+        rc, out, _ = self.run_list()
+        self.assertEqual(rc, 0)
+        self.assertIn("4 modified", out)
+        self.assertIn("(changed: extra.md)", out)
+
+    def test_corrupt_file_lines_only_ever_make_a_skill_modified(self):
+        h = self.add_skill("alpha")
+        self.add_skill("beta")
+        bad = "\n".join([
+            f"alpha\t{h}\t../../victim/keep.txt",   # traversal: invalid relpath
+            f"alpha\t{h}\t/abs",                     # absolute
+            f"alpha\t{h}\ta//b",                     # empty component
+            "alpha\tnothex\tSKILL.md",              # bad hash
+            f"../x\t{h}\tSKILL.md",                  # bad slug
+            f"ghost\t{h}\tSKILL.md",                 # no skill line
+            f"beta\t{'0' * 64}\tSKILL.md",           # duplicate of beta's SKILL.md line (second one)
+        ]) + "\n"
+        m = ls.read_manifest(self.v3(["alpha", "beta"], bad))
+        self.assertEqual(set(m.files["alpha"]), {"SKILL.md"})
+        self.assertNotIn("ghost", m.entries)
+        self.assertEqual(len(m.warnings), 7, m.warnings)
+        self.assertEqual(ls.skill_status(self.target, "alpha", m.entries["alpha"], m.files["alpha"]), "ok")
+        self.assertEqual(ls.skill_status(self.target, "beta", m.entries["beta"], m.files["beta"]), "ok",
+                         "the first entry for a file wins")
+        # A dropped (missing) file line: the file is now unrecorded -> modified.
+        (self.target / "alpha" / "x.md").write_text("x", encoding="utf-8")
+        m = ls.read_manifest(self.v3(["alpha"]))
+        text = (self.target / ls.MANIFEST_NAME).read_text(encoding="utf-8")
+        self.write_manifest("".join(ln + "\n" for ln in text.splitlines() if not ln.endswith("\tx.md")))
+        m = ls.read_manifest(self.target / ls.MANIFEST_NAME)
+        self.assertEqual(ls.skill_check(self.target, "alpha", m.entries["alpha"], m.files["alpha"]),
+                         ("modified", "added: x.md"))
+
+    def test_file_lines_in_a_format_2_manifest_are_ignored(self):
+        h = self.add_skill("alpha")
+        m = ls.read_manifest(self.write_manifest(f"# format: 2\nalpha\t{h}\nalpha\t{h}\tSKILL.md\n"))
+        self.assertEqual(m.files, {})
+        self.assertEqual(len(m.warnings), 1)
+
+    def test_legacy_entry_with_unrecorded_files_is_unverified(self):
+        # A format-2 entry records SKILL.md only; other files may be the user's.
+        h = self.add_skill("alpha")
+        self.write_manifest(f"# format: 2\nalpha\t{h}\n")
+        self.assertEqual(ls.skill_check(self.target, "alpha", h), ("ok", ""))
+        (self.target / "alpha" / "notes.md").write_text("mine", encoding="utf-8")
+        self.assertEqual(ls.skill_check(self.target, "alpha", h), ("unverified", "notes.md"))
+        _, out, _ = self.run_list()
+        self.assertIn("UNVERIFIED — the manifest recorded only SKILL.md", out)
+        self.assertIn("1 unverified", out)
+
+    def test_control_character_in_a_name_is_unsafe(self):
+        if os.name == "nt":
+            self.skipTest("Windows file names cannot contain control characters")
+        h = self.add_skill("alpha")
+        (self.target / "alpha" / "a\nb").write_text("x", encoding="utf-8")
+        self.write_manifest(f"# format: 2\nalpha\t{h}\n")
+        self.assertEqual(ls.skill_status(self.target, "alpha", h), "unsafe")
+
+
+class TestJunctionsBefore312(Base):
+    """KNOWN-ISSUES #12: os.path.isjunction is 3.12+; older Pythons read the reparse tag."""
+
+    def make_junction_with_mklink(self, link: Path, target: Path) -> None:
+        if os.name != "nt":
+            self.skipTest("NTFS junctions exist only on Windows")
+        r = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True,
+                           text=True, timeout=60)
+        if r.returncode != 0:
+            self.fail(f"mklink /J failed: {r.stdout}{r.stderr}")
+        self._links.append(link)
+
+    def test_mklink_junction_is_unsafe_on_this_python(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "SKILL.md").write_text(SKILL.format(slug="alpha", title="Alpha"), encoding="utf-8")
+        self.make_junction_with_mklink(self.target / "alpha", outside)
+        h = self.add_skill("beta")
+        self.make_junction_with_mklink(self.target / "beta" / "escape", outside)
+        self.write_manifest(f"# format: 2\nalpha\t-\nbeta\t{h}\n")
+        rc, out, _ = self.run_list()
+        self.assertEqual(rc, 0)
+        self.assertIn("[UNSAFE] alpha", out)
+        self.assertIn("[UNSAFE] beta", out)
+        self.assertIn("2 unsafe", out)
+
+    def test_fallback_without_os_path_isjunction(self):
+        # Exercise the < 3.12 code path on any Python by hiding os.path.isjunction.
+        outside = self.root / "outside"
+        outside.mkdir()
+        self.make_junction_with_mklink(self.target / "alpha", outside)
+        saved = getattr(os.path, "isjunction", None)
+        if saved is not None:
+            del os.path.isjunction
+        try:
+            self.assertTrue(ls._is_junction(self.target / "alpha"))
+            self.assertTrue(ls._is_link(self.target / "alpha"))
+            self.assertFalse(ls._is_junction(outside))
+            self.assertFalse(ls._is_junction(self.root / "does-not-exist"))
+            self.assertEqual(ls.unsafe_reason(self.target, "alpha"), "path is a symlink/junction; not followed")
+        finally:
+            if saved is not None:
+                os.path.isjunction = saved
+
+
 class TestCli(unittest.TestCase):
+    LIST = str(REPO_ROOT / "scripts" / "list_skills.py")
+
+    def listing_env(self, **extra: str) -> dict[str, str]:
+        env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8", "PYTHONIOENCODING")}
+        env.update(extra)
+        return env
+
+    def non_ascii_target(self, d: str) -> Path:
+        target = Path(d) / "日本 skills"
+        (target / "alpha").mkdir(parents=True)
+        (target / "alpha" / "SKILL.md").write_text(
+            SKILL.format(slug="alpha", title="Fünf → 日本"), encoding="utf-8")
+        (target / ls.MANIFEST_NAME).write_text("alpha\n", encoding="utf-8")
+        return target
+
+    def test_pipe_output_is_utf8_by_default(self):
+        # KNOWN-ISSUES #30: a pipe/file gets UTF-8, so a cp1252 Windows default no longer
+        # turns non-Latin paths into \\uXXXX escapes.
+        with tempfile.TemporaryDirectory() as d:
+            target = self.non_ascii_target(d)
+            r = subprocess.run([sys.executable, self.LIST, "--target", str(target)], capture_output=True,
+                               env=self.listing_env(), timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+            out = r.stdout.decode("utf-8")  # strict: must be valid UTF-8
+            self.assertIn("日本 skills", out)
+            self.assertIn("Fünf → 日本", out)
+            self.assertNotIn("\\u", out)
+
+    def test_explicit_pythonioencoding_is_honoured_with_escapes(self):
+        with tempfile.TemporaryDirectory() as d:
+            target = self.non_ascii_target(d)
+            r = subprocess.run([sys.executable, self.LIST, "--target", str(target)], capture_output=True,
+                               env=self.listing_env(PYTHONIOENCODING="cp1252"), timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
+            out = r.stdout.decode("cp1252")
+            self.assertIn("\\u65e5\\u672c skills", out)
+            self.assertIn("Fünf \\u2192 \\u65e5\\u672c", out, "cp1252 keeps ü, escapes the rest")
+
     def test_non_ascii_output_on_a_legacy_codepage_does_not_crash(self):
         # Git Bash pipes/CI logs on Windows give Python a cp1252 stdout; a target
         # path or display_name outside it used to raise UnicodeEncodeError (rc 1).
@@ -295,7 +516,7 @@ class TestCli(unittest.TestCase):
             env = {k: v for k, v in os.environ.items() if k not in ("PYTHONUTF8",)}
             env["PYTHONIOENCODING"] = "cp1252"
             r = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "list_skills.py"), "--target", str(target)],
-                               capture_output=True, env=env)
+                               capture_output=True, env=env, timeout=120)
             self.assertEqual(r.returncode, 0, r.stderr.decode("utf-8", "replace"))
             self.assertIn(b"alpha", r.stdout)
             self.assertIn(b"1 skill(s) installed", r.stdout)
@@ -303,7 +524,8 @@ class TestCli(unittest.TestCase):
     def test_target_flag_via_subprocess(self):
         with tempfile.TemporaryDirectory() as d:
             r = subprocess.run([sys.executable, str(REPO_ROOT / "scripts" / "list_skills.py"), "--target", d],
-                               capture_output=True, text=True, encoding="utf-8", errors="replace")
+                               capture_output=True, text=True, encoding="utf-8", errors="replace",
+                               timeout=120)
             self.assertEqual(r.returncode, 1)
             self.assertIn("No ml-ai-skills manifest", r.stdout)
 

@@ -17,11 +17,16 @@
     {
       "task": "Fix train/serve skew between a batch feature job and an online scoring path",
       "expected_outcome": "Diagnoses by comparing served vs offline feature values, then defines the features once in a feature store (Feast FeatureView over the published files, materialize-incremental, get_online_features at serving)"
+    },
+    {
+      "task": "Migrate a ds-partitioned feature table to the as_of contract",
+      "expected_outcome": "Not a plain rename: maps legacy ds to as_of = ds + 1 day (Airflow 2), checks the mapping by recomputation, dry-runs the migration, makes ds nullable, migrates before the new DAG's first run with a dual read for readers, and moves the Feast timestamp_field to event_timestamp"
     }
   ],
   "negative_cases": [
     "retry_duplicate_rows",
     "train_serve_skew",
+    "ds_partition_migration",
     "A window written as order_date BETWEEN ds-29 AND ds on Airflow 3, where ds is the fire date (planned misconception)",
     "Turning on catchup=True for a DAG with a start_date a year in the past to fill history (planned edge_case)"
   ],

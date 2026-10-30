@@ -19,42 +19,18 @@ from testutil import REPO_ROOT
 import eval_lib as el  # scripts/ is on sys.path via testutil
 import validate_evals
 
-# Ratchet for RealRepoTests.test_unexercised_must_not_include_does_not_grow: the
-# must_not_include patterns that pre-dated the (advisory) unexercised-pattern lint.
-# Remove an entry when its pattern gets a fail fixture or is fixed; never add one.
-# When it is empty, move the lint from `EvalSuite.advisories` into `warnings`.
-KNOWN_UNEXERCISED_MUST_NOT_INCLUDE = frozenset({
-    "evals/ai-ethics-fairness/metric_conflict_misconception.yaml: must_not_include[1]",
-    "evals/ai-ml-security/indirect_prompt_injection.yaml: must_not_include[0]",
-    "evals/ai-ml-security/pickle_supply_chain.yaml: must_not_include[8]",
-    "evals/ai-ml-security/weights_only_false_workaround.yaml: must_not_include[0]",
-    "evals/ai-ml-security/weights_only_false_workaround.yaml: must_not_include[2]",
-    "evals/ai-ml-security/weights_only_false_workaround.yaml: must_not_include[4]",
-    "evals/ci-cd-for-ml/tautological_leakage_test.yaml: must_not_include[2]",
-    "evals/data-preprocessing/missing_data_edge_case.yaml: must_not_include[1]",
-    "evals/experiment-tracking/teammates_cannot_see_runs.yaml: must_not_include[0]",
-    "evals/explainability/shap_correlated_features.yaml: must_not_include[1]",
-    "evals/fine-tuning-llms/small_dataset_overfitting.yaml: must_not_include[1]",
-    "evals/hyperparameter-tuning/overfitting_search.yaml: must_not_include[1]",
-    "evals/llm-evaluation/refusals_scored_as_answers.yaml: must_not_include[4]",
-    "evals/llm-evaluation/temperature_determinism_misconception.yaml: must_not_include[1]",
-    "evals/ml-problem-framing/future_feature_leakage.yaml: must_not_include[4]",
-    "evals/ml-problem-framing/vague_churn_ask.yaml: must_not_include[3]",
-    "evals/model-deployment/public_endpoint_no_auth.yaml: must_not_include[2]",
-    "evals/model-deployment/untrusted_artifact_load.yaml: must_not_include[1]",
-    "evals/model-deployment/untrusted_artifact_load.yaml: must_not_include[2]",
-    "evals/model-optimization/dynamic_quant_conv_model.yaml: must_not_include[5]",
-    "evals/neural-net-fundamentals/adam_weight_decay_misconception.yaml: must_not_include[1]",
-    "evals/neural-net-fundamentals/deep_relu_xavier_init.yaml: must_not_include[2]",
-    "evals/nlp-tasks/unshuffled_subset_perfect_accuracy.yaml: must_not_include[4]",
-    "evals/python-for-ml/chained_assignment_misconception.yaml: must_not_include[5]",
-    "evals/pytorch-patterns/no_grad_eval_misconception.yaml: must_not_include[5]",
-    "evals/pytorch-patterns/resumable_checkpoint_misconception.yaml: must_not_include[3]",
-    "evals/reinforcement-learning/q_learning_convergence_misconception.yaml: must_not_include[3]",
-    "evals/reinforcement-learning/q_learning_convergence_misconception.yaml: must_not_include[5]",
-    "evals/training-deep-models/scheduler_step_granularity.yaml: must_not_include[1]",
-    "evals/unsupervised-learning/tsne_features_misconception.yaml: must_not_include[4]",
-})
+# Dev fixture labels (written by the pattern-tuning engineer, kept as fixtures; not blind):
+#   fail.dev-confident  - on-topic wrong answer stated with full confidence
+#   fail.dev-partial    - mostly correct answer with one rubric (`must_not`) violation
+#   fail.dev-borderline - hedged or softened wrong answer
+#   pass.dev-borderline - correct answer phrased close to a must_not_include pattern
+# An optional `-<suffix>` tells apart several fixtures of one kind in a case
+# (pass.dev-borderline-approval). Every fail.dev-* fixture must be caught by a
+# must_not_include pattern, not only by a missing concept: each one was written to prove a
+# specific pattern can fire. Probes written from the rubric before the case's patterns were
+# read use the SCHEMA.md `fixprobe` label instead.
+DEV_FIXTURE_LABELS = {"fail": re.compile(r"dev-(confident|partial|borderline)(-[a-z0-9]+)?"),
+                      "pass": re.compile(r"dev-borderline(-[a-z0-9]+)?")}
 
 SKILL_MD = "---\nname: {slug}\ndisplay_name: {slug}\ntype: {type}\n---\n## Overview\nFixture skill.\n"
 
@@ -305,11 +281,19 @@ class FixtureSelfTestTests(RepoCase):
         self.assertEqual(s.errors, [])
         [adv] = s.advisories
         self.assertIn("leak.yaml: unexercised pattern: must_not_include[1]", adv)
-        self.assertFalse([w for w in s.warnings if "unexercised" in w])  # not a --strict warning (yet)
+        # Kept out of suite.warnings (run_evals.py's validation), but promoted by the CLI.
+        self.assertFalse([w for w in s.warnings if "unexercised" in w])
         self.assertEqual(self.cli()[0], 0)
         self.assertEqual(self.cli("--strict-advisories")[0], 1)
+        code, out = self.cli("--strict")
+        self.assertEqual(code, 1)
+        self.assertIn("1 advisory warning(s) (--strict)", out)
         code, out = self.cli("--json")
         self.assertEqual((code, json.loads(out)["advisories"]), (0, [adv]))
+        self.assertTrue(json.loads(out)["ok"])
+        # Under --strict the JSON `ok` field follows the exit code, so it is false here too.
+        code, out = self.cli("--strict", "--json")
+        self.assertEqual((code, json.loads(out)["ok"]), (1, False))
         self.assertIn("EVAL WARNING (advisory):", self.cli()[1])
         # A wrong answer the pattern catches clears it (the broken pattern only ever
         # matches "is unnecessary"; the advisory is what prompts finding that out).
@@ -559,19 +543,42 @@ class RealRepoTests(unittest.TestCase):
     def test_strict_mode_is_clean(self):
         self.assertEqual(self.suite.warnings, [])
 
-    def test_unexercised_must_not_include_does_not_grow(self):
-        # The lint is advisory (plain --strict and CI ignore it), so this is the gate:
-        # every unexercised pattern must be one that pre-dated the lint. A count
-        # ceiling alone would let one fixed pattern pay for a new dead one.
-        keys = {}
-        for advisory in self.suite.advisories:
-            m = re.match(r"(\S+\.yaml): unexercised pattern: (must_not_include\[\d+\])", advisory)
-            self.assertIsNotNone(m, advisory)
-            keys[f"{m.group(1)}: {m.group(2)}"] = advisory
-        new = sorted(set(keys) - KNOWN_UNEXERCISED_MUST_NOT_INCLUDE)
-        self.assertEqual(new, [], "new must_not_include pattern(s) that no fail fixture triggers; add a "
-                                  "fail fixture each one catches, or fix the pattern:\n"
-                         + "\n".join(keys[k] for k in new))
+    def test_every_must_not_include_pattern_is_exercised(self):
+        # The 30 patterns that pre-dated the unexercised-pattern lint each have a fail fixture
+        # now (or were fixed or removed), so the backlog ratchet is gone: any must_not_include
+        # pattern that no fail fixture triggers fails here, whoever adds it.
+        unexercised = [a for a in self.suite.advisories if "unexercised pattern: must_not_include[" in a]
+        self.assertEqual(unexercised, [], "must_not_include pattern(s) that no fail fixture triggers; add a "
+                                          "fail fixture each one catches, or fix or remove the pattern")
+        self.assertEqual(self.suite.advisories, [])
+
+    def test_every_fixture_grades_as_labelled(self):
+        # Regression check per fixture: every pass fixture passes every hard assertion and every
+        # fail fixture fails at least one. (Also reported as validation errors; listed here so a
+        # failure names the fixture and the assertions involved.)
+        wrong = [f"{r['case_id']}: {r['fixture']} expected {r['expected']}, observed {r['observed']}; "
+                 + ("failed " + ", ".join(a["id"] for a in r["assertions"] if not a["passed"])
+                    if r["expected"] == "pass" else "passed every hard assertion")
+                 for r in self.suite.fixture_results if not r["ok"]]
+        self.assertEqual(wrong, [])
+        self.assertEqual({r["observed"] for r in self.suite.fixture_results if r["expected"] == "pass"}, {"pass"})
+        self.assertEqual({r["observed"] for r in self.suite.fixture_results if r["expected"] == "fail"}, {"fail"})
+
+    def test_dev_fixtures_use_known_labels_and_fail_on_must_not_include(self):
+        fixtures = {(c.uid, f.name): f for c in self.suite.cases for f in c.fixtures}
+        # Any label that starts with "dev" counts, so a misspelt one (dev_partial, devpartial,
+        # dev-weird) fails the label check instead of skipping both checks.
+        dev = [r for r in self.suite.fixture_results
+               if (fixtures[(r["case_id"], r["fixture"])].label or "").startswith("dev")]
+        self.assertGreaterEqual(len([r for r in dev if r["expected"] == "fail"]), 30)
+        for r in dev:
+            label = fixtures[(r["case_id"], r["fixture"])].label
+            with self.subTest(case=r["case_id"], fixture=r["fixture"]):
+                self.assertTrue(DEV_FIXTURE_LABELS[r["expected"]].fullmatch(label),
+                                f"unknown {r['expected']}.dev fixture label {label!r}")
+                if r["expected"] == "fail":
+                    fired = [a["id"] for a in r["assertions"] if a["type"] == "must_not_include" and not a["passed"]]
+                    self.assertTrue(fired, "a fail.dev-* fixture must be caught by a must_not_include pattern")
 
     def test_every_skill_with_cases_has_a_plan(self):
         self.assertEqual(sorted({c.skill_dir for c in self.suite.cases}), sorted(self.suite.plans))
@@ -591,6 +598,15 @@ class RealRepoTests(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = validate_evals.main([])
         self.assertEqual(code, 0, out.getvalue())
+
+    def test_cli_strict_modes_pass(self):
+        # What CI runs (--strict --require-full-coverage), plus --strict-advisories. One call: each
+        # run loads and self-tests the whole suite.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = validate_evals.main(["--strict", "--strict-advisories", "--require-full-coverage"])
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertIn("0 warning(s); 0 advisory warning(s)", out.getvalue())
 
 
 if __name__ == "__main__":

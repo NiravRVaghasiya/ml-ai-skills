@@ -1,0 +1,1 @@
+There is a little leakage risk in principle, but it's perfectly fine to use the full ticket history here: support tickets are a strong churn signal, and the jump from 0.31 to 0.93 PR-AUC says the feature carries real information. Add an as-of cutoff in the next iteration if you want to be strict.

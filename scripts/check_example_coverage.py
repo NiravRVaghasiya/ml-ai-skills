@@ -3,8 +3,12 @@
 
 tests/examples/harness.py appends one JSON line per ``run_blocks`` call to the
 file named by ML_AI_SKILLS_EXAMPLE_COVERAGE: ``{"skill", "blocks",
-"total_blocks", "skill_sha256"}``. Run the example suite with that variable
-set, then run this script on the file. It checks, for every skill in the tree:
+"total_blocks", "skill_sha256"}`` plus, from schema "ml-ai-skills/example-coverage"
+version 2, where and by which test it ran (``git_revision``, ``git_dirty`` for
+tracked files, ``git_untracked_files``, ``python``, ``platform``, ``recorded_at``,
+``env``, ``test_id``, ``test_module``).
+Run the example suite with that variable set, then run this script on the file.
+It checks, for every skill in the tree:
 
   * every python block that is not ``# illustrative`` (first non-blank line,
     the harness convention) appears in some record's ``blocks``;
@@ -13,9 +17,17 @@ set, then run this script on the file. It checks, for every skill in the tree:
     ``skill_sha256`` (LF-normalised SHA-256) equals the current file's. A stale
     record counts for nothing and is reported.
 
-A malformed line, a record without ``skill_sha256``, a record for a slug that
-is not a skill folder, or an empty / missing file is an error: the gate fails
-closed rather than vouching for coverage it could not tie to this tree.
+A malformed line (including a provenance field of the wrong type or an unknown
+``schema`` / ``schema_version``), a record without ``skill_sha256``, a record for a
+slug that is not a skill folder, or an empty / missing file is an error: the gate
+fails closed rather than vouching for coverage it could not tie to this tree. The
+provenance fields are reported (``--json`` "provenance"), not compared: the SKILL.md
+hash is what ties a record to the tree.
+
+This gate judges one coverage file and fails on any stale record even when other
+records cover the skill (CI truncates the file before the run, so a stale line means
+the file was reused). scripts/quality_report.py summarises per skill instead: current
+records that cover every runnable block decide, and stale lines are listed beside them.
 
     ML_AI_SKILLS_EXAMPLE_COVERAGE=cov.jsonl python -m unittest discover -s tests/examples -t tests
     python scripts/check_example_coverage.py cov.jsonl
@@ -39,6 +51,13 @@ import skills_lib as sl  # noqa: E402
 
 COVERAGE_ENV = "ML_AI_SKILLS_EXAMPLE_COVERAGE"  # same name as tests/examples/harness.py
 ILLUSTRATIVE_MARKER = "# illustrative"  # same convention as tests/examples/harness.py
+COVERAGE_SCHEMA = "ml-ai-skills/example-coverage"  # harness.COVERAGE_SCHEMA
+COVERAGE_SCHEMA_VERSIONS = (2,)                    # records without "schema" are the earlier format
+# Optional provenance fields (harness schema v2) and the types they must have when present.
+PROVENANCE_TYPES = {"git_revision": (str, type(None)), "git_dirty": (bool, type(None)),
+                    "git_untracked_files": (int, type(None)), "python": (str,),
+                    "platform": (str,), "recorded_at": (str,), "env": (dict,), "test_id": (str, type(None)),
+                    "test_module": (str, type(None))}
 
 
 def is_illustrative(code: str) -> bool:
@@ -66,9 +85,11 @@ def inventory(root: Path) -> dict[str, dict]:
 
 
 def evaluate(lines: list[str], inv: dict[str, dict]) -> dict:
-    """Return {"errors": [...], "skills": {slug: {...}}} for the coverage lines."""
+    """Return {"errors": [...], "skills": {slug: {...}}, "provenance": {...}} for the coverage lines."""
     errors: list[str] = []
     executed: dict[str, set[int]] = {slug: set() for slug in inv}
+    prov = {"records": 0, "legacy_records": 0, "records_without_revision": 0, "git_revisions": set(),
+            "python": set(), "platforms": set()}
     for n, line in enumerate(lines, 1):
         if not line.strip():
             continue
@@ -80,9 +101,24 @@ def evaluate(lines: list[str], inv: dict[str, dict]) -> dict:
             sha = rec["skill_sha256"]
             if not isinstance(slug, str) or not isinstance(total, int) or not isinstance(sha, str):
                 raise TypeError("wrong field type")
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            if "schema" in rec and (rec["schema"] != COVERAGE_SCHEMA
+                                    or rec.get("schema_version") not in COVERAGE_SCHEMA_VERSIONS):
+                raise ValueError(f"unsupported schema {rec.get('schema')!r} version {rec.get('schema_version')!r}")
+            for key, types_ in PROVENANCE_TYPES.items():
+                if key in rec and not isinstance(rec[key], types_):
+                    raise TypeError(f"{key} has type {type(rec[key]).__name__}")
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError) as exc:
             errors.append(f"line {n}: malformed coverage record ({type(exc).__name__}: {exc})")
             continue
+        prov["records"] += 1
+        prov["legacy_records"] += "schema" not in rec
+        if rec.get("git_revision"):
+            prov["git_revisions"].add(rec["git_revision"])
+        else:
+            prov["records_without_revision"] += 1
+        for key, field in (("python", "python"), ("platforms", "platform")):
+            if rec.get(field):
+                prov[key].add(rec[field])
         cur = inv.get(slug)
         if cur is None:
             errors.append(f"line {n}: coverage record for {slug!r}, which is not a skill folder in this tree")
@@ -106,7 +142,8 @@ def evaluate(lines: list[str], inv: dict[str, dict]) -> dict:
         if missing:
             errors.append(f"{slug}: runnable python block(s) {missing} were never executed by tests/examples "
                           f"(of {cur['total_blocks']} block(s); mark documentation-only blocks '# illustrative')")
-    return {"errors": errors, "skills": skills}
+    return {"errors": errors, "skills": skills,
+            "provenance": {k: sorted(v) if isinstance(v, set) else v for k, v in prov.items()}}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -141,6 +178,10 @@ def main(argv: list[str] | None = None) -> int:
         n_skills = sum(1 for s in result["skills"].values() if s["runnable"])
         if not result["errors"]:
             print(f"every runnable python block executed: {n_run} block(s) across {n_skills} skill(s)")
+        p = result["provenance"]
+        print(f"provenance: {p['records']} record(s); git revision(s) {', '.join(p['git_revisions']) or 'none'}"
+              f" ({p['records_without_revision']} without); python {', '.join(p['python']) or 'unknown'}; "
+              f"platform {', '.join(p['platforms']) or 'unknown'}")
     return 1 if result["errors"] else 0
 
 

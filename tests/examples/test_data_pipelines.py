@@ -43,10 +43,18 @@ under Airflow 3, includes the still-arriving trigger day and stamps
 ``event_timestamp`` a day in the future; a Feast ``FileSource`` pointing at a file
 the pipeline never wrote; the quality-gate task built outside the DAG context, so
 it ran without the DAG's retries and failure callback (observed 2026-10-28).
+
+``TestDsToAsOfMigration`` covers step 7 (KNOWN-ISSUES #25: the partition column
+was renamed ``ds`` -> ``as_of`` with no migration). Its legacy table is what the
+earlier skill wrote on Airflow 2: one partition per ``ds`` (= data_interval_start)
+holding a one-day aggregate of ``order_date = ds`` and no ``as_of`` or
+``event_timestamp`` column (reconstructed from ``git show 87d64df:data-pipelines/SKILL.md``).
 """
 from __future__ import annotations
 
 import ast
+import contextlib
+import io
 import logging
 import os
 import subprocess
@@ -63,7 +71,8 @@ from examples import harness
 
 SLUG = "data-pipelines"
 # Block indices (document order): 0 DAG + tasks, 1 pandera gate, 2 feast definitions,
-# 3 online read, 4 failure callback / default_args.
+# 3 online read, 4 failure callback / default_args, 5 ds -> as_of migration,
+# 6 migration report + transition dual read.
 RUN_AT = datetime(2026, 4, 1, tzinfo=timezone.utc)   # when the @daily run fires
 AS_OF = "2026-04-01"                                 # partition = window end (exclusive)
 IN_PROGRESS_AMOUNT = 1000.0                          # orders already in on the trigger day
@@ -308,6 +317,8 @@ class TestDataPipelinesSkill(unittest.TestCase):
     def test_pendulum_interval_end_is_accepted(self):
         # Airflow passes pendulum DateTimes (task-sdk 1.3.2 requires pendulum>=3.1.0).
         if harness.missing_modules("pendulum"):
+            if os.environ.get(harness.REQUIRE_ENV) == "1":   # pinned in requirements-examples.txt
+                self.fail(f"{harness.REQUIRE_ENV}=1 but pendulum is not installed")
             self.skipTest("pendulum not installed")
         import pendulum
 
@@ -460,6 +471,334 @@ class TestDataPipelinesSkill(unittest.TestCase):
         self.assertTrue(backfill[0].startswith("airflow backfill create "))
         for flag in ("--dag-id", "--from-date", "--to-date"):
             self.assertIn(flag, backfill[0])
+
+
+LEGACY_DS = [f"2026-03-{d:02d}" for d in range(25, 32)]   # Airflow 2 runs firing 03-26 .. 04-01
+CUSTOMERS = (1, 2, 3)
+
+
+@harness.requires("pandas", "pyarrow", "sqlalchemy", "pandera")
+class TestDsToAsOfMigration(unittest.TestCase):
+    """Step 7: migrate a table written by the earlier ds-keyed skill to the as_of contract."""
+
+    def setUp(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.pool import NullPool
+
+        self._tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)  # sqlite file lock on Windows
+        self.tmp = Path(self._tmp.name)
+        self.db_url = f"sqlite:///{(self.tmp / 'warehouse.db').as_posix()}"
+        env = mock.patch.dict(os.environ, {"FEATURES_DB_URL": self.db_url,
+                                           "FEATURE_PIPELINE_DATA_DIR": self.tmp.as_posix()})
+        env.start()
+        self.addCleanup(env.stop)
+        self.addCleanup(self._tmp.cleanup)
+        self.engine = create_engine(self.db_url, poolclass=NullPool)
+        self.addCleanup(self.engine.dispose)
+        self._make_orders()
+        self._make_legacy_table()
+        self.ns = harness.run_blocks(SLUG, [5, 6], workdir=self.tmp)
+
+    # -- fixtures -------------------------------------------------------------------------------
+    def _exec(self, sql, params=None):
+        from sqlalchemy import text
+
+        with self.engine.begin() as con:
+            con.execute(text(sql), params or {})
+
+    def _make_orders(self, rows=None):
+        import pandas as pd
+
+        if rows is None:   # every customer orders once a day for 40 days; amounts differ per day
+            days = pd.date_range(end="2026-03-31", periods=40, freq="D").strftime("%Y-%m-%d")
+            rows = [{"order_id": i * 10 + c, "customer_id": c, "amount": float(1 + 3 * i + c),
+                     "order_date": d} for i, d in enumerate(days) for c in CUSTOMERS]
+        with self.engine.begin() as con:
+            pd.DataFrame(rows).to_sql("orders", con, index=False, if_exists="replace")
+
+    def _legacy_partition(self, ds, first_day=None):
+        """What the earlier skill's extract/transform produced: orders of the single day ds."""
+        import pandas as pd
+
+        orders = pd.read_sql("SELECT * FROM orders", self.engine)
+        day = orders["order_date"].str[:10]
+        window = orders[(day >= (first_day or ds)) & (day <= ds)]
+        return window.groupby("customer_id").agg(
+            orders_30d=("order_id", "count"), spend_30d=("amount", "sum")).reset_index().assign(ds=ds)
+
+    def _make_legacy_table(self, ds_column="ds TEXT"):
+        import pandas as pd
+
+        self._exec("DROP TABLE IF EXISTS customer_features")
+        self._exec("CREATE TABLE customer_features (customer_id INTEGER, orders_30d INTEGER, "
+                   f"spend_30d REAL, {ds_column})")
+        with self.engine.begin() as con:
+            pd.concat([self._legacy_partition(ds) for ds in LEGACY_DS]).to_sql(
+                "customer_features", con, if_exists="append", index=False)
+
+    def _table(self):
+        import pandas as pd
+
+        order = "ds, as_of, customer_id" if "as_of" in self._columns() else "ds, customer_id"
+        return pd.read_sql(f"SELECT * FROM customer_features ORDER BY {order}", self.engine)  # noqa: S608
+
+    def _columns(self):
+        from sqlalchemy import inspect
+
+        return [c["name"] for c in inspect(self.engine).get_columns("customer_features")]
+
+    def _migrate(self, **kwargs):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            plan = self.ns["migrate_ds_to_as_of"](self.engine, **kwargs)
+        return out.getvalue(), plan
+
+    def _run_dag(self, context):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            dag_ns = harness.run_blocks(SLUG, [0, 1], stubs=_airflow_stubs(), workdir=self.tmp)
+        for name in ("extract", "transform", "validate", "load"):
+            dag_ns[name](**context)
+        return dag_ns
+
+    def _assert_report_clean(self, rows_per_ds=None):
+        report = self.ns["migration_report"](self.engine, rows_per_ds)
+        self.assertEqual(report, {"unmigrated_ds": [], "wrong_as_of": [], "duplicate_windows": [],
+                                  "missing_as_of": [], "row_count_mismatch": {}})
+
+    # -- migration ------------------------------------------------------------------------------
+    def test_dry_run_is_the_default_and_changes_nothing(self):
+        import pandas as pd
+
+        before, columns = self._table(), self._columns()
+        out, plan = self._migrate()
+        self.assertIn("dry run: nothing changed", out)
+        self.assertEqual(len(plan["ddl"]), 2)
+        self.assertIn("PLAN ALTER TABLE customer_features ADD COLUMN as_of VARCHAR(10)", out)
+        self.assertIn("PLAN ds=2026-03-25 -> as_of=2026-03-26: 3 rows", out)
+        self.assertEqual(plan["updates"], [(ds, self.ns["legacy_as_of"](ds)) for ds in LEGACY_DS])
+        self.assertEqual(plan["updates"][-1], ("2026-03-31", "2026-04-01"))
+        self.assertEqual(plan["blockers"], [])
+        self.assertNotIn("BLOCKED", out)
+        self.assertEqual(self._columns(), columns)
+        pd.testing.assert_frame_equal(self._table(), before)
+
+    def test_not_null_or_keyed_ds_blocks_the_migration(self):
+        import pandas as pd
+        import sqlalchemy.exc
+
+        for ds_column, blocker in (("ds TEXT NOT NULL", "ds is NOT NULL"),
+                                   ("ds TEXT, PRIMARY KEY (customer_id, ds)", "ds is in the primary key")):
+            with self.subTest(ds_column):
+                self._make_legacy_table(ds_column)
+                before, columns = self._table(), self._columns()
+                out, plan = self._migrate()
+                self.assertIn(blocker, plan["blockers"])
+                self.assertIn(f"BLOCKED {blocker}", out)
+                with self.assertRaisesRegex(ValueError, "nothing changed.*nullable"):
+                    self._migrate(dry_run=False)
+                self.assertEqual(self._columns(), columns)
+                pd.testing.assert_frame_equal(self._table(), before)
+        # Why it blocks: with ds NOT NULL, the columns added by hand and the new DAG's load fails.
+        self._make_legacy_table("ds TEXT NOT NULL")
+        _, plan = self._migrate()
+        for stmt in plan["ddl"]:
+            self._exec(stmt)
+        with self.assertRaisesRegex(sqlalchemy.exc.IntegrityError, "NOT NULL"):
+            self._run_dag(airflow3_context())
+        # The documented remedy (on SQLite, a rebuild without the constraint) unblocks it.
+        self._exec("CREATE TABLE relaxed AS SELECT * FROM customer_features")   # copies no constraint
+        self._exec("DROP TABLE customer_features")
+        self._exec("ALTER TABLE relaxed RENAME TO customer_features")
+        out, plan = self._migrate(dry_run=False)
+        self.assertEqual(plan["blockers"], [])
+        self._run_dag(airflow3_context())
+        self.assertEqual(len(self._table().query("as_of == @AS_OF")), 3)
+        self._assert_report_clean()
+
+    def test_apply_preserves_rows_and_maps_each_ds_to_its_window_end(self):
+        import pandas as pd
+
+        before = self._table()
+        _, plan = self._migrate(dry_run=False)
+        after = self._table()
+        self.assertEqual(set(self._columns()), {"customer_id", "orders_30d", "spend_30d", "ds",
+                                                 "as_of", "event_timestamp"})
+        pd.testing.assert_frame_equal(after[before.columns], before)       # every row, unchanged
+        expected = (pd.to_datetime(after["ds"]) + pd.Timedelta(days=1)).dt.strftime("%Y-%m-%d")
+        self.assertEqual(after["as_of"].tolist(), expected.tolist())
+        # event_timestamp == as_of 00:00 UTC (SQLite stores the UTC wall time without an offset)
+        self.assertTrue((pd.to_datetime(after["event_timestamp"]) == pd.to_datetime(after["as_of"])).all())
+        self._assert_report_clean(plan["rows_per_ds"])
+
+    def test_rerun_is_idempotent(self):
+        import pandas as pd
+
+        self._migrate(dry_run=False)
+        once = self._table()
+        out, plan = self._migrate(dry_run=False)
+        self.assertEqual((plan["ddl"], plan["updates"], plan["skipped"]), ([], [], []))
+        self.assertNotIn("PLAN", out)
+        pd.testing.assert_frame_equal(self._table(), once)
+        self._assert_report_clean()
+
+    def test_row_count_check_compares_whole_partitions(self):
+        self._migrate(dry_run=False)
+        # a straggler appended to an already-migrated partition: only it is updated, but the
+        # snapshot counts the whole partition, which is what migration_report compares against
+        self._exec("INSERT INTO customer_features (customer_id, orders_30d, spend_30d, ds) "
+                   "VALUES (4, 1, 9.0, '2026-03-28')")
+        out, plan = self._migrate()
+        self.assertEqual(plan["updates"], [("2026-03-28", "2026-03-29")])
+        self.assertIn("PLAN ds=2026-03-28 -> as_of=2026-03-29: 1 rows", out)
+        self.assertEqual(plan["rows_per_ds"], {"2026-03-28": 4})
+        self._migrate(dry_run=False)
+        self._assert_report_clean(plan["rows_per_ds"])
+        # ...and the check is not vacuous: a row lost after the snapshot is reported
+        self._exec("DELETE FROM customer_features WHERE customer_id = 4")
+        report = self.ns["migration_report"](self.engine, plan["rows_per_ds"])
+        self.assertEqual(report["row_count_mismatch"], {"2026-03-28": (4, 3)})
+
+    def test_mapping_check_tells_which_window_the_legacy_rows_hold(self):
+        import pandas as pd
+
+        matches = self.ns["legacy_window_matches"]
+        for ds in LEGACY_DS:
+            self.assertTrue(matches(self.engine, ds, days=1), ds)          # the old one-day window
+            self.assertFalse(matches(self.engine, ds, days=30), ds)        # not a 30-day feature
+            self.assertFalse(matches(self.engine, ds, offset=pd.Timedelta(0), days=1), ds)
+        # A customised legacy pipeline with a real 30-day window (ds-29 .. ds inclusive, correct
+        # on Airflow 2) is recognised as one: its rows can be relabelled without recomputing.
+        self._exec("DELETE FROM customer_features WHERE ds = :ds", {"ds": "2026-03-31"})
+        with self.engine.begin() as con:
+            self._legacy_partition("2026-03-31", first_day="2026-03-02").to_sql(
+                "customer_features", con, if_exists="append", index=False)
+        self.assertTrue(matches(self.engine, "2026-03-31", days=30))
+        self.assertFalse(matches(self.engine, "2026-01-01", days=30))      # no stored rows
+
+    # -- the new DAG against the migrated table -------------------------------------------------
+    def test_new_dag_before_migration_fails_and_leaves_the_table_alone(self):
+        import pandas as pd
+        import pandas.errors
+        import sqlalchemy.exc
+
+        before = self._table()
+        with self.assertRaises((sqlalchemy.exc.DBAPIError, pandas.errors.DatabaseError)) as cm:
+            self._run_dag(airflow3_context())       # load's DELETE ... WHERE as_of: no such column
+        self.assertIn("as_of", str(cm.exception))
+        pd.testing.assert_frame_equal(self._table(), before)
+
+    def test_new_dag_overwrites_the_migrated_partition_of_the_same_window(self):
+        # Window alignment: legacy ds=03-31 (Airflow 2 interval [03-31, 04-01)) maps to as_of=04-01,
+        # the partition the new DAG writes for data_interval_end=04-01 on either Airflow version.
+        _, plan = self._migrate(dry_run=False)
+        for context in (airflow2_context(), airflow3_context(), airflow3_context()):   # + a retry
+            self._run_dag(context)
+            table = self._table()
+            part = table[table["as_of"] == AS_OF]
+            self.assertEqual(len(part), 3)
+            self.assertTrue(part["ds"].isna().all(), "legacy rows of the window must be replaced")
+            self.assertEqual(part["orders_30d"].tolist(), [30, 30, 30])
+            self.assertEqual(sorted(table["ds"].dropna().unique()), LEGACY_DS[:-1])  # others kept
+        self._assert_report_clean()
+
+    def test_window_is_half_open_and_anchored_on_utc_midnight(self):
+        self._migrate(dry_run=False)
+        rows = [  # (order_date, amount) for customer 1, around both window edges
+            ("2026-03-01 23:59:59", 1.0), ("2026-03-02 00:00:00", 2.0),
+            ("2026-03-31 23:59:59.999999", 4.0), ("2026-04-01 00:00:00", 8.0)]
+        self._make_orders([{"order_id": i, "customer_id": 1, "amount": a, "order_date": d}
+                           for i, (d, a) in enumerate(rows)])
+        dag_ns = self._run_dag(airflow3_context())
+        part = self._table().query("as_of == @AS_OF")
+        self.assertEqual((part["orders_30d"].tolist(), part["spend_30d"].tolist()), ([2], [6.0]))
+        # data_interval_end in any offset is converted to UTC before flooring to midnight
+        window_end = dag_ns["window_end"]
+        plus2 = timezone(timedelta(hours=2))
+        for end, as_of in ((datetime(2026, 4, 1, 2, 0, tzinfo=plus2), "2026-04-01"),     # 00:00 UTC
+                           (datetime(2026, 4, 1, 1, 59, tzinfo=plus2), "2026-03-31"),    # 23:59 UTC
+                           (datetime(2026, 3, 29, 1, 0, tzinfo=timezone.utc), "2026-03-29")):
+            self.assertEqual(f"{window_end({'data_interval_end': end}):%Y-%m-%d}", as_of, end)
+
+    def test_late_arriving_order_lands_in_its_window_on_rerun(self):
+        self._migrate(dry_run=False)
+        self._run_dag(airflow3_context())
+        first = self._table().query("as_of == @AS_OF").set_index("customer_id")
+        self._exec("INSERT INTO orders (order_id, customer_id, amount, order_date) "
+                   "VALUES (9999, 1, 500.0, '2026-03-31')")                     # arrived late
+        self._run_dag(airflow3_context())                                       # re-run / backfill
+        part = self._table().query("as_of == @AS_OF").set_index("customer_id")
+        self.assertEqual(len(part), 3)
+        self.assertEqual(part.loc[1, "orders_30d"], first.loc[1, "orders_30d"] + 1)
+        self.assertAlmostEqual(part.loc[1, "spend_30d"], first.loc[1, "spend_30d"] + 500.0)
+        self.assertEqual(part.loc[2, "spend_30d"], first.loc[2, "spend_30d"])
+        # ...and not in the previous window, whose exclusive end is 2026-03-31 00:00 UTC
+        self._run_dag(airflow3_context(RUN_AT - timedelta(days=1)))
+        prev = self._table().query("as_of == '2026-03-31'").set_index("customer_id")
+        self.assertEqual(prev.loc[1, "orders_30d"], 30)
+        self._assert_report_clean()
+
+    # -- transition -----------------------------------------------------------------------------
+    def test_dual_read_dedups_new_migrated_and_legacy_rows(self):
+        import pandas as pd
+
+        self._migrate(dry_run=False)
+        self._run_dag(airflow3_context())                     # new DAG writes as_of=04-01
+        legacy_0401 = self._legacy_partition("2026-04-01")    # empty: no orders on 04-01
+        self.assertTrue(legacy_0401.empty)
+        # A rolled-back old DAG writes ds=03-30 again (maps to as_of=03-31) and, twice, a ds=04-01
+        # row (maps to 04-02); none of these have as_of yet.
+        self._exec("DELETE FROM customer_features WHERE ds = '2026-03-30'")
+        for _ in range(2):
+            self._exec("INSERT INTO customer_features (customer_id, orders_30d, spend_30d, ds) "
+                       "VALUES (1, 1, 7.0, '2026-04-01')")
+        with self.engine.begin() as con:
+            self._legacy_partition("2026-03-30").to_sql("customer_features", con, if_exists="append",
+                                                        index=False)
+        read = self.ns["read_customer_features"]
+        out = read(self.engine, "2026-03-26", "2026-04-03")
+        self.assertFalse(out.duplicated(["customer_id", "as_of"]).any())
+        self.assertEqual(sorted(out["as_of"].unique()),
+                         [f"2026-03-{d}" for d in range(26, 32)] + ["2026-04-01", "2026-04-02"])
+        self.assertEqual(out.query("as_of == '2026-04-01'")["orders_30d"].tolist(), [30, 30, 30])  # new wins
+        self.assertEqual(out.query("as_of == '2026-03-31'")["orders_30d"].tolist(), [1, 1, 1])     # mapped
+        self.assertEqual(out.query("as_of == '2026-04-02'")[["customer_id", "spend_30d"]].values.tolist(),
+                         [[1, 7.0]])                                     # exact duplicate dropped
+        self.assertEqual(str(out["event_timestamp"].dt.tz), "UTC")
+        self.assertTrue((out["event_timestamp"] == pd.to_datetime(out["as_of"]).dt.tz_localize("UTC")).all())
+        # half-open range on as_of
+        self.assertEqual(sorted(read(self.engine, "2026-03-27", "2026-03-28")["as_of"].unique()), ["2026-03-27"])
+        # ...and on legacy rows not migrated yet: ds=03-30 maps to the start (in), ds=04-01 to the end (out)
+        edge = read(self.engine, "2026-03-31", "2026-04-02")
+        self.assertEqual(sorted(edge["as_of"].unique()), ["2026-03-31", "2026-04-01"])
+        self.assertEqual(edge.query("as_of == '2026-03-31'")["orders_30d"].tolist(), [1, 1, 1])
+        # the migration picks the stragglers up on its next run, and the read is unchanged
+        _, plan = self._migrate(dry_run=False)
+        self.assertEqual(plan["updates"], [("2026-03-30", "2026-03-31"), ("2026-04-01", "2026-04-02")])
+        self.assertEqual(self.ns["migration_report"](self.engine, plan["rows_per_ds"])["row_count_mismatch"], {})
+        pd.testing.assert_frame_equal(read(self.engine, "2026-03-26", "2026-04-03"), out)
+        # two different values for one window is a conflict, not something to pick from silently
+        self._exec("INSERT INTO customer_features (customer_id, orders_30d, spend_30d, ds) "
+                   "VALUES (1, 1, 8.0, '2026-04-01')")
+        with self.assertRaisesRegex(ValueError, "conflicting rows"):
+            read(self.engine, "2026-04-01", "2026-04-04")
+
+    def test_columns_added_but_not_filled_leave_a_second_copy_until_migrated(self):
+        # Gotcha: running the new DAG after only the DDL keeps the legacy copy of its window.
+        _, plan = self._migrate()
+        for stmt in plan["ddl"]:
+            self._exec(stmt)
+        self._run_dag(airflow3_context())
+        table = self._table()
+        self.assertEqual(len(table[table["as_of"] == AS_OF]), 3)
+        self.assertEqual(len(table[(table["ds"] == "2026-03-31") & table["as_of"].isna()]), 3)
+        out, plan = self._migrate(dry_run=False)
+        self.assertEqual(plan["skipped"], [("2026-03-31", AS_OF)])
+        self.assertIn("SKIP ds=2026-03-31", out)
+        self.assertNotIn("2026-03-31", plan["rows_per_ds"])   # skipped: no rows expected to migrate
+        self._assert_report_clean(plan["rows_per_ds"])        # superseded legacy rows are not "unmigrated"
+        read = self.ns["read_customer_features"](self.engine, AS_OF, "2026-04-02")
+        self.assertEqual(read["orders_30d"].tolist(), [30, 30, 30])
 
 
 if __name__ == "__main__":

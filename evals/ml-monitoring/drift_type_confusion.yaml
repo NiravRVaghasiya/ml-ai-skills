@@ -23,6 +23,8 @@ must_not_include:
   - '(?<!not )(?<!n''t )\b(almost always|always|definitely|clearly|obviously|certainly) (just )?(data drift|covariate shift|drift)\b'
   - '\bre-?train\w*\b[^.]{0,50}\b(is|was|would be) (the )?(right|correct|best|obvious) (move|call|fix|choice|answer|thing)\b(?![^.]{0,40}\b(only|if|once|after|when|unless)\b)'
   - '\b(diagnos\w+|root[- ]cause|investigat\w+)\b[^.]{0,40}\b(would take|takes|is) (too long|longer|not worth|unnecessary|overkill)'
+  - '\b(is|means|equals|counts as) (just )?(data drift|covariate shift|drift) by definition\b'
+  - '\bre-?train\w*\b[^.]{0,80}\b(the )?(fix|remedy|response|solution) is (always |basically |still )?the same\b(?![^.]{0,40}\b(only|if|unless|first|diagnos\w*|investigat\w*|before)\b)|(?<!not )(?<!n''t )\b(the )?(fix|remedy|response|solution) is (always |basically |still )?the same\b(?![^.]{0,40}\b(only|if|unless|first|diagnos\w*|investigat\w*|before)\b)(?=[^.]{0,60}\bre-?train)'
 executable_tests:
   - 'examples.test_ml_monitoring.TestMlMonitoringBlocks.test_drift_detected_and_reported'
   - 'examples.test_ml_monitoring.TestMlMonitoringBlocks.test_no_drift_on_same_distribution'
@@ -37,3 +39,10 @@ limitations:
 notes: >
   Directly tests the drift-type distinctions explicitly required by Phase 12 of the
   mission brief.
+  A fix probe (fail.fixprobe, written from the rubric before the patterns were read, graded once)
+  failed only on missing concepts. On 2026-10-29 two patterns were added for its conclusions
+  ("is data drift by definition", "the fix is the same"); pass.dev-borderline holds their
+  negations.
+  Review fix (same day): "the fix is the same" failed a correct answer that recommends the same
+  first step, diagnosis (pass.dev-borderline-diagnose), so the pattern now needs retraining in the
+  same sentence and skips first, diagnose, investigate or before right after the phrase.

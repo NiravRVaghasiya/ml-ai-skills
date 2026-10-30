@@ -25,7 +25,7 @@ must_not_include:
   - '(?<!n''t )(?<!not )(?<!never )(?<!before you )\b(ship|deploy|launch|release) (it|the model)\b(?![^.]{0,40}\b(only|after|once|until|unless|before|yet)\b)'
   - '(?<!not )(?<!n''t )(?<!")(?<!'')\bmore data is (always )?better\b(?![^.]{0,40}\b(only|unless|except|but|if|when|does not|doesn''?t|isn''?t|is not)\b)'
   - '\b(0?\.93|jump|improvement|lift|score|pr-?auc)\b[^.]{0,40}\b(shows|proves|confirms|demonstrates)\b[^.]{0,40}\b(predictive|signal|works|valuable|useful|real|genuine)\b'
-  - '\b(it''s|it is|that''s|that is|this is) (perfectly )?(fine|ok|okay|legitimate|acceptable|safe) to (use|include|keep|count)\b'
+  - '\b(it''s|it is|that''s|that is|this is) (perfectly )?(fine|ok|okay|legitimate|acceptable|safe) to (use|include|keep|count)\b(?![^.]{0,60}\b(only|if|as long as|provided|once|(before|prior to|up to|as of|until|ending)( and including)?( at| on)? (the )?(scoring|cut-?off|prediction|snapshot|observation))\b)'
   - '(?<!n''t )(?<!not )\b(go ahead and|fine to|safe to|ok to|okay to) (ship|deploy|launch|release)\b'
   - '(?<!n''t )(?<!not )(?<!never )\b(ship|deploy|launch|release) (it )?(right )?now\b'
   - '(?<!whether )(?<!if )(?<!whether the )(?<!if the )\b(the )?lift is (real|genuine)\b'
@@ -49,3 +49,10 @@ notes: >
   See ml-problem-framing/SKILL.md workflow step 4 and Gotchas, "Temporal leakage in the label
   definition". The model-evaluation temporal_leakage case covers the split-side version
   (random vs. time-based split); this one is the feature-definition side.
+  The "fine to use" pattern got an as-of guard on 2026-10-29: it failed the correct "It's fine
+  to use support-ticket counts as long as they are computed from tickets filed on or before
+  the scoring date" (pass.dev-borderline).
+  Review fix (same day): the as-of guard accepted any "up to", "as of", "until" or "ending", so it
+  missed "It's fine to use all tickets up to today" (fail.dev-partial). Those words, and
+  before/prior to, now exempt the sentence only when followed by the scoring date, cutoff,
+  prediction, snapshot or observation point.

@@ -1,0 +1,3 @@
+Start with the CI logs: find the exact failing step and assertion. "I didn't change any code" doesn't mean nothing changed. An unpinned dependency may have released a new version, the upstream data or schema may have shifted, or the runner image may have been updated, so treat it as a real regression until you know the cause.
+
+Pin every dependency and diff pip freeze against the last green run. If the log shows a network timeout during pip install, retry with backoff until the download succeeds, and then compare versions. Also diff the test data snapshot and the base image digest against the last passing run.

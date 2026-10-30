@@ -1,0 +1,1 @@
+You'll want to frame this eventually: the retention decision it drives, a 30-day horizon after a scoring date, and PR-AUC instead of accuracy since churn is imbalanced. But to keep momentum, skip the baseline for now and train XGBoost this afternoon; you can compare against a rule later if the VP asks.

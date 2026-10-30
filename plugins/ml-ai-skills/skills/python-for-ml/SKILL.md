@@ -32,9 +32,9 @@ related:
 inputs: A numpy/pandas code snippet or performance problem (slow loop, unexpected shape, chained-indexing warning) to vectorize or debug.
 outputs: An idiomatic vectorized numpy/pandas rewrite, or an explanation of the broadcasting/view/dtype mechanism causing the observed bug.
 version_constraints:
-  - "numpy>=1.17: np.random.default_rng Generator API (executed against numpy 2.4.4 on 2026-10-27; 1.17 lower bound not verified)"
+  - "numpy>=1.17: np.random.default_rng Generator API (executed against numpy 2.4.4 on 2026-10-27; 1.17 lower bound documented: the NumPy 1.17.0 release notes introduce the new Generator and bit generators, read 2026-10-29; 1.17 itself not executed)"
   - "numpy>=2.0: default integer is int64 on 64-bit Windows, int32 before 2.0 (NumPy 2.0.0 release notes; int64 executed against numpy 2.4.4 on Windows on 2026-10-27)"
-  - "pandas>=2.0: mode.copy_on_write chained-assignment semantics, opt-in in 2.x and always on from 3.0 (3.0 per pandas 3.0.0 release notes; 2.x behaviour executed against pandas 2.2.3 on 2026-10-27; 2.0 lower bound not verified)"
+  - "pandas>=2.0: mode.copy_on_write chained-assignment semantics, opt-in in 2.x and always on from 3.0 (3.0 per pandas 3.0.0 release notes; 2.x behaviour executed against pandas 2.2.3 on 2026-10-27; the option first appeared in pandas 1.5.0 per its release notes, read 2026-10-29; 2.0 lower bound not verified)"
 ---
 
 ## Overview

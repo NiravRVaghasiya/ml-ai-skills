@@ -1,0 +1,1 @@
+The rename is the right move. The new DAG writes the same daily partitions, just under a clearer name, so no migration is needed: run the ALTER TABLE in a quiet window, deploy the new DAG straight after, and let its next scheduled run confirm everything still lines up. If you are worried, keep a backup of the table for a week.

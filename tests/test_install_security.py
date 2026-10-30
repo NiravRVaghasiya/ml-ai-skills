@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import stat
 import subprocess
 import tempfile
 import unittest
@@ -24,6 +25,9 @@ from testutil import REPO_ROOT
 
 BASH = shutil.which("bash")
 GIT = shutil.which("git")
+# Upper bound per install.sh/uninstall.sh run: a hung run fails the test instead
+# of blocking CI. Forks cost ~0.3 s each on the Windows test host.
+SCRIPT_TIMEOUT = 300
 INSTALL_SH = REPO_ROOT / "install.sh"
 UNINSTALL_SH = REPO_ROOT / "uninstall.sh"
 MANIFEST_NAME = ".ml-ai-skills-manifest"
@@ -40,8 +44,19 @@ def sha256(path: Path) -> str:
 
 
 def is_link(path: Path) -> bool:
+    # Same test as scripts/list_skills.py: os.path.isjunction is 3.12+, so
+    # older Pythons read the reparse tag (a junction is otherwise a plain dir).
+    if path.is_symlink():
+        return True
     isjunction = getattr(os.path, "isjunction", None)
-    return path.is_symlink() or bool(isjunction and isjunction(path))
+    if isjunction is not None:
+        return isjunction(path)
+    if os.name != "nt":
+        return False
+    try:
+        return getattr(os.lstat(path), "st_reparse_tag", 0) == stat.IO_REPARSE_TAG_MOUNT_POINT
+    except OSError:
+        return False
 
 
 def snapshot(root: Path, exclude: Path | None = None) -> dict[str, tuple]:
@@ -127,13 +142,14 @@ class Base(unittest.TestCase):
     def env(self, **extra: str) -> dict[str, str]:
         env = dict(os.environ)
         env.pop("ML_AI_SKILLS_FAULT_INJECT", None)
+        env.pop("ML_AI_SKILLS_TEST_MOUNTINFO", None)
         env["HOME"] = str(self.root / "home")
         env.update(extra)
         return env
 
     def _run(self, script: Path, args, env=None) -> subprocess.CompletedProcess:
         return subprocess.run([BASH, str(script), *args], capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", env=env or self.env())
+                              encoding="utf-8", errors="replace", env=env or self.env(), timeout=SCRIPT_TIMEOUT)
 
     def install(self, *args: str, env=None, target: Path | None = None, source: Path | None = None):
         return self._run(INSTALL_SH, ["--source", str(source or self.src),
@@ -152,12 +168,22 @@ class Base(unittest.TestCase):
         return self.target / MANIFEST_NAME
 
     def manifest_entries(self) -> dict[str, str]:
+        """Skill lines only: slug -> recorded SKILL.md hash ('' for a format-1 bare slug)."""
         entries = {}
         for line in self.manifest.read_text(encoding="utf-8").splitlines():
-            if line and not line.startswith("#"):
+            if line and not line.startswith("#") and line.count("\t") < 2:
                 slug, _, h = line.partition("\t")
                 entries[slug] = h
         return entries
+
+    def manifest_files(self) -> dict[str, dict[str, str]]:
+        """Format-3 file lines: slug -> {relpath: sha256}."""
+        files: dict[str, dict[str, str]] = {}
+        for line in self.manifest.read_text(encoding="utf-8").splitlines():
+            if line and not line.startswith("#") and line.count("\t") >= 2:
+                slug, h, rel = line.split("\t", 2)
+                files.setdefault(slug, {})[rel] = h
+        return files
 
     def content(self, slug: str) -> str:
         return (self.target / slug / "SKILL.md").read_text(encoding="utf-8")
@@ -167,9 +193,16 @@ class Base(unittest.TestCase):
         self.assertEqual((self.victim / "keep.txt").read_text(encoding="utf-8"), "precious")
 
     def assert_manifest_matches_disk(self) -> None:
-        """Every manifest hash equals the real hash of the installed SKILL.md."""
+        """Every manifest hash equals the real hash of the installed SKILL.md, and
+        every per-file record lists exactly the files on disk with their hashes."""
+        files = self.manifest_files()
         for slug, h in self.manifest_entries().items():
             self.assertEqual(h, sha256(self.target / slug / "SKILL.md"), slug)
+            if slug in files:
+                on_disk = {p.relative_to(self.target / slug).as_posix(): sha256(p)
+                           for p in (self.target / slug).rglob("*") if p.is_file()}
+                self.assertEqual(files[slug], on_disk, slug)
+        self.assertLessEqual(set(files), set(self.manifest_entries()), "file lines without a skill line")
 
     def assert_no_lock(self) -> None:
         self.assertFalse(os.path.lexists(self.target / LOCK_NAME), "lock/staging dir left behind")
@@ -247,7 +280,7 @@ class TestManifestV1Upgrade(Base):
         self.write_v1()
         r = self.ok(self.install())
         self.assertIn("updated=3 skipped=0", r.stdout)
-        self.assertIn("# format: 2", self.manifest.read_text(encoding="utf-8"))
+        self.assertIn("# format: 3", self.manifest.read_text(encoding="utf-8"))
         self.assert_manifest_matches_disk()
 
     def test_v1_entry_that_differs_from_source_is_kept_unless_force(self):
@@ -281,7 +314,7 @@ class TestManifestV1Upgrade(Base):
         self.assertNotIn("could not prove", r.stderr)
         # install.sh still upgrades it and proves the unedited copies.
         r = self.ok(self.install())
-        self.assertIn("# format: 2", self.manifest.read_text(encoding="utf-8"))
+        self.assertIn("# format: 3", self.manifest.read_text(encoding="utf-8"))
         self.assert_manifest_matches_disk()
 
     def test_keep_message_mentions_git_history_only_when_it_was_checked(self):
@@ -349,7 +382,8 @@ class TestManifestV1Upgrade(Base):
 
     def git(self, *args: str) -> None:
         subprocess.run([GIT, "-C", str(self.src), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
-                        "-c", "commit.gpgsign=false", *args], check=True, capture_output=True, env=self.git_env())
+                        "-c", "commit.gpgsign=false", *args], check=True, capture_output=True, env=self.git_env(),
+                       timeout=120)
 
     @unittest.skipUnless(GIT, "git not found on PATH")
     def test_v1_upgrade_after_upstream_change_verifies_against_git_history(self):
@@ -601,7 +635,8 @@ class TestRollback(Base):
 
 
 # A PATH wrapper around mv: it performs the real move, then (when "$1|$2"
-# matches the glob in ML_TEST_MV_TRIGGER) either SIGTERMs the calling script,
+# matches the glob in ML_TEST_MV_TRIGGER) either signals the calling script
+# (ML_TEST_MV_SIGNAL: TERM by default, INT or HUP),
 # i.e. a signal that arrives while that mv is running, or recreates the folder
 # it just moved away (another process "squatting" the destination mid-commit).
 # Portable, and it needs no change to the scripts under test.
@@ -611,27 +646,30 @@ rc=$?
 case "$1|$2" in
   $ML_TEST_MV_TRIGGER)
     case "$ML_TEST_MV_ACTION" in
-      kill) kill -TERM "$PPID" ;;
+      kill) kill -"${ML_TEST_MV_SIGNAL:-TERM}" "$PPID" ;;
       squat) mkdir "$1" && printf 'squatter' > "$1/SKILL.md" ;;
     esac ;;
 esac
 case "$1|$2" in
-  ${ML_TEST_MV_TRIGGER2:-}) kill -TERM "$PPID" ;;
+  ${ML_TEST_MV_TRIGGER2:-}) kill -"${ML_TEST_MV_SIGNAL:-TERM}" "$PPID" ;;
 esac
 exit $rc
 """
 
 
 class TestInterruptedCommit(Base):
-    def wrapped_env(self, trigger: str, action: str = "kill", trigger2: str = "") -> dict[str, str]:
+    def wrapped_env(self, trigger: str, action: str = "kill", trigger2: str = "",
+                    signal_name: str = "TERM") -> dict[str, str]:
         wrap = self.root / "wrapbin"
         wrap.mkdir(exist_ok=True)
         (wrap / "mv").write_text(MV_WRAPPER, encoding="utf-8", newline="\n")
         os.chmod(wrap / "mv", 0o755)  # noqa: S103 - the fake `mv` must be executable to shadow the real one
-        real_mv = subprocess.run([BASH, "-c", "command -v mv"], capture_output=True, text=True).stdout.strip()
+        real_mv = subprocess.run([BASH, "-c", "command -v mv"], capture_output=True, text=True,
+                                 timeout=60).stdout.strip()
         self.assertTrue(real_mv)
         return self.env(PATH=str(wrap) + os.pathsep + os.environ.get("PATH", ""), ML_TEST_REAL_MV=real_mv,
-                        ML_TEST_MV_TRIGGER=trigger, ML_TEST_MV_ACTION=action, ML_TEST_MV_TRIGGER2=trigger2)
+                        ML_TEST_MV_TRIGGER=trigger, ML_TEST_MV_ACTION=action, ML_TEST_MV_TRIGGER2=trigger2,
+                        ML_TEST_MV_SIGNAL=signal_name)
 
     def test_sigterm_while_moving_old_copy_aside_restores_it(self):
         # Regression: the trap ran with the progress flag still "nothing moved",
@@ -719,7 +757,7 @@ class TestOptionLikePaths(Base):
 
         def run(script: Path, *args: str) -> subprocess.CompletedProcess:
             return subprocess.run([BASH, str(script), *args], capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", env=env, cwd=work)
+                                  encoding="utf-8", errors="replace", env=env, cwd=work, timeout=SCRIPT_TIMEOUT)
 
         self.ok(run(INSTALL_SH, "--source", str(self.src), "--target", "-"))
         self.assertEqual({p.name for p in (work / "-").iterdir() if p.is_dir()}, set(SLUGS))
@@ -750,7 +788,7 @@ class TestOptionLikePaths(Base):
 
         def run(script: Path, *args: str) -> subprocess.CompletedProcess:
             return subprocess.run([BASH, str(script), *args], capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", env=env, cwd=self.root)
+                                  encoding="utf-8", errors="replace", env=env, cwd=self.root, timeout=SCRIPT_TIMEOUT)
 
         self.ok(run(INSTALL_SH, "--source", "src", "--target", "tgt"))
         self.assertEqual({p.name for p in (self.root / "tgt").iterdir() if p.is_dir()}, set(SLUGS))
@@ -876,7 +914,7 @@ class TestNoWritesOutsideTarget(Base):
 class TestMiscErrors(Base):
     def test_unknown_manifest_format_is_refused(self):
         self.ok(self.install())
-        text = self.manifest.read_text(encoding="utf-8").replace("# format: 2", "# format: 3")
+        text = self.manifest.read_text(encoding="utf-8").replace("# format: 3", "# format: 4")
         self.manifest.write_text(text, encoding="utf-8")
         before = snapshot(self.target)
         for r in (self.install("--force"), self.uninstall("--force")):

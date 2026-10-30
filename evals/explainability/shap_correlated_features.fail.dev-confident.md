@@ -1,0 +1,1 @@
+Low SHAP for B is not automatically causal evidence, because SHAP can split credit between correlated features. So check the pairwise correlation between A and B first. If it is low (|r| below about 0.3), the split-credit problem doesn't apply, and it's safe to conclude B doesn't matter: the model genuinely relies on A, and you can stop investing in B.

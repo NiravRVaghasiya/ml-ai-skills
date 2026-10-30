@@ -118,8 +118,9 @@ X". For those:
   (b) when `check_claims.py` reports a claim `REVIEW_DUE` (the policy age
   limit for its skill passed); (c) when `check_claims.py` reports
   `stale-pattern-unverified` or `stale-pattern-without-claim`: a
-  `known_stale_patterns` entry with level `STALE` fails CI for every skill it
-  matches, yet rests on a claim nobody has checked; (d) when a skill that
+  `known_stale_patterns` entry with level `STALE` rests on a claim nobody has
+  checked, so `check_freshness.py` reports its matches only as `REVIEW_DUE`
+  until the claim is verified; (d) when a skill that
   relies on the claim is edited.
 - **How:** read the primary source at `source_url`. If it still supports the
   claim, set `verification: human-review`, `reviewer: <name>`,
@@ -134,14 +135,31 @@ X". For those:
   fixed 401/403/429. They stay `inconclusive` and keep the weekly run red. If
   the page opens in a browser and still supports the skill, add it to
   `acknowledged_inconclusive` in `schema/freshness_policy.json` with `url` (or
-  `host`), the exact `http_status` codes, a `reason`, and `acknowledged_on`.
-  `verify_online.py` then reports it as `acknowledged` (not a finding) until
-  the acknowledgement is older than `default_max_age_days`, when it surfaces
-  again for re-confirmation. A 404/410 (`broken`), a timeout or a DNS failure
+  `host`), the exact `http_status` codes, a `reason`, `acknowledged_on`, and
+  an `expires_on` no later than `acknowledged_on` + `default_max_age_days`
+  (that sum is the default when it is omitted). `verify_online.py` then
+  reports it as `acknowledged` (not a finding) up to and including
+  `expires_on`, after which it surfaces again for re-confirmation. A 404/410 (`broken`), a timeout or a DNS failure
   can't be acknowledged. The two seeded entries (dl.acm.org and a doi.org link
   to MIT Press) were added by an agent after it saw 403 on both HEAD and GET
   on 2026-10-27. No person has confirmed them in a browser yet, and their
-  `reason` says so.
+  `reason` says so; their `expires_on` is 2027-01-25 (90 days), shorter than
+  the 180-day maximum, for that reason. Crossref metadata for both DOIs was
+  read on 2026-10-29 (docs/SKILL-AUDIT.md).
+
+## Per-skill human review: `docs/reviews.json`
+
+After a person reviews a whole `SKILL.md`, append a record
+`{skill, reviewer, date, skill_sha256, scope, outcome[, notes]}` to the
+`reviews` list in `docs/reviews.json`, in the same commit. `skill_sha256` is
+the `skills[].skill_sha256` printed by `python scripts/quality_report.py`
+(SHA-256 of the file with CRLF normalised to LF). `scope` is
+`full|content|code|references` and `outcome` is
+`approved|changes-requested|rejected`. Only `scope: full` with
+`outcome: approved` at the current sha256 counts as `reviewed`; any edit to
+the file makes the review stale (`review-stale`). Agents do not count as
+reviewers (agent audits go in `docs/SKILL-AUDIT.md`). Claim-level reviews stay
+in `docs/claims.json` and never make a skill reviewed.
 
 ## Where evidence issues get tracked
 

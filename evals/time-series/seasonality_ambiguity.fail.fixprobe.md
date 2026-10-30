@@ -1,0 +1,1 @@
+Sales data almost always has yearly seasonality, so fit SARIMA(1,1,1)(1,1,1,12) on your monthly sales, forecast 3 steps ahead, and use the last 12 months as a backtest window. Add holidays as exogenous regressors if you have them.

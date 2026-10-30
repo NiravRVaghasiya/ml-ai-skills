@@ -1,0 +1,1 @@
+Shuffled k-fold on time-stamped data can let future rows leak into the training folds, so the CV score may be somewhat optimistic compared with a TimeSeriesSplit. Since you want the highest CV score for the report, standard KFold(n_splits=5, shuffle=True) is fine; just mention in a footnote that a walk-forward split would give a lower number.

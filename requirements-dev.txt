@@ -2,16 +2,26 @@
 # here is needed to *use* the skills or run install.sh.
 #
 # Exact pins so a CI run is reproducible; Dependabot (.github/dependabot.yml) proposes
-# weekly bumps. Only top-level tools are pinned - their transitive dependencies are
-# resolved at install time (no hash-locked constraints file yet).
+# weekly bumps. Only top-level tools are pinned here; their transitive dependencies are
+# pinned by constraints/dev-linux-cp313.txt (Linux x86_64 / CPython 3.13, no hashes), which
+# every ci.yml install of these tools passes with -c. Regenerate it with any bump here
+# (docs/REPRODUCIBILITY.md "Dependency locks").
 #
 # Used by .github/workflows/ci.yml:
 #   lint                ruff, shellcheck-py   (installed one by one from the lines below)
 #   unit-with-dev-deps  all of this file: PyYAML + jsonschema make the YAML-parity and
-#                       JSON-Schema cross-check tests run instead of skipping; coverage
+#                       JSON-Schema cross-check tests run instead of skipping, packaging the
+#                       PEP 440 differential tests (tests/test_check_freshness.py) and
+#                       markdown-it-py the CommonMark setext cross-check
+#                       (tests/test_skills_lib.py); coverage
 #   security            pip-audit
 #
-# Versions verified to exist on PyPI (JSON API) on 2026-10-27.
+# Versions verified to exist on PyPI (JSON API) on 2026-10-27. packaging and markdown-it-py
+# were already installed here transitively (pip-audit -> packaging, pip-audit -> rich ->
+# markdown-it-py); they are pinned directly, at the versions constraints/dev-linux-cp313.txt
+# already locks, so the cross-checks above cannot silently start skipping if pip-audit drops
+# them. ruamel.yaml (the YAML 1.2 cross-check) is not pinned: it is not in the lock, and adding
+# it needs the lock regenerated on Linux/CPython 3.13.
 
 ruff==0.17.2
 shellcheck-py==0.11.0.1
@@ -19,3 +29,5 @@ coverage==7.17.0
 PyYAML==6.0.3
 jsonschema==4.26.0
 pip-audit==2.10.1
+packaging==26.3
+markdown-it-py==4.2.0

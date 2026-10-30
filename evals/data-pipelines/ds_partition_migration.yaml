@@ -1,0 +1,46 @@
+id: ds_partition_migration
+skill: data-pipelines
+category: misconception
+kind: executable
+input: |
+  We renamed ds to as_of in customer_features; can I just ALTER TABLE RENAME COLUMN ds TO as_of
+  and deploy the new DAG?
+expected_behavior:
+  - 'says a plain rename is not safe because the two keys are not the same value: rows the old Airflow 2 @daily DAG keyed on ds (data_interval_start) cover a window that ends one day later, so as_of = ds + 1 day there (and 0 days on Airflow 3''s default timetable), and the old rows held one-day order figures rather than 30-day ones'
+  - 'recommends checking the offset before applying, by recomputing a few legacy partitions from the source orders (legacy_window_matches), and recomputing the history with a backfill if the old values are one-day figures'
+  - 'recommends a dry run of the migration first, reviewing the planned DDL and per-partition updates'
+  - 'says ds must be made nullable and any primary key on ds dropped first, because the new DAG''s load writes rows without ds and its first run would otherwise fail'
+  - 'orders the deployment: pause the DAG and migrate (add as_of/event_timestamp, fill them on legacy rows) before the new DAG''s first run, switch readers to a dual read during the transition, then deploy the new DAG'
+  - 'says a Feast FileSource with timestamp_field="ds" must move to event_timestamp, since on Airflow 2 ds is a day before the values are known and a point-in-time join on it leaks up to a day of later orders'
+must_not:
+  - 'endorse the plain RENAME COLUMN as sufficient, or claim as_of holds the same value as ds'
+  - 'say no migration, verification or dry run is needed before deploying the new DAG'
+must_include:
+  - '\bds ?\+ ?(1|one) ?(day|d)?\b|\b(one|1|a)[- ]day (offset|shift|later|ahead|after|apart|off)\b|\boff by (one|1|a) day\b|\b(shifted|offset|later|ahead) by (one|1|a) day\b|\bdata_interval_start\b|\binterval start\b'
+  - '\b(recomput\w*|re-comput\w*|recalculat\w*|re-?aggregat\w*|legacy_window_matches)\b|\b(verif\w+|check\w*|confirm\w*)\b[^.]{0,60}\b(offset|mapping|on a (few|sample|handful)|partitions?)\b'
+  - '\bdry[- _]?run\b'
+  - '\bnullable\b|\bnot null\b|\bprimary key\b'
+  - '\bevent_timestamp\b|\btimestamp_field\b'
+must_not_include:
+  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|that works|sounds good|that''s (right|correct|fine))\b(?![\s,!.:;-]*(not|but)\b)'
+  - '(?<!not )(?<!n''t )\b(as_of|the (new )?(columns?|values?|dates?|partitions?|keys?)|they|ds)\b (is|are|will be|would be|should be|stays?|holds?|has|have|means|represents?)( (still|exactly|just|simply|basically|effectively|essentially))? (the same|identical|equal|equivalent)\b|\b(plain |simple |straight |just an? )?(column )?renam\w*\b[^.]{0,40}(?<!not )(?<!n''t )\b(is|are|should be|will be|would be)( (perfectly|totally|completely))? (safe|fine|enough|sufficient|ok|okay|all you need)\b(?![^.]{0,40}\b(only|if|unless|but|once|after)\b)'
+  - '\bno (data )?(migration|backfill|recomputation|remapping)\b[^.]{0,20}\b(is )?(needed|necessary|required)\b|\bno need (to|for) (an? )?(migrat\w+|backfill\w*|recomput\w+|remap\w*|dry[- ]run\w*)\b|(?<!n''t )(?<!not )(?<!never )\bskip (the |a )?(dry[- ]run|migration|backfill)\b'
+executable_tests:
+  - 'examples.test_data_pipelines.TestDsToAsOfMigration.test_apply_preserves_rows_and_maps_each_ds_to_its_window_end'
+  - 'examples.test_data_pipelines.TestDsToAsOfMigration.test_not_null_or_keyed_ds_blocks_the_migration'
+  - 'examples.test_data_pipelines.TestDsToAsOfMigration.test_mapping_check_tells_which_window_the_legacy_rows_hold'
+  - 'examples.test_data_pipelines.TestDsToAsOfMigration.test_new_dag_before_migration_fails_and_leaves_the_table_alone'
+requires:
+  - 'example-deps'
+artifacts:
+  - 'A dry-run plan from migrate_ds_to_as_of listing blockers, DDL and per-partition ds -> as_of updates, then a customer_features table whose legacy rows carry as_of = ds + 1 day and a UTC event_timestamp, with no row deleted'
+limitations:
+  - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
+  - 'The patterns and fixtures were written by the same author (not blind), so they show the assertions are satisfiable and catch the listed wrong answers only; a wrong answer phrased in a way no must_not_include pattern lists still passes.'
+  - 'Migration order (migrate before the first new run), the dual read and the Feast timestamp change are in the rubric only; only the Feast field name and the nullable/primary-key requirement are checked by regex.'
+  - 'The executable tests run the skill''s step 7 migration against SQLite with SQLAlchemy and pandas: they prove the apply step keeps every row, maps each ds to its window end and refuses a NOT NULL or keyed ds, that the recomputation check tells a one-day legacy window from a 30-day one, and that the new DAG run before the migration fails without changing the table, not behaviour on other dialects (Postgres/MySQL DDL) or a real Airflow deployment.'
+notes: >
+  data-pipelines/SKILL.md Workflow step 7 ("Keep the table contract, and migrate a
+  ds-partitioned table to it") and its deployment order. The misconception is that the
+  rename is cosmetic: on Airflow 2, ds is data_interval_start, so the same window is
+  labelled one day later under as_of, and step 1's load writes rows without ds.

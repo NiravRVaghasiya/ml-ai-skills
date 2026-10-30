@@ -269,10 +269,122 @@ class TestBudgetAndCircuitBreaker(unittest.TestCase):
 
         f = vo.Fetcher(opener=opener, sleep=clk.sleep, clock=clk.clock, max_seconds=1200)
         results = [vo.check_url(f, u) for u in urls]
-        self.assertLessEqual(clk.now, 1200 + f.timeout)  # at most one in-flight request past the budget
+        # The per-request timeout is min(--timeout, remaining budget), so nothing in flight crosses the deadline.
+        self.assertLessEqual(clk.now, 1200)
         self.assertEqual(len(results), 121)
         self.assertIn("arxiv.example", f.open_circuits)
         self.assertTrue(all(r["verdict"] == "inconclusive" for r in results))
+
+
+class TestBudgetBound(unittest.TestCase):
+    def test_request_timeout_is_capped_by_remaining_budget(self):
+        f, clk, net = budget_fetcher(default=200, timeout=15, max_seconds=10)
+        clk.now = 6.5  # 3.5 s of budget left
+        self.assertTrue(f.request(URL).ok)
+        self.assertEqual(net.calls[-1][3], 3.5)
+
+    def test_no_request_starts_with_less_than_the_minimum_left(self):
+        f, clk, net = budget_fetcher(default=200, max_seconds=10)
+        clk.now = 10 - vo.MIN_REQUEST_SECONDS / 2
+        res = f.request(URL)
+        self.assertEqual((res.error_kind, net.calls), ("deadline", []))
+
+    def test_pacing_wait_that_would_cross_the_deadline_is_not_slept(self):
+        f, clk, net = budget_fetcher(default=200, max_seconds=10, min_interval=30)
+        self.assertTrue(f.request("https://a.example/1").ok)
+        res = f.request("https://a.example/2")
+        self.assertEqual((res.error_kind, len(net.calls), clk.sleeps), ("deadline", 1, []))
+        self.assertLessEqual(clk.now, 10)
+
+    def test_timeouts_never_carry_the_clock_past_the_deadline(self):
+        f, clk, _ = budget_fetcher(default=socket.timeout("timed out"), timeout=15, retries=3, backoff=1.0,
+                                   max_seconds=40, host_failure_limit=0)
+        for i in range(10):
+            vo.check_url(f, f"https://slow{i}.example/x")
+        self.assertTrue(f.deadline_hit)
+        self.assertLessEqual(clk.now, 40)
+
+    def test_watchdog_abandons_a_request_that_outlives_its_timeout(self):
+        # Real clock, no network: the opener blocks (like a server dripping bytes, or a DNS lookup that
+        # urllib cannot time out) and ignores its timeout. The watchdog must return anyway.
+        import threading
+        import time
+
+        release = threading.Event()
+        self.addCleanup(release.set)
+
+        def stuck(req, timeout):
+            release.wait(30)
+            raise socket.timeout("released")
+
+        f = vo.Fetcher(opener=stuck, timeout=0.2, retries=0, min_interval=0, watchdog_grace=0.3)
+        started = time.monotonic()
+        res = f.request(URL)
+        elapsed = time.monotonic() - started
+        self.assertEqual(res.error_kind, "timeout")
+        self.assertIn("watchdog", res.error)
+        self.assertEqual(f.abandoned, 1)
+        self.assertLess(elapsed, 5.0)  # about 0.5 s expected; generous for a loaded machine
+
+    def test_exception_in_the_request_thread_reaches_the_caller(self):
+        def boom(req, timeout):
+            raise KeyboardInterrupt
+
+        f = vo.Fetcher(opener=boom, retries=0, min_interval=0)
+        with self.assertRaises(KeyboardInterrupt):
+            f.request(URL)
+
+
+class TestCircuitBreakerClasses(unittest.TestCase):
+    def results(self, outcome, n=5, **kw):
+        f, _ = make_fetcher(FakeNet(default=outcome), retries=0, host_failure_limit=3, **kw)
+        return f, [f.request(f"https://bad.example/{i}").error_kind for i in range(n)]
+
+    def test_server_errors_and_network_failures_open_the_circuit(self):
+        for outcome in (500, 502, urllib.error.URLError(OSError("Name or service not known")),
+                        ConnectionResetError("reset by peer")):
+            with self.subTest(outcome=outcome):
+                f, kinds = self.results(outcome)
+                self.assertEqual(kinds[3:], ["circuit-open", "circuit-open"])
+                self.assertEqual(f.open_circuits, {"bad.example"})
+
+    def test_breaker_counts_only_the_configured_classes(self):
+        f, kinds = self.results(urllib.error.URLError(OSError("down")), breaker_on=("throttle", "timeout"))
+        self.assertEqual(kinds, ["network"] * 5)
+        self.assertEqual(f.open_circuits, set())
+        f, kinds = self.results(500, breaker_on=("server-error",))
+        self.assertEqual(kinds[3:], ["circuit-open", "circuit-open"])
+
+    def test_definitive_answer_resets_and_unlisted_failure_is_neutral(self):
+        routes = {("GET", f"https://h.example/{i}"): [code] for i, code in enumerate([500, 500, 403, 500, 500])}
+        f, _ = make_fetcher(FakeNet(routes), retries=0, host_failure_limit=3)
+        for i in range(5):
+            f.request(f"https://h.example/{i}")
+        self.assertEqual(f.open_circuits, set())  # the 403 broke the run of 5xx
+        down = urllib.error.URLError(OSError("down"))
+        routes = {("GET", "https://n.example/0"): [500], ("GET", "https://n.example/1"): [down],
+                  ("GET", "https://n.example/2"): [500], ("GET", "https://n.example/3"): [500]}
+        f, _ = make_fetcher(FakeNet(routes), retries=0, host_failure_limit=3, breaker_on=("server-error",))
+        for i in range(3):
+            f.request(f"https://n.example/{i}")
+        self.assertEqual(f.open_circuits, set())  # 500, network (not counted, does not reset), 500: two so far
+        f.request("https://n.example/3")
+        self.assertEqual(f.open_circuits, {"n.example"})  # third counted 500
+
+    def test_failure_class_mapping_and_validation(self):
+        self.assertEqual(vo.failure_class(vo.HttpResult(URL, "GET", 429)), "throttle")
+        self.assertEqual(vo.failure_class(vo.HttpResult(URL, "GET", 503)), "throttle")
+        self.assertEqual(vo.failure_class(vo.HttpResult(URL, "GET", 504)), "server-error")
+        self.assertEqual(vo.failure_class(vo.HttpResult(URL, "GET", None, "x", "timeout")), "timeout")
+        self.assertEqual(vo.failure_class(vo.HttpResult(URL, "GET", None, "x", "network")), "network")
+        self.assertIsNone(vo.failure_class(vo.HttpResult(URL, "GET", 404)))
+        self.assertIsNone(vo.failure_class(vo.HttpResult(URL, "GET", 200)))
+        with self.assertRaises(ValueError):
+            vo.Fetcher(breaker_on=("throttle", "dns"))
+        with mock.patch.object(vo, "default_opener", FakeNet()), contextlib.redirect_stderr(io.StringIO()), \
+                self.assertRaises(SystemExit) as ctx:
+            vo.main(["--breaker-on", "throttle,bogus"])
+        self.assertEqual(ctx.exception.code, 2)
 
 
 class TestAcknowledged(unittest.TestCase):
@@ -283,9 +395,10 @@ class TestAcknowledged(unittest.TestCase):
 
         self.dt = dt
         self.ack = cf.AckInconclusive(url=URL, host=None, http_status=frozenset({403}), reason="bot wall",
-                                      acknowledged_on=dt.date(2026, 10, 1))
+                                      acknowledged_on=dt.date(2026, 10, 1), expires_on=dt.date(2027, 3, 30))
         self.host_ack = cf.AckInconclusive(url=None, host="other.example.net", http_status=frozenset({403}),
-                                           reason="bot wall", acknowledged_on=dt.date(2026, 10, 1))
+                                           reason="bot wall", acknowledged_on=dt.date(2026, 10, 1),
+                                           expires_on=dt.date(2027, 3, 30))
 
     def test_acknowledged_403_is_not_a_finding(self):
         f, _ = make_fetcher(FakeNet({("HEAD", URL): [403], ("GET", URL): [403]}))
@@ -297,9 +410,10 @@ class TestAcknowledged(unittest.TestCase):
         other = "https://other.example.net/x"
         f, _ = make_fetcher(FakeNet({("HEAD", other): [403], ("GET", other): [403], ("HEAD", URL): [403],
                                      ("GET", URL): [503]}, ))
-        self.assertEqual(vo.check_url(f, other, [self.host_ack])["verdict"], "acknowledged")
+        day = self.dt.date(2026, 10, 27)
+        self.assertEqual(vo.check_url(f, other, [self.host_ack], day)["verdict"], "acknowledged")
         # URL ack is for 403, but the final answer was 503: still inconclusive
-        self.assertEqual(vo.check_url(f, URL, [self.ack])["verdict"], "inconclusive")
+        self.assertEqual(vo.check_url(f, URL, [self.ack], day)["verdict"], "inconclusive")
 
     def test_broken_is_never_acknowledged_and_lapsed_ack_resurfaces(self):
         f, _ = make_fetcher(FakeNet({("HEAD", URL): [404], ("GET", URL): [404]}))
@@ -308,6 +422,63 @@ class TestAcknowledged(unittest.TestCase):
         res = vo.check_url(f, URL, [self.ack], self.dt.date(2027, 4, 1), 180)  # 182 days later
         self.assertEqual(res["verdict"], "inconclusive")
         self.assertTrue(res["acknowledgement"]["lapsed"])
+
+    def test_explicit_expiry_date_and_injectable_clock(self):
+        def verdict(**kw):
+            f, _ = make_fetcher(FakeNet({("HEAD", URL): [403], ("GET", URL): [403]}))
+            return vo.check_url(f, URL, [self.ack], **kw)
+
+        self.assertEqual(verdict(today=self.dt.date(2027, 3, 30))["verdict"], "acknowledged")  # last valid day
+        lapsed = verdict(today=self.dt.date(2027, 3, 31))
+        self.assertEqual((lapsed["verdict"], lapsed["acknowledgement"]["lapsed"]), ("inconclusive", True))
+        self.assertEqual(lapsed["acknowledgement"]["expires_on"], "2027-03-30")
+        # without `today`, the injected clock decides (no hidden dependency on the machine's date)
+        utc = self.dt.timezone.utc
+        self.assertEqual(verdict(now=lambda: self.dt.datetime(2027, 4, 2, tzinfo=utc))["verdict"], "inconclusive")
+        self.assertEqual(verdict(now=lambda: self.dt.datetime(2026, 10, 2, tzinfo=utc))["verdict"], "acknowledged")
+        # the legacy max-age argument still caps an acknowledgement further
+        self.assertEqual(verdict(today=self.dt.date(2026, 10, 20), ack_max_age_days=10)["verdict"], "inconclusive")
+
+    def test_run_uses_the_injected_clock_for_expiry_and_report_time(self):
+        import check_freshness as cf
+
+        policy = cf.policy_from_dict({"policy_version": 1, "default_max_age_days": 180,
+                                      "acknowledged_inconclusive": [{"url": URL, "http_status": [403],
+                                                                     "reason": "bot wall",
+                                                                     "acknowledged_on": "2026-10-01",
+                                                                     "expires_on": "2026-11-01"}]})
+        routes = {("HEAD", URL): [403], ("GET", URL): [403], ("HEAD", "https://other.example.net/x"): [200]}
+
+        def run_at(when):
+            f, _ = make_fetcher(FakeNet(routes))
+            return vo.run([make_skill("a", body=BODY)], f, claims_path=None, check_pypi=False, probe=False,
+                          policy=policy, now=lambda: when)
+
+        utc = self.dt.timezone.utc
+        before = run_at(self.dt.datetime(2026, 11, 1, 23, 0, tzinfo=utc))
+        after = run_at(self.dt.datetime(2026, 11, 2, 0, 30, tzinfo=utc))
+        self.assertEqual((before["status"], after["status"]), ("OK", "FINDINGS"))
+        self.assertEqual(after["generated_at"], "2026-11-02T00:30:00+00:00")
+        self.assertIn("acknowledgement lapsed", vo.human_summary(after))
+
+    def test_policy_expiry_default_and_validation(self):
+        import check_freshness as cf
+
+        def policy(**ack):
+            return {"policy_version": 1, "default_max_age_days": 180, "acknowledged_inconclusive": [
+                {"url": URL, "http_status": [403], "reason": "bot wall", "acknowledged_on": "2026-10-01", **ack}]}
+
+        self.assertEqual(cf.policy_from_dict(policy()).acknowledged[0].expires_on, self.dt.date(2027, 3, 30))
+        self.assertEqual(cf.policy_from_dict(policy(expires_on="2026-12-01")).acknowledged[0].expires_on,
+                         self.dt.date(2026, 12, 1))
+        for bad, why in (("2026-09-30", "before acknowledged_on"), ("2027-03-31", "more than default_max_age_days"),
+                         ("2026-13-01", "YYYY-MM-DD")):
+            with self.subTest(expires_on=bad):
+                errs = cf.validate_policy(policy(expires_on=bad))
+                self.assertTrue(any(why in e for e in errs), errs)
+        # the repo's own entries carry an explicit expiry
+        for ack in json.loads(cf.DEFAULT_POLICY_PATH.read_text(encoding="utf-8"))["acknowledged_inconclusive"]:
+            self.assertIn("expires_on", ack)
 
     def test_run_with_only_acknowledged_urls_is_ok(self):
         import check_freshness as cf

@@ -15,18 +15,26 @@ python -m venv .venv-examples
 python -m pip install -r requirements-dev.txt                           # optional: ruff, PyYAML/jsonschema cross-checks, coverage
 ```
 
+On Linux x86_64 with CPython 3.13 (as in CI), add `-c constraints/examples-linux-cp313.txt`
+to the example install (and `-c constraints/dev-linux-cp313.txt` to the dev one).
+
 ## 1. Author the skill
 
 1. Copy `_TEMPLATE/SKILL.md` to `<slug>/SKILL.md`. The slug is lowercase-kebab and equals
    the frontmatter `name`. Never edit the template or the two gold-standard skills
    (`data-preprocessing`, `attention-mechanisms`) unless that is the task.
-2. Fill every frontmatter key (`docs/SKILL-SPEC.md`). `description` starts with "Use when
-   the user wants to ...", has at least 3 quoted trigger phrases and a "NOT for ..." clause
-   naming the sibling that owns the adjacent topic. It must contain no angle-bracket tags,
-   and is at most 1,024 characters.
+2. Fill every frontmatter key (`docs/SKILL-SPEC.md`) and replace every `TODO` the template
+   leaves (the validator rejects any that remain: `placeholder-text`). `description` starts
+   with "Use when the user wants to ...", has at least 3 quoted trigger phrases and a "NOT
+   for ..." clause naming the sibling that owns the adjacent topic. It is at most 1,024
+   characters and contains no XML-like tags (`<task>`, `</x>`, `List<int>`: an error). Write
+   comparisons out rather than using `<` or `>` at all: a bare `a < b` is only a warning
+   here, but Anthropic's upload validator rejects it.
 3. Write `## Overview`, then `## Workflow` (workflow skills; every step has runnable code) or
    `## Key Concepts` (reference skills), then `## Gotchas` (at least 3, specific) and
-   `## References` (at least 2 real links, each with a reason).
+   `## References` (at least 2 real links, each with a reason). Use `#`-style headings: a
+   heading or bullet inside a code fence or an HTML comment does not count, and a text line
+   underlined with `---` or `===` is an error (`setext-heading`).
 4. Phrase heuristics conditionally ("as a rule of thumb, above roughly N ..."). See
    `docs/EVIDENCE.md` for the test and worked examples. Pick `evidence_level` and
    `risk_level` for this skill's own content, not by copying a sibling.
@@ -95,6 +103,9 @@ Never report an eval pass rate for real model output unless a model-mode run pro
 Add cases for the new skill to `evals/routing/benchmark.json` (label rules in
 `evals/routing/README.md`): at least one `typical` case and one `paraphrase` case, in both
 the `dev` and `test` splits, and `forbidden` labels where a sibling must not fire.
+Give each new case a `family` (a case that restates an existing request joins that family
+and takes its split), `labellers` and `adjudication: "single-labeller"`. A test case must
+not restate any dev case. See `evals/routing/README.md`.
 
 ```bash
 python scripts/eval_router.py --split dev             # tune on dev only
@@ -142,6 +153,11 @@ python scripts/check_contract.py --write          # re-lock; refuses breaking ch
 
 Removing or renaming a skill, plugin or enum value is a **breaking** change. It needs a
 major version and the deprecation steps in `docs/RELEASE.md`.
+
+A new top-level file or directory must be added to `SHIPPED_FILES`/`SHIPPED_TREES` (or an
+`EXCLUDED_*` rule) in `scripts/build_release.py`, otherwise `build_release.py` and
+`tests/test_release_archive.py` fail with its path. Do not commit files that match an
+`EXCLUDED_*` rule (logs, `*.bak`, caches); the build refuses them.
 
 ## 8. Run the tests and describe the change
 

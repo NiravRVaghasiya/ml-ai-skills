@@ -34,11 +34,22 @@ jobs:
 
       # No `pip install`: scripts/ are stdlib-only.
 
+      # The offline scans must not stop the online check, so their exit codes are recorded
+      # (not discarded) and judged in the Result step: 0 = clean, 1 = findings, anything else
+      # (or a missing/unreadable JSON report) = the check itself failed.
       - name: Offline scan (static-pattern + review-clock + metadata)
-        run: python scripts/check_freshness.py --json > freshness-offline.json || true
+        id: offline
+        run: |
+          set +e
+          python scripts/check_freshness.py --json > freshness-offline.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       - name: Claims registry review clock
-        run: python scripts/check_claims.py --json > claims-check.json || true
+        id: claims
+        run: |
+          set +e
+          python scripts/check_claims.py --json > claims-check.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
 
       # --max-seconds (20 min) < step timeout (25 min) < job timeout (30 min): the script stops on its own
       # budget and still writes a full report; unchecked URLs come out 'inconclusive' (deadline). The
@@ -73,14 +84,32 @@ jobs:
       # unacknowledged inconclusive URLs, excludes-latest), SKIPPED (network unavailable) and
       # INCOMPLETE all turn the run red so none of them reads as a pass. URLs a maintainer listed in
       # schema/freshness_policy.json acknowledged_inconclusive (e.g. 403 bot walls) are not findings.
+      # The offline scans' findings or failures also turn it red. tests/test_audit_workflows.py
+      # runs these steps offline (TestFreshnessScheduledSteps).
       - name: Result
         if: always()
         env:
           CODE: ${{ steps.online.outputs.exit_code }}
+          OFFLINE_CODE: ${{ steps.offline.outputs.exit_code }}
+          CLAIMS_CODE: ${{ steps.claims.outputs.exit_code }}
         run: |
-          status=$(python -c "import json; print(json.load(open('verify-online-report.json'))['status'])" 2>/dev/null || echo MISSING)
+          offline=0
+          judge() {  # $1 report file, $2 exit code, $3 script
+            if ! python -c "import json, sys; json.load(open(sys.argv[1], encoding='utf-8'))" "$1" 2>/dev/null; then
+              echo "::error::$3 produced no readable $1 (exit '$2'); the check itself failed."; offline=1
+            elif [ "$2" = 1 ]; then
+              echo "::warning::$3 reported findings (exit 1); see $1 in the freshness-report artifact."; offline=1
+            elif [ "$2" != 0 ]; then
+              echo "::error::$3 exited '$2'; the check itself failed."; offline=1
+            fi
+          }
+          judge freshness-offline.json "$OFFLINE_CODE" scripts/check_freshness.py
+          judge claims-check.json "$CLAIMS_CODE" scripts/check_claims.py
+          if ! status=$(python -c "import json; print(json.load(open('verify-online-report.json'))['status'])" 2>/dev/null); then
+            status=MISSING
+          fi
           case "$status" in
-            OK) echo "No findings." ;;
+            OK) echo "No online findings."; exit "$offline" ;;
             FINDINGS) echo "::warning::Findings for human review; see the freshness-report artifact."; exit 1 ;;
             SKIPPED) echo "::warning::SKIPPED: network unavailable; nothing was checked."; exit 2 ;;
             INCOMPLETE) echo "::error::verify_online.py did not finish (exit '$CODE'); the artifact holds a partial report."; exit 1 ;;

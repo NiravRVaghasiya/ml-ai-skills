@@ -2,7 +2,8 @@
 name: agents-and-tools
 display_name: Agents and Tools
 description: >
-  Use when the user wants to understand or design an LLM agent — the
+  Use when the user wants to understand or design an LLM agent (a language model that decides
+  which tools or APIs to call) — the
   observe-think-act loop, tool/function-calling schemas, planning vs. reactive
   control, or multi-agent orchestration patterns. Trigger phrases: "how does an
   LLM agent loop work", "design a tool-calling schema", "ReAct pattern",

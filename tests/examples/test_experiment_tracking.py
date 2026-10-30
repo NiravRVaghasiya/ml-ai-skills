@@ -51,13 +51,6 @@ SLUG = "experiment-tracking"
 # Block indices (document order): 0 tracking URI, 1 instrumented run, 2 compare,
 # 3 register, 4 W&B alternative.
 FAST = {1: {'"n_estimators": 200': '"n_estimators": 10'}}
-SLOW_ENV = "ML_AI_SKILLS_SLOW_EXAMPLES"
-
-
-def _slow_opt_in(cls):
-    if os.environ.get(SLOW_ENV) == "1" or os.environ.get(harness.REQUIRE_ENV) == "1":
-        return cls
-    return unittest.skip(f"slow (~100 s of MLflow setup); set {SLOW_ENV}=1 to run")(cls)
 
 
 def _split():
@@ -105,7 +98,7 @@ def _fake_wandb(fail_on_log=False):
     return harness.make_module("wandb", init=init, log=module_log, Image=image), runs
 
 
-@_slow_opt_in
+@harness.slow("~100 s of MLflow setup")
 @harness.requires("mlflow", "sklearn", "matplotlib", "pandas")
 class TestExperimentTrackingSkill(unittest.TestCase):
     @classmethod

@@ -9,8 +9,10 @@ method must really sit in that class; human-review needs a reviewer and a
 source), status agrees with verification, and last_reviewed is within the
 freshness policy for that claim's skill (else REVIEW_DUE). Also checks that
 every `claim` id referenced by schema/freshness_policy.json known_stale_patterns
-exists here, and reports REVIEW_DUE for a STALE pattern (which fails CI) whose
-backing claim is missing, unverified or disputed.
+exists here, and reports REVIEW_DUE for a STALE pattern whose backing claim is
+missing, disputed, or not verified by a runtime test or human review
+(check_freshness.py then reports that pattern's
+matches as REVIEW_DUE instead of failing CI, until the claim is verified).
 
 Usage:
     python scripts/check_claims.py
@@ -209,20 +211,24 @@ def check_registry(data, skills: list[sl.Skill], policy: cf.Policy, today: dt.da
                 f"{policy.path} known_stale_patterns '{p.id}' cites claim {p.claim!r}, which is not in the registry")
             continue
         # A STALE pattern fails CI for every skill it matches. That is only justified when the
-        # backing claim was actually checked, so a STALE pattern resting on nothing (or on an
-        # unverified/disputed claim) is surfaced for review rather than silently trusted.
+        # backing claim was actually checked, so check_freshness.py reports a STALE pattern resting
+        # on nothing (or on a claim that no runtime test or human review backs, or that is disputed) as REVIEW_DUE, and this surfaces the gap so
+        # someone verifies the claim. Same rule as check_freshness.stale_backing_problem.
         if p.level == "STALE":
             backing = by_id.get(p.claim) if p.claim else None
             if backing is None:
                 findings.append({"claim": None, "level": "REVIEW_DUE", "code": "stale-pattern-without-claim",
-                                 "message": f"known_stale_patterns '{p.id}' is level STALE (fails CI) but cites "
-                                            "no claim; add a verified claim or lower it to REVIEW_DUE"})
-            elif backing.get("verification") == "unverified" or backing.get("status") == "disputed":
+                                 "message": f"known_stale_patterns '{p.id}' is level STALE but cites no claim, so "
+                                            "check_freshness.py reports its matches as REVIEW_DUE (not failing "
+                                            "CI); add a verified claim or lower it to REVIEW_DUE"})
+            elif (backing.get("verification") not in cf.STALE_BACKING_VERIFICATION
+                  or backing.get("status") not in cf.STALE_BACKING_STATUS):
                 findings.append({"claim": p.claim, "level": "REVIEW_DUE", "code": "stale-pattern-unverified",
-                                 "message": f"known_stale_patterns '{p.id}' is level STALE (fails CI) but its "
-                                            f"backing claim is {backing.get('verification')}/"
-                                            f"{backing.get('status')}; verify it (runtime-test or human-review) "
-                                            "or lower the pattern to REVIEW_DUE"})
+                                 "message": f"known_stale_patterns '{p.id}' is level STALE but its backing claim "
+                                            f"is {backing.get('verification')}/{backing.get('status')}, so "
+                                            "check_freshness.py reports its matches as REVIEW_DUE (not failing "
+                                            "CI); verify the claim (runtime-test or human-review) or lower the "
+                                            "pattern to REVIEW_DUE"})
     return errors, findings
 
 

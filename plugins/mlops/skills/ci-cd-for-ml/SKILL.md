@@ -34,7 +34,7 @@ outputs: A CI workflow that blocks merges/releases on data-contract and model-qu
 version_constraints:
   - "pytest>=7: autouse fixtures in conftest.py (executed against pytest 9.1.1 on 2026-10-27; lower bound not verified)"
   - "scikit-learn>=1.0: roc_auc_score, f1_score(average='macro') (executed against scikit-learn 1.9.0 on 2026-10-27; lower bound not verified)"
-  - "mlflow>=2.9: registered-model aliases replace deprecated stages; step 5 uses MlflowClient.search_model_versions with a tags.git_sha filter, get_model_version_by_alias, set_registered_model_alias and pyfunc.load_model (mlflow-skinny 2.16.2 source read on 2026-10-27 marks transition_model_version_stage @deprecated since 2.9.0; step 5 executed against mlflow 3.16.1 on a SQLite store on 2026-10-28 in an opt-in slow test, 2.x not tested; the 3.17.2 pin was resolved with pip --dry-run, not installed)"
+  - "mlflow>=2.9: registered-model aliases replace deprecated stages; step 5 uses MlflowClient.search_model_versions with a tags.git_sha filter, get_model_version_by_alias, set_registered_model_alias and pyfunc.load_model (mlflow-skinny 2.16.2 source read on 2026-10-27 marks transition_model_version_stage @deprecated since 2.9.0; step 5 executed against mlflow 3.16.1 (local example venv) on a SQLite store on 2026-10-28 in an opt-in slow test, 2.x not tested; docs/KNOWN-ISSUES.md #8 reports test_ci_cd_for_ml passing against the 3.17.2 pin in a separate venv on 2026-10-28; 2.9 lower bound not verified)"
   - "pip-audit==2.10.1: pip-audit --strict --disable-pip -r requirements.txt on a hashed lockfile (executed on 2026-10-28: exit 1 on mlflow==2.16.2, exit 0 on mlflow==3.17.2)"
 ---
 

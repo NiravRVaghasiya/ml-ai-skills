@@ -2,7 +2,7 @@
 """Machine-readable quality report: what has been checked, how, and what has not.
 
 Combines the repo's own gates into one JSON document (schema
-"ml-ai-skills/quality-report", version 1):
+"ml-ai-skills/quality-report", version 2):
 
   * skill validation          scripts/validate_skills.py --json
   * schema / contract locks   scripts/generate_schema.py --check, scripts/check_contract.py --check
@@ -13,24 +13,59 @@ Combines the repo's own gates into one JSON document (schema
   * unit / example tests      only when run (--run-tests, --run-examples) or ingested
                               (--test-results); pass/fail/error/skip counts with skip reasons
   * example-block coverage    ML_AI_SKILLS_EXAMPLE_COVERAGE jsonl (tests/examples/harness.py)
+  * per-skill human review    docs/reviews.json (schema "ml-ai-skills/skill-reviews", version 1)
   * skipped checks            every check this report did not run, with the reason
   * known limitations         see docs/KNOWN-ISSUES.md for the full list
 
-Per-skill status keeps four kinds of evidence apart and never collapses them into
+Per-skill status keeps five kinds of evidence apart and never collapses them into
 one "verified" label: structural validity (metadata and sections), executed
-example blocks, offline eval coverage, and recorded human review. Passing the
+example blocks, passing example tests, offline eval coverage, and recorded human
+review (evidence_tiers: structural-valid, examples-executed, example-tests-passed,
+evals-covered-offline, human-reviewed). Passing the
 validator says nothing about whether a skill's advice is correct. A skill is only
 "structural-valid" when validate_skills.py ran and returned parseable JSON.
 
 Provenance: --collect-tests results record the git revision, dirty state and each
 SKILL.md's sha256 at collection time; the report compares them with the current
-tree and marks a skill's example evidence stale when they differ. Coverage jsonl
-written by tests/examples/harness.py carries only total_blocks (no revision), so
-ingested coverage is checked by block count only (and by a per-record
-"skill_sha256" if a writer adds one); a coverage record whose total_blocks does
-not match the current skill marks that skill "coverage-stale". Block coverage
-alone does not show the example tests passed: the "example-tests-failing" status
-needs example test results (--run-examples or --test-results).
+tree and marks a skill's example evidence stale when they differ. Coverage records
+written by tests/examples/harness.py carry the SKILL.md's skill_sha256, total_blocks,
+git revision, tracked-file dirty state and untracked-file count, python, platform, a
+timestamp and the calling test. Only records whose skill_sha256 and total_blocks equal
+the current skill's count. A record with differing values is stale and one without
+them cannot be tied to this tree; both count for nothing and are listed (stale_reasons /
+unattributable_reasons). Current records decide first: a skill they fully cover stays
+"all-runnable-blocks-executed" despite leftover stale records (the harness appends, so a
+reused coverage file keeps them); otherwise a stale record makes it "coverage-stale", and
+"coverage-unattributable" means no usable record exists. Records without a git revision
+(e.g. a release archive) are accepted and counted; --require-coverage-revision treats them
+as unattributable. scripts/check_example_coverage.py is stricter on purpose: as a gate on
+one file it fails on any stale or unattributable record.
+
+Block coverage alone does not show the example tests passed. "executed-and-passed"
+needs every runnable block covered by current records AND example test results
+(--run-examples or --test-results) in which the tests attributed to the skill passed,
+from documents that recorded the current SKILL.md sha256. Several results documents
+of one suite are merged (their totals and hard failures cover every document);
+per skill, a failure in a current or untied document gives "example-tests-failing",
+while a failure recorded only against another SKILL.md sha256 gives
+"example-results-stale" (still a hard failure for the suite).
+"coverage-only-outcome-unknown" means blocks were covered but no usable outcome exists.
+
+Attribution: an example test module is attributed to the skills in its module-level
+SKILL / SKILLS declaration when it has one (SKILLS = () declares "no skill", status
+"declared-no-skill"); otherwise to the union of a static scan (the slug passed to
+run_blocks / python_blocks / load_skill / block_index, or a module-level SLUG). The
+skills the harness recorded the module running (each coverage line's test_module) are
+added, except under SKILLS = (), where they are only listed (excluded_harness_records).
+The module name (test_<slug>.py) is only a fallback. A module
+none of these attribute is reported as "unattributed-test-module", never dropped, and
+so is an unparseable test id.
+
+Human review: a skill counts as "reviewed" only with a docs/reviews.json record
+(skill, reviewer, date, skill_sha256, scope "full", outcome "approved") whose
+skill_sha256 is the current SKILL.md's; records for another sha256 make it
+"review-stale". Claim-level human-review entries in docs/claims.json are reported
+separately and never make a skill reviewed.
 
 Usage:
     python scripts/quality_report.py                         # static checks only (offline, ~10 s)
@@ -39,7 +74,10 @@ Usage:
     python scripts/quality_report.py --run-tests --include-slow   # + installer tests (~9 min)
     python scripts/quality_report.py --run-examples PYTHON   # + tests/examples with PYTHON
                                                              #   (needs requirements-examples.txt)
+    python scripts/quality_report.py --run-examples PYTHON --require-example-deps   # as CI: a missing
+                                                             #   dependency fails, slow tests run
     python scripts/quality_report.py --test-results R.json --example-coverage C.jsonl
+    python scripts/quality_report.py --example-coverage C.jsonl --require-coverage-revision
     python scripts/quality_report.py --out quality-report.json --timestamp 2026-10-28T00:00:00Z
 
     # Write a results file another run can ingest (any interpreter; stdlib only):
@@ -52,17 +90,20 @@ deterministic as the tests themselves.
 Exit codes: 0 report produced and no hard failure; 1 report produced with at
 least one hard failure (listed in summary.hard_failures; a tool that cannot be
 started or times out is recorded as one); 2 usage error, or an input file
-(--test-results / --example-coverage) could not be read or parsed.
+(--test-results / --example-coverage) could not be read or parsed. An invalid
+docs/reviews.json is a hard failure (exit 1), not a usage error.
 """
 from __future__ import annotations
 
 import argparse
+import ast
 import datetime as dt
 import fnmatch
 import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -75,45 +116,92 @@ from typing import Any
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 REPORT_SCHEMA = "ml-ai-skills/quality-report"
+# 2: examples.status gained executed-and-passed / coverage-only-outcome-unknown /
+# coverage-unattributable (all-runnable-blocks-executed moved to examples.coverage_status),
+# human_review gained per-skill records, tests.examples gained attribution. Within version 2:
+# several results documents of one suite are merged (tests.<suite>.documents), and
+# examples.example_results splits a skill's outcomes into current / stale / untied.
+REPORT_SCHEMA_VERSION = 2
 RESULTS_SCHEMA = "ml-ai-skills/test-results"
-SCHEMA_VERSION = 1
+RESULTS_SCHEMA_VERSION = 1
+SCHEMA_VERSION = RESULTS_SCHEMA_VERSION  # earlier name, kept for callers of the results format
+# Coverage records written by tests/examples/harness.py; a record without "schema" is the
+# earlier format (skill, blocks, total_blocks[, skill_sha256]).
+COVERAGE_SCHEMA = "ml-ai-skills/example-coverage"
+COVERAGE_SCHEMA_VERSIONS = (2,)
+# Per-skill human review records (docs/reviews.json).
+REVIEWS_PATH = Path("docs") / "reviews.json"
+REVIEWS_SCHEMA = "ml-ai-skills/skill-reviews"
+REVIEWS_SCHEMA_VERSION = 1
+REVIEW_REQUIRED_KEYS = ("skill", "reviewer", "date", "skill_sha256", "scope", "outcome")
+REVIEW_OPTIONAL_KEYS = ("notes",)
+REVIEW_SCOPES = ("full", "content", "code", "references")   # only "full" makes a skill "reviewed"
+REVIEW_OUTCOMES = ("approved", "changes-requested", "rejected")
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Module-level names an example test module can use to declare the skill(s) it exercises.
+DECLARED_SKILL_NAMES = ("SKILL", "SKILLS")
+# Harness entry points whose first argument names the skill whose SKILL.md is read.
+HARNESS_SKILL_CALLS = ("run_blocks", "python_blocks", "load_skill", "block_index")
+EXAMPLE_ID_RE = re.compile(r"(?:^|[.\s(])examples\.(test_\w+)")
 # The only report field allowed to differ between two runs on identical inputs.
 NONDETERMINISTIC_FIELDS = ("generated_at",)
 SLOW_UNIT_GLOB = "test_install*.py"
 SUITES = ("unit", "examples")
-# Router metrics: higher is better / lower is better (same split as ci.yml's evals-offline gate).
-ROUTER_MIN = ("precision", "recall", "top1_accuracy", "task_accuracy")
-ROUTER_MAX = ("false_activation_rate", "mean_unnecessary_activations", "forbidden_selection_rate")
+# Router metrics: higher is better / lower is better. Taken from scripts/eval_router.py (the
+# split ci.yml's evals-offline gate uses), so a newly gated metric cannot go unflagged here.
+# eval_router is still run as a subprocess for its numbers; only these constants are imported.
+# scripts/ goes on sys.path first, as the sibling scripts do, so `python -I` and imports from
+# other directories work too.
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
+from eval_router import HIGHER_IS_BETTER as ROUTER_MIN  # noqa: E402
+from eval_router import LOWER_IS_BETTER as ROUTER_MAX  # noqa: E402
 MESSAGE_LIMIT = 300
+FAILING_OUTCOMES = ("failed", "error", "unexpected_success")
 
 KNOWN_LIMITATIONS = (
     {"id": "no-model-graded-evals",
-     "text": "No eval case has been graded against real model output; with-skill vs without-skill uplift "
-             "is unmeasured. Offline evals check fixtures against regex hard assertions only."},
+     "text": "Real model output was graded once (2026-10-30: claude-cli sonnet answers, opus judge, one sample "
+             "per case per arm, 84 cases; docs/KNOWN-ISSUES.md #1). That judge is uncalibrated against human "
+             "labels, so the rubric layer and the 'correct' uplift rest on a model judge; offline runs still "
+             "check fixtures against regex hard assertions only."},
     {"id": "regex-hard-assertions",
      "text": "Hard assertions check that concepts are named and anticipated wrong conclusions are absent, "
-             "not that reasoning is correct; every reviewer probe was tuned against and is now a fixture."},
+             "not that reasoning is correct; every reviewer probe was tuned against and is now a fixture. "
+             "On the blind-written held-out set (evals/_grading/heldout, model-adjudicated labels, likely easier "
+             "than real output) the regex layer measured TPR 0.855 and TNR 0.916."},
     {"id": "examples-use-stubs",
      "text": "Executed example blocks run on tiny synthetic data, random-weight models and stubbed services; "
              "they show the code runs against the pinned versions, not that the advice is optimal."},
     {"id": "lexical-router",
-     "text": "The router is lexical (no embeddings); its benchmark labels are single-labeller and the test "
-             "split has 85 cases, so differences of a few points may be noise."},
+     "text": "The router is lexical (no embeddings). The test split has 142 cases in 85 families; labels were "
+             "reviewed by independent model reviewers, not people, so differences of a few points may be noise "
+             "(docs/ROUTING.md)."},
     {"id": "runtime-loading-untested",
      "text": "Claude Code's runtime skill discovery/selection is not automatically tested; the plugin tests stop "
              "at plugin validate --strict and the marketplace add/install/list/update/reinstall return codes."},
     {"id": "platform-coverage",
-     "text": "Locally executed on Windows 11 + Git Bash only; Linux/macOS appear only in CI configuration."},
-    {"id": "no-human-review-records",
-     "text": "No per-skill human-review record format exists, so skills_human_reviewed is 0 by construction; "
-             "Phase 1/2 audits were agent reviews (docs/SKILL-AUDIT.md). Claim-level human-review entries in "
+     "text": "Locally executed on Windows 11 + Git Bash, with some suites also run under WSL 2 Ubuntu; no "
+             "GitHub Actions run of this tree has been observed, and macOS / bash 3.2 appear only in CI "
+             "configuration (docs/KNOWN-ISSUES.md #4)."},
+    {"id": "human-review-records",
+     "text": "A skill counts as human-reviewed only with a docs/reviews.json record (scope full, outcome approved) "
+             "for its current SKILL.md sha256. The reviewer field is not authenticated: the record is only as "
+             "trustworthy as the review of the commit that added it. Phase 1/2 audits were agent reviews "
+             "(docs/SKILL-AUDIT.md) and are not recorded there. Claim-level human-review entries in "
              "docs/claims.json are counted separately and never make a whole skill 'reviewed'."},
     {"id": "coverage-provenance",
-     "text": "Coverage jsonl from tests/examples/harness.py records no git revision or content hash; ingested "
-             "coverage is tied to the current tree only by each skill's python block count."},
-    {"id": "example-attribution-by-module-name",
-     "text": "Example test outcomes are attributed to a skill by module name (tests/examples/test_<slug>.py); "
-             "a differently named module is not attributed to any skill."},
+     "text": "Coverage records carry skill_sha256, git revision, tracked-file dirty state, an untracked-file count, "
+             "python, platform and a timestamp. Only the SKILL.md content (sha256) is compared; the revision is "
+             "reported, not compared, and records without one are accepted unless --require-coverage-revision is "
+             "given. With a dirty tree the revision does not pin the scripts and tests that ran. Coverage shows "
+             "blocks ran without raising, not that assertions passed."},
+    {"id": "example-attribution",
+     "text": "Example test outcomes are attributed per module (SKILL/SKILLS declarations, the harness's recorded "
+             "test_module, a static scan for the slug a module loads, module name as fallback). A module that "
+             "exercises several skills attributes all its outcomes to each of them, and outcomes are not tied to "
+             "individual blocks: coverage and results may come from different tests or runs."},
 )
 
 
@@ -215,7 +303,7 @@ def collect_tests(root: Path, suite: str, include_slow: bool = False) -> dict:
     finally:
         os.chdir(old_cwd)
     records = sorted(result.records, key=lambda r: (r["id"], r["outcome"]))
-    return {"schema": RESULTS_SCHEMA, "schema_version": SCHEMA_VERSION, "suite": suite,
+    return {"schema": RESULTS_SCHEMA, "schema_version": RESULTS_SCHEMA_VERSION, "suite": suite,
             "command": command, "include_slow": include_slow, "selection": selection,
             "python": platform.python_version(), "platform": platform.system(),
             "env": {k: os.environ.get(k) for k in ("ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS", "ML_AI_SKILLS_SLOW_EXAMPLES")},
@@ -226,7 +314,7 @@ def validate_results(doc: Any) -> list[str]:
     problems = []
     if not isinstance(doc, dict) or doc.get("schema") != RESULTS_SCHEMA:
         return [f"not a {RESULTS_SCHEMA} document"]
-    if doc.get("schema_version") != SCHEMA_VERSION:
+    if doc.get("schema_version") != RESULTS_SCHEMA_VERSION:
         problems.append(f"unsupported schema_version {doc.get('schema_version')!r}")
     if doc.get("suite") not in SUITES:
         problems.append(f"unknown suite {doc.get('suite')!r}")
@@ -310,6 +398,9 @@ def gather(root: Path, args: argparse.Namespace) -> dict:
             env = {"ML_AI_SKILLS_EXAMPLE_COVERAGE": str(cov)}
             if args.slow_examples:
                 env["ML_AI_SKILLS_SLOW_EXAMPLES"] = "1"
+            if args.require_example_deps:
+                # As the CI examples job: a missing dependency fails and slow tests run (harness.py).
+                env["ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS"] = "1"
             res = run_tool(root, ["scripts/quality_report.py", "--collect-tests", str(out), "--suite", "examples"],
                            timeout=args.timeout, python=args.run_examples, env=env)
             raw["run_examples"] = {k: v for k, v in res.items() if k != "stdout"}
@@ -329,10 +420,15 @@ def gather(root: Path, args: argparse.Namespace) -> dict:
     raw["baseline"] = _json_or_none(_read(root / "evals" / "routing" / "baseline.json"))
     raw["benchmark_sha256"] = _benchmark_sha(root / "evals" / "routing" / "benchmark.json")
     raw["skills"] = _skill_inventory(root)
+    raw["example_modules"] = scan_example_modules(root, {s["skill"] for s in raw["skills"]})
+    raw["reviews"] = load_reviews(root)
+    raw["today"] = args.today or dt.date.today().isoformat()
     raw["environment"] = {"python": platform.python_version(), "platform": platform.system(),
                           "platform_release": platform.release(), **_git_state(root)}
     raw["options"] = {"run_tests": bool(args.run_tests), "include_slow": bool(args.include_slow),
                       "run_examples": bool(args.run_examples), "slow_examples": bool(args.slow_examples),
+                      "require_example_deps": bool(args.require_example_deps),
+                      "require_coverage_revision": bool(getattr(args, "require_coverage_revision", False)),
                       "check_generated": bool(args.check_generated), "today": args.today}
     return raw
 
@@ -352,15 +448,30 @@ def _benchmark_sha(path: Path) -> str | None:
 
 
 def _git_state(root: Path) -> dict:
+    """HEAD, tracked-file dirty state and untracked-file count of `root`, or None when `root`
+    is not itself the top of a git work tree (an extracted release inside another repository
+    must not report that repository). Same semantics as tests/examples/harness.py: untracked
+    files (CI's own logs and reports) are counted, not folded into git_dirty."""
+    none = {"git_revision": None, "git_dirty": None, "git_untracked_files": None}
+
+    def git(*args: str, timeout: int = 30) -> subprocess.CompletedProcess:
+        # --no-optional-locks: never take .git/index.lock (other git processes may be running).
+        return subprocess.run(["git", "--no-optional-locks", *args], cwd=root, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=timeout)
     try:
-        rev = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True, timeout=30)
-        dirty = subprocess.run(["git", "status", "--porcelain"], cwd=root, capture_output=True, text=True,
-                               timeout=120)
-    except (OSError, subprocess.TimeoutExpired):
-        return {"git_revision": None, "git_dirty": None}
-    if rev.returncode != 0:
-        return {"git_revision": None, "git_dirty": None}
-    return {"git_revision": rev.stdout.strip(), "git_dirty": bool(dirty.stdout.strip()) if dirty.returncode == 0 else None}
+        top = git("rev-parse", "--show-toplevel")
+        rev = git("rev-parse", "HEAD")
+        if top.returncode != 0 or rev.returncode != 0 or (
+                os.path.normcase(os.path.realpath(top.stdout.strip())) != os.path.normcase(os.path.realpath(root))):
+            return none
+        dirty = git("status", "--porcelain", "--untracked-files=no", timeout=120)
+        untracked = git("ls-files", "--others", "--exclude-standard", "-z", timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return none
+    return {"git_revision": rev.stdout.strip(),
+            "git_dirty": bool(dirty.stdout.strip()) if dirty.returncode == 0 else None,
+            "git_untracked_files": (len([p for p in untracked.stdout.split("\0") if p])
+                                    if untracked.returncode == 0 else None)}
 
 
 def _skill_sha256(root: Path) -> dict[str, str]:
@@ -409,6 +520,172 @@ def _is_illustrative(code: str) -> bool:
     return False
 
 
+def scan_example_module(source: str, known: set[str]) -> dict:
+    """Statically find the skills an example test module exercises (never imports it).
+
+    Returns {"declared", "harness_calls", "slug_constant", "unknown_slugs", "parse_error"}:
+    ``declared`` from a module-level ``SKILL = "slug"`` / ``SKILLS = ("a", "b")`` (None when the
+    module declares nothing; ``SKILLS = ()`` declares that it exercises no skill);
+    ``harness_calls`` from the first argument of run_blocks / python_blocks / load_skill /
+    block_index (a string literal, a module-level string constant, or ``X / SLUG``);
+    ``slug_constant`` from a module-level ``SLUG = "slug"``. Only slugs of skills in the
+    current tree count; other strings in those places are listed in ``unknown_slugs``.
+    """
+    out: dict[str, Any] = {"declared": None, "harness_calls": [], "slug_constant": [], "unknown_slugs": [],
+                           "parse_error": None}
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError) as e:
+        out["parse_error"] = f"{type(e).__name__}: {e}"[:MESSAGE_LIMIT]
+        return out
+    consts: dict[str, Any] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+            name, value = node.targets[0].id, node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.value is not None:
+            name, value = node.target.id, node.value
+        else:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            consts[name] = value.value
+        elif isinstance(value, (ast.Tuple, ast.List)) and all(
+                isinstance(e, ast.Constant) and isinstance(e.value, str) for e in value.elts):
+            consts[name] = [e.value for e in value.elts]
+
+    def resolve(node: ast.AST) -> str | None:
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            return node.value
+        if isinstance(node, ast.Name) and isinstance(consts.get(node.id), str):
+            return consts[node.id]
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):  # REPO_ROOT / SLUG
+            return resolve(node.right)
+        return None
+
+    def add(key: str, slug: str) -> None:
+        target = out[key] if slug in known else out["unknown_slugs"]
+        if slug not in target:
+            target.append(slug)
+
+    for name in DECLARED_SKILL_NAMES:
+        if name not in consts:
+            continue
+        value = consts[name]
+        if out["declared"] is None:
+            out["declared"] = []
+        for slug in ([value] if isinstance(value, str) else value):
+            add("declared", slug)
+    if isinstance(consts.get("SLUG"), str):
+        add("slug_constant", consts["SLUG"])
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        func = node.func
+        fname = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else None
+        if fname in HARNESS_SKILL_CALLS:
+            slug = resolve(node.args[0])
+            if slug is not None:
+                add("harness_calls", slug)
+    for key in ("declared", "harness_calls", "slug_constant", "unknown_slugs"):
+        if out[key] is not None:
+            out[key].sort()
+    return out
+
+
+def scan_example_modules(root: Path, known: set[str]) -> dict[str, dict]:
+    """scan_example_module for every tests/examples/test_*.py, keyed by module stem."""
+    out = {}
+    for path in sorted((root / "tests" / "examples").glob("test_*.py")):
+        try:
+            source = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            out[path.stem] = {"declared": None, "harness_calls": [], "slug_constant": [], "unknown_slugs": [],
+                              "parse_error": f"cannot read: {e}"[:MESSAGE_LIMIT]}
+            continue
+        out[path.stem] = scan_example_module(source, known)
+    return out
+
+
+def load_reviews(root: Path) -> dict:
+    """Read docs/reviews.json: {"path", "present", "doc", "error"} (validation happens in build_report)."""
+    path = root / REVIEWS_PATH
+    if not path.is_file():
+        return {"path": REVIEWS_PATH.as_posix(), "present": False, "doc": None, "error": None}
+    try:
+        return {"path": REVIEWS_PATH.as_posix(), "present": True,
+                "doc": json.loads(path.read_text(encoding="utf-8")), "error": None}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        return {"path": REVIEWS_PATH.as_posix(), "present": True, "doc": None,
+                "error": f"{type(e).__name__}: {e}"[:MESSAGE_LIMIT]}
+
+
+def validate_reviews(doc: Any, known: set[str], today: str | None) -> list[str]:
+    """Problems with a docs/reviews.json document (empty list = valid).
+
+    Format: {"schema": "ml-ai-skills/skill-reviews", "schema_version": 1, "description"?: str,
+    "reviews": [{"skill", "reviewer", "date" (YYYY-MM-DD), "skill_sha256" (64 lowercase hex,
+    LF-normalised SKILL.md), "scope" (full|content|code|references), "outcome"
+    (approved|changes-requested|rejected), "notes"?}]}. A date may be at most one day after
+    `today` (same tolerance as docs/claims.json, for writers in zones ahead of UTC).
+    """
+    if not isinstance(doc, dict) or doc.get("schema") != REVIEWS_SCHEMA:
+        return [f"not a {REVIEWS_SCHEMA} document"]
+    problems = []
+    if doc.get("schema_version") != REVIEWS_SCHEMA_VERSION:
+        problems.append(f"unsupported schema_version {doc.get('schema_version')!r}")
+    extra = sorted(set(doc) - {"schema", "schema_version", "description", "reviews"})
+    if extra:
+        problems.append(f"unknown top-level key(s) {extra}")
+    if "description" in doc and not isinstance(doc["description"], str):
+        problems.append("'description' must be a string")
+    reviews = doc.get("reviews")
+    if not isinstance(reviews, list):
+        return [*problems, "'reviews' must be a list"]
+    latest = None
+    if today:
+        try:
+            latest = dt.date.fromisoformat(today) + dt.timedelta(days=1)
+        except ValueError:
+            latest = None
+    seen = set()
+    for i, r in enumerate(reviews):
+        where = f"reviews[{i}]"
+        if not isinstance(r, dict):
+            problems.append(f"{where} is not an object")
+            continue
+        missing = [k for k in REVIEW_REQUIRED_KEYS if k not in r]
+        unknown = sorted(set(r) - set(REVIEW_REQUIRED_KEYS) - set(REVIEW_OPTIONAL_KEYS))
+        if missing:
+            problems.append(f"{where}: missing key(s) {missing}")
+        if unknown:
+            problems.append(f"{where}: unknown key(s) {unknown}")
+        for k in (*REVIEW_REQUIRED_KEYS, *REVIEW_OPTIONAL_KEYS):
+            if k in r and (not isinstance(r[k], str) or not r[k].strip()):
+                problems.append(f"{where}: {k!r} must be a non-empty string")
+        if missing or any(not isinstance(r.get(k), str) for k in REVIEW_REQUIRED_KEYS):
+            continue
+        if r["skill"] not in known:
+            problems.append(f"{where}: skill {r['skill']!r} is not a skill folder in this tree")
+        if not SHA256_RE.match(r["skill_sha256"]):
+            problems.append(f"{where}: skill_sha256 must be 64 lowercase hex characters")
+        if r["scope"] not in REVIEW_SCOPES:
+            problems.append(f"{where}: scope {r['scope']!r} not in {list(REVIEW_SCOPES)}")
+        if r["outcome"] not in REVIEW_OUTCOMES:
+            problems.append(f"{where}: outcome {r['outcome']!r} not in {list(REVIEW_OUTCOMES)}")
+        try:
+            if not DATE_RE.match(r["date"]):
+                raise ValueError(r["date"])
+            day = dt.date.fromisoformat(r["date"])
+            if latest and day > latest:
+                problems.append(f"{where}: date {r['date']} is in the future (today {today})")
+        except ValueError:
+            problems.append(f"{where}: date {r['date']!r} is not YYYY-MM-DD")
+        key = tuple(r[k] for k in REVIEW_REQUIRED_KEYS if k != "outcome")
+        if key in seen:
+            problems.append(f"{where}: duplicate of an earlier record (same skill, reviewer, date, sha256, scope)")
+        seen.add(key)
+    return problems
+
+
 # --------------------------------------------------------------------------------------------
 # Report assembly (pure: everything comes from `raw`, so tests can inject data)
 # --------------------------------------------------------------------------------------------
@@ -425,16 +702,51 @@ def _example_module_for(slug: str) -> str:
     return "test_" + slug.replace("-", "_")
 
 
-def _parse_coverage(lines: list[str], inventory: dict[str, dict]
-                    ) -> tuple[dict[str, set[int]], dict[str, list[str]], int]:
-    """Return (executed block indices, stale reasons, malformed-line count) per skill.
+def _example_module_of(test_id: str) -> str | None:
+    """Module stem of an examples-suite test id, including setUpClass and import failures:
+    'examples.test_x.C.test_y', 'setUpClass (examples.test_x.C)',
+    'unittest.loader._FailedTest.examples.test_x' -> 'test_x'."""
+    m = EXAMPLE_ID_RE.search(test_id)
+    return m.group(1) if m else None
 
-    A record is only trusted when it can be tied to the current tree: its total_blocks must
-    equal the skill's current python block count (and its skill_sha256, if present, must match).
+
+def _coverage_module(name: Any) -> str | None:
+    """Example module stem from a harness-recorded test_module ('tests.examples.test_x' when run from
+    the repo root, 'examples.test_x' with tests/ as top level, or 'test_x')."""
+    if not isinstance(name, str):
+        return None
+    if name.startswith("tests."):
+        name = name[len("tests."):]
+    if name.startswith("examples."):
+        name = name[len("examples."):]
+    return name if name.startswith("test_") and "." not in name else None
+
+
+def _parse_coverage(lines: list[str], inventory: dict[str, dict], require_revision: bool = False) -> dict:
+    """Fold coverage jsonl into per-skill evidence, keeping only records tied to this tree.
+
+    Returns {"executed": {slug: set}, "stale": {slug: [reasons]}, "unattributable": {slug: [reasons]},
+    "modules": {module stem: set(slugs)}, "bad": n, "unknown_skills": [...], "provenance": {...}}.
+    A record counts only when its total_blocks AND skill_sha256 equal the current skill's; a
+    differing value makes it stale, a missing one makes it unattributable. With
+    require_revision a record without a git_revision is unattributable too.
     """
     executed: dict[str, set[int]] = {}
     stale: dict[str, list[str]] = {}
+    unattributable: dict[str, list[str]] = {}
+    modules: dict[str, set[str]] = {}
+    unknown: set[str] = set()
     bad = 0
+    prov: dict[str, Any] = {"records": 0, "accepted": 0, "legacy_records": 0, "records_without_revision": 0,
+                            "records_without_test": 0, "records_with_untracked_files": 0,
+                            "git_revisions": set(), "git_dirty": set(),
+                            "python": set(), "platforms": set()}
+    times: list[str] = []
+
+    def note(bucket: dict[str, list[str]], slug: str, reason: str) -> None:
+        if reason not in bucket.setdefault(slug, []):
+            bucket[slug].append(reason)
+
     for line in lines:
         if not line.strip():
             continue
@@ -442,26 +754,133 @@ def _parse_coverage(lines: list[str], inventory: dict[str, dict]
             rec = json.loads(line)
             slug = rec["skill"]
             blocks = {int(i) for i in rec["blocks"]}
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            if not isinstance(slug, str):
+                raise TypeError("skill is not a string")
+            if "schema" in rec and (rec["schema"] != COVERAGE_SCHEMA
+                                    or rec.get("schema_version") not in COVERAGE_SCHEMA_VERSIONS):
+                raise ValueError("unsupported coverage schema")
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError):
             bad += 1
             continue
+        prov["records"] += 1
+        if "schema" not in rec:
+            prov["legacy_records"] += 1
+        rev = rec.get("git_revision")
+        if isinstance(rev, str) and rev:
+            prov["git_revisions"].add(rev)
+        else:
+            prov["records_without_revision"] += 1
+        if isinstance(rec.get("git_dirty"), bool):
+            prov["git_dirty"].add(rec["git_dirty"])
+        untracked = rec.get("git_untracked_files")
+        if isinstance(untracked, int) and not isinstance(untracked, bool) and untracked > 0:
+            prov["records_with_untracked_files"] += 1
+        for key, field in (("python", "python"), ("platforms", "platform")):
+            if rec.get(field) is not None:
+                prov[key].add(str(rec[field]))
+        if isinstance(rec.get("recorded_at"), str):
+            times.append(rec["recorded_at"])
+        module = _coverage_module(rec.get("test_module"))
+        if module is None:
+            prov["records_without_test"] += 1
         inv = inventory.get(slug)
-        reason = None
         if inv is None:
-            pass  # not a skill in the current tree: nothing to attribute it to
-        elif not isinstance(rec.get("total_blocks"), int):
-            reason = "coverage record has no total_blocks to compare with the current skill"
-        elif rec["total_blocks"] != inv["python_blocks"]:
-            reason = (f"coverage record has total_blocks {rec['total_blocks']}, "
-                      f"current SKILL.md has {inv['python_blocks']} python block(s)")
-        elif rec.get("skill_sha256") is not None and inv.get("sha256") and rec["skill_sha256"] != inv["sha256"]:
-            reason = "coverage record skill_sha256 differs from the current SKILL.md"
-        if reason:
-            if reason not in stale.setdefault(slug, []):
-                stale[slug].append(reason)
+            unknown.add(slug)  # not a skill in the current tree: listed, never attributed
             continue
-        executed.setdefault(slug, set()).update(blocks)
-    return executed, stale, bad
+        if module is not None:
+            modules.setdefault(module, set()).add(slug)
+        total, sha = rec.get("total_blocks"), rec.get("skill_sha256")
+        has_total, has_sha = isinstance(total, int), isinstance(sha, str) and bool(sha)
+        if not (has_total and has_sha):
+            missing = " or ".join(k for k, ok in (("total_blocks", has_total), ("skill_sha256", has_sha)) if not ok)
+            note(unattributable, slug, f"coverage record has no {missing} to tie it to the current SKILL.md")
+        elif require_revision and not (isinstance(rev, str) and rev):
+            note(unattributable, slug, "coverage record has no git_revision (--require-coverage-revision)")
+        elif total != inv["python_blocks"]:
+            note(stale, slug, f"coverage record has total_blocks {total}, "
+                              f"current SKILL.md has {inv['python_blocks']} python block(s)")
+        elif sha != inv.get("sha256"):
+            note(stale, slug, "coverage record skill_sha256 differs from the current SKILL.md")
+        else:
+            prov["accepted"] += 1
+            executed.setdefault(slug, set()).update(blocks)
+    times.sort()
+    out_prov = {k: sorted(v) if isinstance(v, set) else v for k, v in prov.items()}
+    out_prov["recorded_between"] = [times[0], times[-1]] if times else None
+    return {"executed": executed, "stale": stale, "unattributable": unattributable, "modules": modules,
+            "bad": bad, "unknown_skills": sorted(unknown), "provenance": out_prov}
+
+
+def _attribute_examples(raw: dict, inventory: dict[str, dict], coverage_modules: dict[str, set[str]],
+                        ex_docs: list[dict]) -> tuple[dict[str, dict], dict[str, list[tuple[int, dict]]], list[str]]:
+    """Attribute example test modules to skills.
+
+    Returns (modules, result records per skill as (index into ex_docs, record), unparseable
+    test ids). Each module entry lists its skills, the source of each attribution and, when
+    results were ingested, its outcome counts over every document. A module that no source
+    attributes gets status "unattributed-test-module" (or "declared-no-skill" for SKILLS = ()):
+    its outcomes still count in the suite totals, but towards no skill.
+    """
+    scans = raw.get("example_modules") or {}
+    results_by_module: dict[str, list[tuple[int, dict]]] = {}
+    unparseable: list[str] = []
+    for i, doc in enumerate(ex_docs):
+        for t in doc.get("tests", []):
+            mod = _example_module_of(t["id"])
+            if mod is None:
+                unparseable.append(t["id"])
+            else:
+                results_by_module.setdefault(mod, []).append((i, t))
+    modules: dict[str, dict] = {}
+    for mod in sorted(set(scans) | set(coverage_modules) | set(results_by_module)):
+        scan = scans.get(mod) or {}
+        declared = scan.get("declared")
+        recorded = sorted(coverage_modules.get(mod, set()))
+        excluded: list[str] = []
+        if declared == []:
+            # SKILLS = () says "this module is evidence for no skill" (e.g. harness self-tests that
+            # run a real skill's blocks to test the harness): its harness records are only listed.
+            sources: dict[str, list[str]] = {"declared": []}
+            excluded = recorded
+        elif declared is not None:
+            # A non-empty declaration replaces the static inference; harness records (the module
+            # really ran that skill's blocks, so its failures concern it) are still added, and flagged.
+            sources = {"declared": list(declared), "harness-record": recorded}
+        else:
+            sources = {"harness-record": recorded, "harness-call": list(scan.get("harness_calls", [])),
+                       "slug-constant": list(scan.get("slug_constant", []))}
+        skills = sorted({s for v in sources.values() for s in v})
+        by_name = next((slug for slug in sorted(inventory) if _example_module_for(slug) == mod), None)
+        if not skills and by_name and declared is None:
+            sources["module-name"] = [by_name]
+            skills = [by_name]
+        if skills:
+            status = "attributed"
+        elif declared is not None:
+            status = "declared-no-skill"  # e.g. harness self-tests: explicitly evidence for no skill
+        else:
+            status = "unattributed-test-module"
+        entry: dict[str, Any] = {
+            "skills": skills, "status": status,
+            "sources": {k: v for k, v in sources.items() if v},
+            "outcomes": (summarize_records([t for _, t in results_by_module[mod]])
+                         if mod in results_by_module else None)}
+        if declared and set(recorded) - set(declared):
+            entry["undeclared_harness_records"] = sorted(set(recorded) - set(declared))
+        if excluded:
+            entry["excluded_harness_records"] = excluded
+        if scan.get("unknown_slugs"):
+            entry["unknown_slugs"] = scan["unknown_slugs"]
+        if scan.get("parse_error"):
+            entry["parse_error"] = scan["parse_error"]
+        if scans and mod not in scans:
+            entry["note"] = f"no tests/examples/{mod}.py in this tree"
+        modules[mod] = entry
+    per_skill: dict[str, list[tuple[int, dict]]] = {}
+    for mod, entry in modules.items():
+        for slug in entry["skills"]:
+            per_skill.setdefault(slug, []).extend(results_by_module.get(mod, []))
+    return modules, per_skill, unparseable
 
 
 def _results_provenance(doc: dict, environment: dict, inventory: dict[str, dict]) -> dict:
@@ -486,6 +905,9 @@ def _router_section(raw: dict) -> dict:
     section: dict[str, Any] = {"status": _tool_status(res), "command": res["command"] if res else None}
     if not isinstance(doc, dict) or "splits" not in doc:
         section["status"] = "error" if res else "not-run"
+        if res:
+            section["exit_code"] = res.get("exit_code")
+            section["output_tail"] = (res.get("stdout", "") + res.get("stderr", "")).strip().splitlines()[-3:]
         return section
     section["top_k"] = doc.get("top_k")
     section["splits"] = {name: {k: v for k, v in m.items() if k != "counts"}
@@ -515,41 +937,147 @@ def _router_section(raw: dict) -> dict:
     return section
 
 
+def _merge_provenance(provs: list[dict]) -> dict:
+    """One provenance summary for several results documents of a suite (each kept under "documents")."""
+    if len(provs) == 1:
+        return provs[0]
+    revs = sorted({p["git_revision"] for p in provs if p["git_revision"]})
+    matches = [p["matches_current_revision"] for p in provs]
+    dirty = [p["git_dirty"] for p in provs]
+    recorded_stale = [p["stale_skills"] for p in provs if p["stale_skills"] is not None]
+    return {"recorded": all(p["recorded"] for p in provs),
+            "git_revision": revs[0] if len(revs) == 1 and all(p["git_revision"] for p in provs) else None,
+            "git_revisions": revs,
+            "git_dirty": True if True in dirty else (False if all(d is False for d in dirty) else None),
+            "matches_current_revision": (False if False in matches else
+                                         True if all(m is True for m in matches) else None),
+            "stale_skills": sorted(set().union(*recorded_stale)) if recorded_stale else None,
+            "documents": provs,
+            "note": "Several results documents were merged: suite totals and hard failures cover all of them; "
+                    "per-skill outcomes compare each document's own provenance with the current tree."}
+
+
+def _merged_field(docs: list[dict], key: str) -> Any:
+    values = [d.get(key) for d in docs]
+    return values[0] if all(v == values[0] for v in values) else values
+
+
 def _tests_section(raw: dict, inventory: dict[str, dict]) -> dict:
+    """Per-suite totals. Several valid documents of one suite are merged, never one chosen:
+    picking one would let a failure in another document vanish from the totals."""
     suites: dict[str, Any] = {}
+    grouped: dict[str, list[dict]] = {}
     for doc in raw.get("test_results", []):
         problems = validate_results(doc)
         if problems:
             suites.setdefault("invalid", []).append(problems)
             continue
-        summary = summarize_records(doc["tests"])
-        suites[doc["suite"]] = {"command": doc.get("command"), "python": doc.get("python"),
-                                "platform": doc.get("platform"), "include_slow": doc.get("include_slow"),
-                                "env": doc.get("env"), **summary,
-                                "provenance": _results_provenance(doc, raw.get("environment", {}), inventory),
-                                "failures": [t for t in doc["tests"] if t["outcome"] in ("failed", "error",
-                                                                                          "unexpected_success")]}
+        grouped.setdefault(doc["suite"], []).append(doc)
+    env = raw.get("environment", {})
+    for name, docs in grouped.items():
+        records = [t for d in docs for t in d["tests"]]
+        suites[name] = {"documents": len(docs),
+                        **{k: _merged_field(docs, k) for k in ("command", "python", "platform", "env")},
+                        # Installer tests ran if any merged unit document included them.
+                        "include_slow": any(bool(d.get("include_slow")) for d in docs),
+                        **summarize_records(records),
+                        "provenance": _merge_provenance([_results_provenance(d, env, inventory) for d in docs]),
+                        "failures": [t for t in records if t["outcome"] in ("failed", "error",
+                                                                             "unexpected_success")]}
     for name in SUITES:
         suites.setdefault(name, None)
     return suites
 
 
-def _inputs_section(raw: dict, tests: dict, cov_stale: dict[str, list[str]]) -> list[dict]:
+def _results_sha_matches(doc: dict | None, slug: str, inv: dict) -> bool:
+    """True only when a results document recorded this skill's SKILL.md sha256 and it is the current one."""
+    prov = (doc or {}).get("provenance")
+    shas = prov.get("skill_sha256") if isinstance(prov, dict) else None
+    return bool(isinstance(shas, dict) and inv.get("sha256") and shas.get(slug) == inv["sha256"])
+
+
+def _inputs_section(raw: dict, tests: dict, cov: dict) -> list[dict]:
     """Where each piece of ingested or collected evidence came from, and whether it matches this tree."""
     out = []
     for item in raw.get("inputs", []):
         entry = dict(item)
         if item.get("kind") == "example-coverage":
             entry["provenance"] = ("this run" if str(item.get("source", "")).startswith("this-run") else
-                                   "not recorded by tests/examples/harness.py (checked by block count only)")
+                                   "ingested; see the example-coverage-provenance entry")
         out.append(entry)
     for name in SUITES:
         s = tests.get(name)
         if s:
             out.append({"kind": "test-results-provenance", "suite": name, **s["provenance"]})
-    if cov_stale:
-        out.append({"kind": "example-coverage-stale", "skills": sorted(cov_stale)})
+    if raw.get("example_coverage"):
+        prov = dict(cov["provenance"])
+        cur = raw.get("environment", {}).get("git_revision")
+        revs = prov["git_revisions"]
+        # True: every record names the current HEAD; False: some record names another revision;
+        # None: unknown (no current revision, or some records name none).
+        if cur and revs and revs != [cur]:
+            prov["matches_current_revision"] = False
+        elif cur and revs and not prov["records_without_revision"]:
+            prov["matches_current_revision"] = True
+        else:
+            prov["matches_current_revision"] = None
+        prov["note"] = ("A record counts only when its skill_sha256 and total_blocks match the current SKILL.md; "
+                        "git revision, dirty state (tracked files), untracked-file count, python and platform are "
+                        "reported, not compared, because the SKILL.md content is what the coverage is about. "
+                        "Records without a git revision are accepted unless --require-coverage-revision is given.")
+        out.append({"kind": "example-coverage-provenance", **prov})
+    if cov["stale"]:
+        out.append({"kind": "example-coverage-stale", "skills": sorted(cov["stale"])})
+    if cov["unattributable"]:
+        out.append({"kind": "example-coverage-unattributable", "skills": sorted(cov["unattributable"])})
+    if cov["unknown_skills"]:
+        out.append({"kind": "example-coverage-unknown-skills", "skills": cov["unknown_skills"],
+                    "note": "coverage records for slugs that are not skill folders in this tree; not attributed"})
     return out
+
+
+def _reviews_section(raw: dict, inventory: dict[str, dict]) -> tuple[dict, dict[str, list[dict]]]:
+    """Validate docs/reviews.json and group its records by skill (only when the file is valid)."""
+    info = raw.get("reviews")
+    if not isinstance(info, dict) or not info.get("present"):
+        return ({"status": "not-run", "path": REVIEWS_PATH.as_posix(), "records": None,
+                 "note": "docs/reviews.json not found: per-skill human review was not measured"}, {})
+    if info.get("error"):
+        return {"status": "fail", "path": info.get("path"), "records": None, "problems": [info["error"]]}, {}
+    doc = info.get("doc")
+    problems = validate_reviews(doc, set(inventory), raw.get("today"))
+    if problems:
+        return {"status": "fail", "path": info.get("path"), "records": None, "problems": problems}, {}
+    by_skill: dict[str, list[dict]] = {}
+    for r in doc["reviews"]:
+        by_skill.setdefault(r["skill"], []).append(r)
+    return ({"status": "pass", "path": info.get("path"), "records": len(doc["reviews"]),
+             "note": "Records are only as trustworthy as the review of the commit that added them; the reviewer "
+                     "field is not authenticated, and agent reviews must not be recorded here."}, by_skill)
+
+
+def _human_review(slug: str, inv: dict, records: list[dict], measured: bool, claims: int) -> dict:
+    """Per-skill human review status; claim-level reviews are reported beside it, never promoted."""
+    current = [r for r in records if inv.get("sha256") and r["skill_sha256"] == inv["sha256"]]
+    worst = {o: i for i, o in enumerate(REVIEW_OUTCOMES)}  # ties on a date: the least favourable outcome
+    latest = max(current, key=lambda r: (r["date"], worst[r["outcome"]], r["scope"] == "full"), default=None)
+    if latest is not None:
+        if latest["outcome"] != "approved":
+            status = "review-changes-requested"
+        elif latest["scope"] == "full":
+            status = "reviewed"
+        else:
+            status = "partially-reviewed"
+    elif records:
+        status = "review-stale"
+    elif claims:
+        status = "claim-level-review-only"
+    else:
+        status = "not-recorded"
+    return {"status": status, "per_skill_review_measured": measured, "per_skill_records": len(records),
+            "current_records": len(current),
+            "latest_current": ({k: latest[k] for k in ("reviewer", "date", "scope", "outcome")} if latest else None),
+            "current_human_reviewed_claims": claims}
 
 
 def build_report(raw: dict, timestamp: str) -> dict:
@@ -666,19 +1194,26 @@ def build_report(raw: dict, timestamp: str) -> dict:
             hard.append(f"{label} suite did not produce results (exit {res.get('exit_code')}): "
                         f"{_first_line(res.get('stderr', ''))}")
 
-    executed, cov_stale, bad_cov = _parse_coverage(raw.get("example_coverage", []), inventory)
+    cov = _parse_coverage(raw.get("example_coverage", []), inventory,
+                          require_revision=bool(raw.get("options", {}).get("require_coverage_revision")))
+    executed, cov_stale, cov_unattr = cov["executed"], cov["stale"], cov["unattributable"]
     coverage_measured = bool(raw.get("example_coverage"))
-    example_records: dict[str, list[dict]] = {}
-    ex_doc = next((d for d in raw.get("test_results", []) if d.get("suite") == "examples" and not validate_results(d)),
-                  None)
-    ex_stale: set[str] = set()
-    if ex_doc:
-        ex_stale = set(_results_provenance(ex_doc, raw.get("environment", {}), inventory)["stale_skills"] or [])
-        for t in ex_doc["tests"]:
-            parts = t["id"].replace("(", " ").replace(")", " ").split()
-            mod = next((p.split(".")[1] if p.startswith("examples.") else None for p in parts if "test_" in p), None)
-            if mod:
-                example_records.setdefault(mod, []).append(t)
+    # Every valid examples document (the same set _tests_section merges), each with its own provenance.
+    ex_docs = [d for d in raw.get("test_results", []) if d.get("suite") == "examples" and not validate_results(d)]
+    ex_provs = [_results_provenance(d, raw.get("environment", {}), inventory) for d in ex_docs]
+    modules, example_records, unparseable_ids = _attribute_examples(raw, inventory, cov["modules"], ex_docs)
+    unattributed = sorted(m for m, e in modules.items() if e["status"] == "unattributed-test-module")
+    attribution = {
+        "modules": modules, "unattributed_modules": unattributed,
+        "unparseable_test_ids": unparseable_ids[:50], "unparseable_test_ids_total": len(unparseable_ids),
+        "note": "Outcomes are attributed per module to every skill the module is attributed to. Outcomes of "
+                "unattributed modules and unparseable ids count in the suite totals but towards no skill."}
+
+    # --- per-skill human review -----------------------------------------------------------
+    checks["reviews"], reviews_by_skill = _reviews_section(raw, inventory)
+    reviews_measured = checks["reviews"]["status"] == "pass"
+    if checks["reviews"]["status"] == "fail":
+        hard.append(f"{checks['reviews']['path']}: {len(checks['reviews']['problems'])} problem(s)")
 
     # --- skipped checks -------------------------------------------------------------------
     opts = raw.get("options", {})
@@ -699,10 +1234,20 @@ def build_report(raw: dict, timestamp: str) -> dict:
         skipped.append({"check": "example-block-coverage",
                         "reason": "no ML_AI_SKILLS_EXAMPLE_COVERAGE data (comes with --run-examples or "
                                   "--example-coverage)"})
+    if not reviews_measured:
+        skipped.append({"check": "per-skill-human-review",
+                        "reason": ("docs/reviews.json not found" if checks["reviews"]["status"] == "not-run" else
+                                   "docs/reviews.json is invalid (see checks.reviews)")
+                                  + ": no skill is counted as human-reviewed"})
     if not raw.get("claude_cli"):
         skipped.append({"check": "claude-cli",
                         "reason": "claude CLI not on PATH: plugin validate --strict and the local marketplace "
-                                  "add/install/update tests in tests/test_generate_plugins.py skip"})
+                                  "add/install/update tests in tests/test_generate_plugins.py skip (as does the "
+                                  "opt-in tests/test_claude_cli_integration.py, ML_AI_SKILLS_CLAUDE_CLI=1). "
+                                  "The export's upload-format rules are checked offline by "
+                                  "tests/test_export_skills.py against the repo's own encoding of them (the "
+                                  "upstream validators run only opt-in); no real upload is made, so acceptance "
+                                  "by claude.ai or the Skills API is not checked"})
     elif tests.get("unit") is None:
         skipped.append({"check": "claude-cli", "reason": "claude CLI present, but tests/test_generate_plugins.py "
                                                          "was not run by this report"})
@@ -730,29 +1275,66 @@ def build_report(raw: dict, timestamp: str) -> dict:
         skip = set(inv.get("illustrative_indices", []))
         # Count only runnable block indices: a test may also exec an illustrative block explicitly.
         done = len({i for i in executed.get(slug, set()) if 0 <= i < inv["python_blocks"] and i not in skip})
-        recs = example_records.get(_example_module_for(slug), [])
+        tagged = example_records.get(slug, [])
+        recs = [t for _, t in tagged]
         ex_counts = summarize_records(recs) if recs else None
+        # Split by the provenance of the document each outcome came from: recorded the current
+        # SKILL.md sha256 / recorded another (or none for this skill) / recorded no provenance.
+        current = [t for i, t in tagged if _results_sha_matches(ex_docs[i], slug, inv)]
+        stale_res = [t for i, t in tagged if not _results_sha_matches(ex_docs[i], slug, inv)
+                     and ex_provs[i]["recorded"] and slug in (ex_provs[i]["stale_skills"] or [])]
+        untied = [t for i, t in tagged if not _results_sha_matches(ex_docs[i], slug, inv)
+                  and not (ex_provs[i]["recorded"] and slug in (ex_provs[i]["stale_skills"] or []))]
         stale_reasons = list(cov_stale.get(slug, []))
-        results_stale = bool(recs) and slug in ex_stale
-        if results_stale:
+        unattr_reasons = list(cov_unattr.get(slug, []))
+
+        # Block coverage: which runnable blocks ran without raising, from records tied to this SKILL.md.
+        if runnable == 0:
+            cov_status = "no-runnable-blocks"
+        elif not coverage_measured:
+            cov_status = "not-measured"
+        elif done >= runnable:
+            # Current records decide first; leftover stale/unattributable records are only listed.
+            cov_status = "all-runnable-blocks-executed"
+        elif cov_stale.get(slug):
+            cov_status = "coverage-stale"
+        elif done == 0 and cov_unattr.get(slug):
+            cov_status = "coverage-unattributable"
+        elif done == 0:
+            cov_status = "not-executed"
+        else:
+            cov_status = "partially-executed"
+
+        # Test outcome: results of the tests attributed to this skill, at the current SKILL.md sha256.
+        if stale_res:
             stale_reasons.append("example test results were recorded against a different SKILL.md (sha256 differs)")
+        if untied:
+            unattr_reasons.append("example test results record no sha256 for this skill's current SKILL.md")
+        if not ex_docs:
+            outcome = "not-measured"
+        elif not recs:
+            outcome = "no-attributed-tests"
+        elif any(t["outcome"] in FAILING_OUTCOMES for t in current + untied):
+            outcome = "failing"  # even when the results cannot be tied to this tree: never hide a failure
+        elif current:
+            outcome = "passed" if any(t["outcome"] == "passed" for t in current) else "all-skipped"
+        elif stale_res:
+            outcome = "results-stale"  # a failure here concerns another SKILL.md; still a suite hard failure
+        else:
+            outcome = "results-unattributable"
+
         if runnable == 0:
             ex_status = "no-runnable-blocks"
-        elif cov_stale.get(slug):
-            ex_status = "coverage-stale"
-        elif results_stale:
-            ex_status = "example-results-stale"
-        elif not coverage_measured:
-            ex_status = "not-measured"
-        elif done == 0:
-            ex_status = "not-executed"
-        elif done >= runnable:
-            ex_status = "all-runnable-blocks-executed"
-        else:
-            ex_status = "partially-executed"
-        if (ex_counts and (ex_counts["failed"] or ex_counts["error"]) and not results_stale
-                and ex_status != "no-runnable-blocks"):
+        elif outcome == "failing":
             ex_status = "example-tests-failing"
+        elif cov_status == "coverage-stale":
+            ex_status = "coverage-stale"
+        elif outcome == "results-stale":
+            ex_status = "example-results-stale"
+        elif cov_status == "all-runnable-blocks-executed":
+            ex_status = "executed-and-passed" if outcome == "passed" else "coverage-only-outcome-unknown"
+        else:
+            ex_status = cov_status
         row = cov_rows.get(slug)
         if row is None:
             ev_status = "not-measured" if not cov_rows else "no-cases"
@@ -760,65 +1342,89 @@ def build_report(raw: dict, timestamp: str) -> dict:
             ev_status = "partial"
         else:
             ev_status = "covered-offline"
+        human = _human_review(slug, inv, reviews_by_skill.get(slug, []), reviews_measured, human_claims.get(slug, 0))
         tiers = []
         if structural_measured and n_err == 0:
             tiers.append("structural-valid")
-        if ex_status == "all-runnable-blocks-executed":
+        if ex_status in ("executed-and-passed", "coverage-only-outcome-unknown"):
             tiers.append("examples-executed")
+        if ex_status == "executed-and-passed":
+            tiers.append("example-tests-passed")
         if ev_status == "covered-offline":
             tiers.append("evals-covered-offline")
-        human = human_claims.get(slug, 0)
+        if human["status"] == "reviewed":
+            tiers.append("human-reviewed")
         per_skill.append({
             **{k: inv.get(k) for k in ("skill", "type", "domain", "lifecycle", "risk_level", "evidence_level",
                                          "last_review_date")},
+            "skill_sha256": inv.get("sha256"),
             "structural": ({"status": "valid" if n_err == 0 else "invalid", "errors": n_err,
                             "warnings": warnings_by_skill.get(slug, 0)} if structural_measured else
                            {"status": "not-measured", "errors": None, "warnings": None}),
-            "examples": {"status": ex_status, "python_blocks": inv["python_blocks"],
+            "examples": {"status": ex_status, "coverage_status": cov_status, "outcome": outcome,
+                         "python_blocks": inv["python_blocks"],
                          "illustrative_blocks": inv["illustrative_blocks"], "runnable_blocks": runnable,
                          "executed_blocks": done if coverage_measured else None, "example_tests": ex_counts,
-                         **({"stale_reasons": stale_reasons} if stale_reasons else {})},
+                         "example_results": ({"current": len(current), "stale": len(stale_res),
+                                              "untied": len(untied)} if recs else None),
+                         "test_modules": sorted(m for m, e in modules.items() if slug in e["skills"]),
+                         **({"stale_reasons": stale_reasons} if stale_reasons else {}),
+                         **({"unattributable_reasons": unattr_reasons} if unattr_reasons else {})},
             "evals": {"status": ev_status, "model_graded": False,
                       **({k: row.get(k) for k in ("cases", "non_happy_path_cases", "hard_assertion_cases",
                                                   "executable_cases", "has_plan", "missing")} if row else {})},
             "claims": claims_by_skill.get(slug, {}),
             "freshness": fresh_by_skill.get(slug, {}),
-            # No per-skill review record format exists: current claim-level reviews are reported, never promoted.
-            "human_review": {"status": "claim-level-review-only" if human else "not-recorded",
-                             "current_human_reviewed_claims": human},
+            # Per-skill records (docs/reviews.json) and claim-level reviews (docs/claims.json) are kept apart.
+            "human_review": human,
             "evidence_tiers": tiers,
         })
 
     def count(pred) -> int:
         return sum(1 for s in per_skill if pred(s))
 
+    def slugs(*statuses: str, field: str = "status") -> list[str]:
+        return sorted(s["skill"] for s in per_skill if s["examples"][field] in statuses)
+
     summary = {
         "hard_failures": hard,
         "skills_total": len(per_skill),
         "skills_structural_valid": (count(lambda s: s["structural"]["status"] == "valid")
                                     if structural_measured else None),
-        "skills_examples_all_runnable_executed": (count(lambda s: s["examples"]["status"] ==
+        "skills_examples_all_runnable_executed": (count(lambda s: s["examples"]["coverage_status"] ==
                                                         "all-runnable-blocks-executed") if coverage_measured else None),
+        "skills_examples_executed_and_passed": (count(lambda s: s["examples"]["status"] == "executed-and-passed")
+                                                if coverage_measured and ex_docs else None),
+        "skills_examples_coverage_only_outcome_unknown": slugs("coverage-only-outcome-unknown"),
+        "skills_example_tests_failing": slugs("example-tests-failing"),
         "skills_with_runnable_blocks": count(lambda s: s["examples"]["runnable_blocks"] > 0),
         "skills_evals_covered_offline": count(lambda s: s["evals"]["status"] == "covered-offline"),
-        # 0 by construction until a per-skill human-review record format exists (see known_limitations).
-        "skills_human_reviewed": 0,
-        "skills_with_claim_level_human_review": count(lambda s: s["human_review"]["status"] ==
-                                                      "claim-level-review-only"),
-        "skills_with_stale_example_evidence": sorted(s["skill"] for s in per_skill if s["examples"]["status"]
-                                                     in ("coverage-stale", "example-results-stale")),
+        # Per-skill records only (docs/reviews.json, current sha256, scope full, approved); None if not measured.
+        "skills_human_reviewed": (count(lambda s: s["human_review"]["status"] == "reviewed")
+                                  if reviews_measured else None),
+        "skills_partially_human_reviewed": count(lambda s: s["human_review"]["status"] == "partially-reviewed"),
+        "skills_human_review_stale": sorted(s["skill"] for s in per_skill
+                                            if s["human_review"]["status"] == "review-stale"),
+        "skills_with_claim_level_human_review": count(lambda s: s["human_review"]["current_human_reviewed_claims"]),
+        "skills_with_stale_example_evidence": slugs("coverage-stale", "example-results-stale"),
+        "skills_with_unattributable_example_evidence": sorted(
+            s["skill"] for s in per_skill if s["examples"]["coverage_status"] == "coverage-unattributable"
+            or s["examples"]["outcome"] == "results-unattributable"),
+        "unattributed_test_modules": unattributed,
         "model_graded_evals": "unmeasured",
-        "statement": ("No skill is labelled verified. Structural validity, executed examples and offline eval "
-                      "coverage are separate, partial kinds of evidence; none of them shows the advice is correct."),
+        "statement": ("No skill is labelled verified. Structural validity, executed examples, passing example "
+                      "tests, offline eval coverage and recorded human review are separate, partial kinds of "
+                      "evidence; none of them shows the advice is correct."),
     }
-    if bad_cov:
-        summary["coverage_lines_ignored"] = bad_cov
+    if cov["bad"]:
+        summary["coverage_lines_ignored"] = cov["bad"]
 
     return {
-        "schema": REPORT_SCHEMA, "schema_version": SCHEMA_VERSION, "generated_at": timestamp,
+        "schema": REPORT_SCHEMA, "schema_version": REPORT_SCHEMA_VERSION, "generated_at": timestamp,
         "environment": raw.get("environment", {}), "options": opts, "summary": summary,
-        "inputs": _inputs_section(raw, tests, cov_stale),
-        "checks": checks, "tests": tests, "skills": per_skill, "skipped_checks": skipped,
+        "inputs": _inputs_section(raw, tests, cov),
+        "checks": checks, "tests": tests, "example_attribution": attribution, "skills": per_skill,
+        "skipped_checks": skipped,
         "known_limitations": {"items": list(KNOWN_LIMITATIONS), "full_list": "docs/KNOWN-ISSUES.md"},
     }
 
@@ -841,8 +1447,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--include-slow", action="store_true", help="include tests/test_install*.py (~9 min)")
     ap.add_argument("--run-examples", metavar="PYTHON", help="run tests/examples with this interpreter")
     ap.add_argument("--slow-examples", action="store_true", help="set ML_AI_SKILLS_SLOW_EXAMPLES=1 for examples")
+    ap.add_argument("--require-example-deps", action="store_true",
+                    help="set ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1 for examples, as CI does: a missing dependency "
+                         "fails and slow examples run")
     ap.add_argument("--test-results", nargs="+", metavar="FILE", help="ingest --collect-tests results files")
     ap.add_argument("--example-coverage", nargs="+", metavar="FILE", help="ingest coverage jsonl files")
+    ap.add_argument("--require-coverage-revision", action="store_true",
+                    help="count coverage records without a git_revision as unattributable (default: accepted, "
+                         "since a release archive has no git checkout; the SKILL.md sha256 is still required)")
     ap.add_argument("--check-generated", action="store_true", help="also run scripts/check_generated.py")
     ap.add_argument("--today", help="pin today's date (YYYY-MM-DD) for the date-dependent checks")
     ap.add_argument("--timestamp", help="pin generated_at (for byte-identical reports)")

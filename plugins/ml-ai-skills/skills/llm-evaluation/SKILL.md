@@ -3,7 +3,7 @@ name: llm-evaluation
 display_name: LLM Evaluation
 description: >
   Use when the user wants to evaluate an LLM or LLM-based system's output
-  quality — building an eval harness, scoring with an LLM-as-judge, or
+  quality (a chatbot or RAG app) — building an eval harness, scoring with an LLM-as-judge, or
   checking generated answers for hallucination/faithfulness against source
   context. Trigger phrases: "evaluate my LLM's outputs", "set up an eval
   harness", "check for hallucinations", "LLM-as-judge scoring", "is my RAG

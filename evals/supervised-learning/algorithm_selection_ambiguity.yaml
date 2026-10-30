@@ -19,9 +19,18 @@ must_not_include:
   - '\A\W*(use|go with|try|pick|choose|i''?d (use|go with|recommend|pick)|you should use)\s+(an? )?(xgboost|lightgbm|catboost|random forests?|gradient boost\w*|neural net\w*|logistic regression|svm|deep learning)\b'
   - '\b(don''t|do not) need to (answer|tell me|share|specify|clarify)\b(?![^.]{0,30}\b(all|every|but)\b)'
   - '\b(it''s|it is|that''s|that is|this is) (the )?(right|best|correct|safe) (choice|default|model|pick) for (your|any|every) (dataset|data|problem)\b'
+  - '(?:\A|[.!?;:](?=\s))(?:(?!\b(if|when|unless|assuming|provided|given|suppose|in that case)\b|\bfor an?\b(?![^.!?;:]{0,40}\blike yours\b))(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(the answer is|the best (model|choice|algorithm) is)\s+(an? )?(xgboost|lightgbm|catboost|random forests?|gradient boost\w*|neural net\w*|logistic regression|svm|deep learning)\b'
 limitations:
   - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
   - 'An ambiguity case: a question mark or ''assume'' satisfies the asks-or-assumes assertion, so a response that asks one irrelevant question can pass it; the other assertions require the relevant dimensions to be named.'
 notes: >
   Tests whether the skill recognizes underspecified requests instead of pattern
   matching to a popular default answer.
+  A fix probe (fail.fixprobe, written from the rubric before the patterns were read, graded once)
+  failed only on missing concepts; on 2026-10-29 a must_not_include pattern was added so the
+  probe's wrong conclusion is caught directly.
+  Review fix (same day): the added pattern failed a correct answer that asks its questions and
+  then states an assumption with "For a small tabular classification problem, the best choice is
+  ..." (pass.dev-borderline-assumption), so "given", "suppose", "in that case" and "for a/an ..."
+  (but not "for a dataset like yours") now count as conditional framing. Trade-off: "For a tabular
+  dataset, the answer is XGBoost" with no question is no longer caught by this pattern.

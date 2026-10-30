@@ -4,7 +4,9 @@ canonical `<slug>/SKILL.md` folders at repo root.
 
 This is a *packaging* step, not a content-authoring one: every SKILL.md byte
 under `plugins/**/skills/*/SKILL.md` is copied verbatim from its canonical
-`<slug>/SKILL.md`. There is exactly one place to edit a skill's content (the
+`<slug>/SKILL.md` (read as bytes, so line endings are kept as stored). Only
+SKILL.md is packaged, as install.sh does; tests/test_generate_plugins.py fails
+if a canonical skill folder gains another file that would be left out. There is exactly one place to edit a skill's content (the
 repo-root folder); this script only decides which plugin(s) each skill ships
 in and writes the `.claude-plugin/plugin.json` / `.claude-plugin/marketplace.json`
 manifests required by Claude Code's plugin/marketplace conventions (verified
@@ -147,22 +149,36 @@ def render_files(skills: list[sl.Skill]) -> "dict[str, bytes]":
             json.dumps(plugin_json, indent=2) + "\n"
         ).encode("utf-8")
         for slug in entry["slugs"]:
-            files[f"plugins/{name}/skills/{slug}/SKILL.md"] = by_slug[slug].raw.encode("utf-8")
+            files[f"plugins/{name}/skills/{slug}/SKILL.md"] = skill_bytes(by_slug[slug])
 
     return files
 
 
-def check(skills: list[sl.Skill]) -> list[str]:
+def skill_bytes(skill: sl.Skill) -> bytes:
+    """The canonical SKILL.md exactly as stored on disk.
+
+    `skill.raw` comes from `read_text`, which turns CRLF into LF, so it is only the
+    fallback for an in-memory skill with no file behind it (test fixtures)."""
+    if skill.path.is_file():
+        return skill.path.read_bytes()
+    return skill.raw.encode("utf-8")
+
+
+def check(skills: list[sl.Skill], root: Path | None = None) -> list[str]:
+    """Compare the generated tree under `root` (default: this repo) with render_files()."""
+    root = sl.REPO_ROOT if root is None else root
+    plugins_dir = root / "plugins"
+    marketplace_path = root / ".claude-plugin" / "marketplace.json"
     issues: list[str] = []
     expected = render_files(skills)
 
     actual: dict[str, bytes] = {}
-    if MARKETPLACE_PATH.exists():
-        actual[".claude-plugin/marketplace.json"] = MARKETPLACE_PATH.read_bytes()
-    if PLUGINS_DIR.exists():
-        for path in sorted(PLUGINS_DIR.rglob("*")):
+    if marketplace_path.exists():
+        actual[".claude-plugin/marketplace.json"] = marketplace_path.read_bytes()
+    if plugins_dir.exists():
+        for path in sorted(plugins_dir.rglob("*")):
             if path.is_file():
-                actual[path.relative_to(sl.REPO_ROOT).as_posix()] = path.read_bytes()
+                actual[path.relative_to(root).as_posix()] = path.read_bytes()
 
     for rel, content in expected.items():
         if rel not in actual:
@@ -176,14 +192,16 @@ def check(skills: list[sl.Skill]) -> list[str]:
     return issues
 
 
-def write(skills: list[sl.Skill]) -> None:
+def write(skills: list[sl.Skill], root: Path | None = None) -> None:
     import shutil
 
-    if PLUGINS_DIR.exists():
-        shutil.rmtree(PLUGINS_DIR)
+    root = sl.REPO_ROOT if root is None else root
+    plugins_dir = root / "plugins"
+    if plugins_dir.exists():
+        shutil.rmtree(plugins_dir)
 
     for rel, content in render_files(skills).items():
-        path = sl.REPO_ROOT / rel
+        path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
 
