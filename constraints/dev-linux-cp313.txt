@@ -33,7 +33,7 @@ referencing==0.37.0
 requests==2.34.2
 rich==15.0.0
 rpds-py==2026.9.1
-ruff==0.17.2
+ruff==0.17.3
 shellcheck_py==0.11.0.1
 sortedcontainers==2.4.0
 tomli==2.5.0
