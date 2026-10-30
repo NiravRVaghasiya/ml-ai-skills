@@ -12,7 +12,107 @@ try:  # optional: only for the YAML-compatibility tests
 except ImportError:  # pragma: no cover - exercised on bare installs
     yaml = None
 
+try:  # optional YAML 1.2 reference; not in requirements-dev.txt, so CI skips it
+    from ruamel.yaml import YAML as _RuamelYAML
+except ImportError:  # pragma: no cover - exercised wherever ruamel.yaml is absent
+    _RuamelYAML = None
+
 NEEDS_YAML = unittest.skipIf(yaml is None, "PyYAML not installed; compatibility tests need a reference parser")
+NEEDS_YAML12 = unittest.skipIf(_RuamelYAML is None,
+                               "ruamel.yaml not installed; the YAML 1.2 cross-check needs a YAML 1.2 parser")
+
+try:  # optional CommonMark reference for the setext checks; pinned in requirements-dev.txt (unit-with-dev-deps)
+    from markdown_it import MarkdownIt as _MarkdownIt
+except ImportError:  # pragma: no cover - exercised wherever markdown-it-py is absent
+    _MarkdownIt = None
+
+NEEDS_COMMONMARK = unittest.skipIf(_MarkdownIt is None,
+                                   "markdown-it-py not installed; the CommonMark cross-check needs a reference parser")
+
+# (Markdown, 0-based underline lines of its setext headings as CommonMark renders them).
+# Shared by the stdlib test and the markdown-it-py cross-check.
+SETEXT_CASES = [
+    ("Gotchas\n===\n", [1]), ("Gotchas\n---\n", [1]), ("Foo\n-\n", [1]), ("   Para\n   ---\n", [1]),
+    ("Para\n    more\n---\n", [2]),  # an indented line continues the paragraph
+    # inside list items: the underline is indented to the item's content
+    ("1. **Step**\n   text\n   ---\n", [2]), ("1. Step\n   ---\n", [1]), ("- foo\n  ---\n", [1]),
+    ("- foo\n  ===\n", [1]), ("* x\n  ---\n", [1]), ("1) x\n   ---\n", [1]), ("10. step\n    ---\n", [1]),
+    ("-   wide\n    ---\n", [1]), ("- a\n  - b\n    ---\n", [2]), ("1. step\n\n   para\n   ---\n", [3]),
+    ("- foo\n  bar\n  -\n", [2]), ("1. step\n    text\n    ---\n", [2]), ("1. step\n      ---\n", [1]),
+    ("- a\n\tb\n\t---\n", [2]), ("Para\n- item\n  ---\n", [2]), ("- z\nlazy\n  ---\n", [2]),
+    # not headings: a rule after a blank line, under a list item at the wrong column, a quote,
+    # a table, HTML, a heading or code, or after an item whose text is itself a block
+    ("text\n\n---\n", []), ("- item\n---\n", []), ("1. foo\n  ---\n", []), ("1. step\n---\n", []),
+    ("Para\n    ---\n", []), ("> q\n---\n", []), ("| a |\n---\n", []), ("<div>\n---\n", []),
+    ("## H\n---\n", []), ("- ## H\n  ---\n", []), ("-     five\n  ---\n", []), ("- item\n-\n  ---\n", []),
+    ("1. step\n\n       code\n   ---\n", []), ("- a\n\nb\n---\n", [3]), ("x\n- - -\n", []),
+    ("1. a\n   ```\n   x\n   ```\n   ---\n", []), ("<div>\n    deep\n- t\nPara\n  ---\n", []),
+]
+
+# Differential corpus: each document is either diagnosed by our parser or read exactly
+# as the reference parser reads it (PyYAML for YAML 1.1, ruamel.yaml for YAML 1.2).
+# Grouped by the construct it exercises; see docs/SKILL-SPEC.md "Supported YAML subset".
+YAML_CORPUS = [
+    # YAML 1.1 vs 1.2 plain scalars: booleans, octal-looking and other numbers, sexagesimal, nulls
+    *(f"k: {v}\n" for v in (
+        "yes", "no", "on", "off", "y", "n", "Y", "N", "true", "True", "TRUE", "tRue", "ON", "Off", "oN",
+        "null", "Null", "NULL", "~", "nUll", "017", "0o17", "0x1F", "0b101", "089", "0001", "1_000", "+1", "-0",
+        "0", "00", "1e3", "1E3", "1.0e3", "1.0e+3", "1e+3", "12e3", "+12e03", "0e0", ".5", "5.", "+.5", "1.",
+        "1.e3", "1.5e-3", "-.5e1", "._5", "1_000.5", "-.inf", ".inf", "+.inf", ".Inf", "-.Inf", "+.INF", ".NaN",
+        ".nan", ".NAN", "nan", "inf", "Infinity", "190:20:30", "190:20:30.15", "1:20", "0:30", "12:30", "1:2:3",
+        "2026-09-21", "2026-9-21", "2026-09-21T10:00:00", "2026-09-21 10:00:00", "0.", "0x", "0o", "+", "-1_0",
+        "0b", "0B1", "0X1F", "0O17", "1e", "3.14.15", "1,000", "=", "<<", "c++", "50%", "v1.2.3", "1.2.3")),
+    # quoted scalars and escapes
+    'k: "a\\tb"\n', 'k: "\\x41\\u00e9\\U0001F600"\n', 'k: "\\/"\n', 'k: "\\N\\_\\L\\P"\n', "k: 'a''b'\n",
+    'k: "\\e\\a\\b\\v\\f\\0\\r"\n', 'k: "\\ "\n', 'k: "a" # c\n', "k: 'a'#c\n", 'k: "a"x\n', 'k: ""\n', "k: ''\n",
+    'k: "multi\n  line"\n', "k: 'multi\n  line'\n", 'k: "\\x4"\n', 'k: "a\\\\"\n', 'k: "\\""\n', "k: '\\n'\n",
+    'k: "a\tb"\n', "k: 'a\tb'\n", 'k: "a\\\nb"\n',
+    # block scalars: styles, chomping, indentation indicators, blank and comment lines
+    "k: |\n  a\n  b\n", "k: |-\n  a\n\n", "k: |+\n  a\n\n\n", "k: >\n  a\n  b\n\n  c\n", "k: >-\n  a\n   b\n  c\n",
+    "k: >+\n  a\n", "k: |2\n    a\n  b\n", "k: >2-\n   a\n  b\n", "k: |\n\n  a\n", "k: |\n  \n  a\n",
+    "k: |\n   a\n  b\n", "k: | # c\n  a\n", "k: |#c\n  a\n", "k: >\n  a\n#c\n", "k: |\n  a\n  # not comment\n",
+    "k: >\n\ta\n", "k: |\nx: 1\n", "k: >\n", "k: |\n  a\n x\n", "k: |0\n  a\n", "k: |10\n  a\n",
+    "k: >\n  a\n\n\n  b\n", "k: >\n  a\n    b\n  c\n", "k: |\r\n  a\r\n", "k: |\n  a", "k: |-\n  a", "k: |+\n  a",
+    "k: >\n  a\n  \n  b\n", "k: >\n  a\n   \n  b\n", "k: |\n    \n  a\n", "k: >-\n\n  a\n", "k: |+\n\n", "k: |-\n",
+    "k: |-+\n", "k: >+-\n  x\n", "k: |-1\n  x\n", "k: |1-\n  x\n",
+    # flow sequences
+    "k: [a, b]\n", "k: [a,b]\n", "k: [ a , b , ]\n", "k: [a, [b]]\n", "k: [a, {b: c}]\n", "k: ['a, b', \"c\"]\n",
+    "k: [a #c]\n", "k: [a b, c]\n", "k: [a: b]\n", "k: [-a]\n", "k: [- a]\n", "k: [a, , b]\n", "k: [,]\n",
+    "k: [ ]\n", "k: [yes, 1, 0o7, 1e3]\n", "k: [a]x\n", "k: [a] # c\n", "k: [\"a\" b]\n", "k: [a\n  , b]\n",
+    "k: [*a]\n", "k: [&a b]\n", "k: [!t a]\n", "k: [a\tb]\n", "k: [@a]\n", "k: [#a]\n", "k: [a#b]\n",
+    "k: [|a]\n", "k: [>a]\n", "k: [a, 'b''c']\n", "k: [\"a\\\"b\"]\n", "k: [~, null]\n", "k: [a]#c\n",
+    "k: [a ,b]\n", "k: [?x]\n", "k: [:x]\n", "k: [a:b]\n",
+    # comments
+    "# c\nk: v\n", "k: v # c\n", "k: v# c\n", "k: v #c\n", "k: v\t# c\n", "k: # c\n  - a\n",
+    "k:\n  # c\n  - a\n  # d\n  - b\n", "k: a\n  # c\n  b\n", "k: a\n  b # c\n  d\n", "  # indented\nk: v\n",
+    # duplicate keys
+    "k: a\nk: b\n", "k: a\nK: b\n", "k: a\nk : b\n",
+    # tabs
+    "k:\ta\n", "k: a\t\n", "\tk: a\n", "k: a\tb\n", "k:\n\t- a\n", "k: |\n\ta\n", "k:\t[a]\n", "k: |\n  a\tb\n",
+    # unicode, BOM, zero-width and no-break spaces, line-break characters
+    "k: \u00e9\n", "\u043a: \u0437\n", "k: \u65e5\u672c\n", "k: \ufeffa\n", "k: a\u200b\n", "k: \U0001F600\n",
+    'k: "\\u00e9"\n', "k: a\u00a0b\n", "k: x\xa0\n", "k: x\x85\n", "k: x\u2028\n", "k: x\ry\n",
+    # null-ish and implicit-type keys
+    "k:\n", "~: a\n", "null: a\n", "yes: a\n", "1: a\n", "0o7: a\n", "1e3: a\n", "089: a\n", "on: a\n",
+    "k k: a\n", "k.k: a\n", "k-k: a\n",
+    # plain multi-line scalars, block lists, indicators
+    "k: a\n  b\n\n  c\n", "k:\n  a\n  b\n", "k: a\n- b\n", "k:\n- a\n- b\n", "k:\n  - a\n  -  b\n",
+    "k:\n  - a\n    b\n", "k:\n  - \"a\"\n  - 'b'\n", "k:\n  -\n  - a\n", "k:\n  - |\n    a\n",
+    "k:\n  - >-\n    a\n    b\n", "k: a:b\n", "k: a :b\n", "k: http://x\n", "k: a -b\n", "k: -a\n", "k: ?a\n",
+    "k: :a\n", "k: !a\n", "k: |a\n", "k: >a\n", "k: \"a\n", "k: 'a\n", "k: a ? b\n", "k: a, b\n", "k: a [b]\n",
+    "k: a {b}\n", "k: a & b\n", "k: a * b\n", "k: %50\n", "k: a'b\n", "k: a\"b\n", "k: 'a'\n  b\n",
+    "k:\n  - a\n  - b\nj: c\n", "k:\n - a\n -  b\n", "k:\n    - a\n    - b\n", "k:\n  - a\n - b\n",
+    "k:\n  - a\n   - b\n", "k: a\n  - b\n", "k:\n  - a: b\n", "k:\n  - [a]\n", "k:\n  - - a\n", "k: ---\n",
+    "k: ...\n", "---\nk: a\n", "k: a\n...\n", "k: ,x\n", "k: ]x\n", "k: }x\n", "k: x,y ]}\n",
+]
+# Documents the subset must accept: keeps the corpus from passing by diagnosing everything.
+YAML_CORPUS_CLEAN = [
+    "k: y\n", "k: 0o\n", "k: 1e\n", "k: v1.2.3\n", "k: 2026-09-21\n", "k: c++\n", "k: \"\\x41\\u00e9\\U0001F600\"\n",
+    "k: 'a''b'\n", "k: |+\n  a\n\n\n", "k: >2-\n   a\n  b\n", "k: |-1\n  x\n", "k: [ a , b , ]\n", "k: [~, null]\n",
+    "k:\n  # c\n  - a\n  # d\n  - b\n", "k: \u65e5\u672c\n", "k: a\u00a0b\n", "k: a :b\n",
+    "k: |\n  a\tb\n", "k-k: a\n",
+]
+YAML12_NUMBERS = ["0o17", "089","1e3", "1E3", "1.0e3", "1e+3", "12e3", "+12e03", "0e0", "+.5", "1.e3"]
 
 # Repo files allowed to use YAML outside the supported subset (skipped with a
 # reason instead of failing). Empty on purpose: the five eval cases whose list
@@ -228,6 +328,30 @@ requires:
                 self.assertEqual((r.data, r.diagnostics), (expected, []))
 
 
+    def test_yaml12_numbers_are_diagnosed(self):
+        # Strings to PyYAML (YAML 1.1) but numbers to a YAML 1.2 parser; stdlib twin of
+        # TestYaml12Compatibility, so the stdlib CI job guards it too.
+        for v in YAML12_NUMBERS:
+            for doc in (f"k: {v}\n", f"k: [{v}]\n", f"k:\n  - {v}\n"):
+                with self.subTest(doc=doc):
+                    self.assertEqual(codes(doc), ["implicit-type"])
+            with self.subTest(key=v):  # a key starting with `+` or `.` is already unparseable-line
+                self.assertTrue(codes(f"{v}: a\n"))
+        r = sl.parse_frontmatter_with_diagnostics("k: 1e3\n")
+        self.assertIn("YAML 1.2", r.diagnostics[0].message)
+
+    def test_corpus_clean_documents_stay_clean(self):
+        for doc in YAML_CORPUS_CLEAN:
+            with self.subTest(doc=doc):
+                self.assertEqual(codes(doc), [])
+        self.assertTrue(set(YAML_CORPUS_CLEAN) <= set(YAML_CORPUS))
+
+    def test_corpus_never_raises(self):
+        for doc in YAML_CORPUS:
+            with self.subTest(doc=doc):
+                self.assertIsInstance(sl.parse_frontmatter_with_diagnostics(doc).data, dict)
+
+
 class TestSplitAndLoad(unittest.TestCase):
     def test_dashes_inside_value_are_not_a_fence(self):
         fm, body = sl._split_frontmatter("---\na: x---y\nb: ---\n---\n\n## Body\n")
@@ -281,6 +405,40 @@ class TestSkillHelpers(unittest.TestCase):
         self.assertIn("[[b]]", prose)
         self.assertNotIn("[[0]]", prose)
         self.assertNotIn("[[1]]", prose)
+
+    def test_strip_code_honours_every_fence_form(self):
+        body = ("a [[x]]\n~~~ md\n[[t1]]\n```\n[[t2]]\n~~~\nb\n````\n```\n[[t3]]\n```\n````\n"
+                "<!--\n[[c]]\n-->\n```python\n[[t4]]\n")  # the last fence never closes
+        prose = sl.strip_code(body)
+        self.assertEqual(prose.count("\n"), body.count("\n"))
+        for hidden in ("[[t1]]", "[[t2]]", "[[t3]]", "[[t4]]"):
+            self.assertNotIn(hidden, prose)
+        self.assertIn("[[x]]", prose)
+        self.assertIn("[[c]]", prose)  # comments are kept for the link checks
+
+    def test_scan_markdown_kinds_fences_and_headings(self):
+        scan = sl.scan_markdown("# T\n<!-- one-line -->\n```py  extra\n## no\n```\ntext\nSetext\n===\n## H ##\n")
+        self.assertEqual(scan.kinds, ["text", "html", "fence", "code", "fence", "text", "text", "text", "text", "text"])
+        self.assertEqual([(h.level, h.text) for h in scan.headings], [(1, "T"), (2, "H")])
+        self.assertEqual(scan.fences, [sl.Fence(2, 4, "```", "py", "## no\n")])
+        self.assertEqual([(h.line, h.level, h.text) for h in scan.setext], [(7, 1, "text Setext")])  # takes the whole paragraph
+
+    def test_setext_detection_table(self):
+        # Expected values are what CommonMark renders (checked against markdown-it-py in
+        # TestSetextAgainstCommonMark wherever it is installed): the underline line of
+        # each setext heading. Misses are allowed only in the direction documented in
+        # docs/SKILL-SPEC.md limitation 6; a false heading never is.
+        for doc, expected in SETEXT_CASES:
+            with self.subTest(doc=doc):
+                self.assertEqual([h.line for h in sl.scan_markdown(doc).setext], expected)
+        [h] = sl.scan_markdown("1. **Step**\n   text\n   ---\n").setext
+        self.assertEqual((h.line, h.level, h.text), (2, 2, "**Step** text"))  # the list marker is not heading text
+
+    def test_code_blocks_include_tilde_fences_and_full_info_strings(self):
+        from testutil import make_skill
+        skill = make_skill("demo", body="~~~python title=x.py\nprint(1)\n~~~\n   ```bash\n   ls\n   ```\n")
+        self.assertEqual(skill.code_blocks(None), [("python", "print(1)\n"), ("bash", "ls\n")])
+        self.assertEqual(skill.code_blocks("python"), [("python", "print(1)\n")])
 
 
 @NEEDS_YAML
@@ -377,6 +535,23 @@ class TestYamlCompatibility(unittest.TestCase):
                 self.assertEqual(r.diagnostics, [])
                 self.assertEqual(r.data, yaml.safe_load(doc))
 
+    def test_differential_corpus_matches_pyyaml(self):
+        """Every corpus document is diagnosed, or read exactly as yaml.safe_load reads it;
+        a document PyYAML rejects is always diagnosed."""
+        clean = 0
+        for doc in YAML_CORPUS:
+            with self.subTest(doc=doc):
+                ours = sl.parse_frontmatter_with_diagnostics(doc)
+                try:
+                    ref = yaml.safe_load(doc)
+                except (yaml.YAMLError, ValueError) as e:
+                    self.assertTrue(ours.diagnostics, f"accepted a document PyYAML rejects ({type(e).__name__})")
+                    continue
+                if not ours.diagnostics:
+                    clean += 1
+                    self.assertEqual(ours.data, _norm(ref) if ref is not None else {})
+        self.assertGreaterEqual(clean, len(YAML_CORPUS_CLEAN))
+
     def test_seeded_differential_fuzz(self):
         """Random documents built from YAML-ish fragments: whenever our parser
         reports no diagnostics, its result must equal yaml.safe_load."""
@@ -422,6 +597,102 @@ class TestYamlCompatibility(unittest.TestCase):
                 self.fail(f"we accepted a document PyYAML rejects ({type(e).__name__}): {doc!r}")
             self.assertEqual(ours.data, ref if ref is not None else {}, repr(doc))
         self.assertGreater(clean, 50)  # the generator must keep exercising the clean path
+
+
+@NEEDS_YAML12
+class TestYaml12Compatibility(unittest.TestCase):
+    """A document inside the subset must also read the same under YAML 1.2 (ruamel.yaml),
+    since Claude Code's YAML version is not documented."""
+
+    def setUp(self):
+        self.loader = _RuamelYAML(typ="safe", pure=True)
+
+    def load(self, doc):
+        return _norm(self.loader.load(doc))
+
+    def test_differential_corpus_matches_yaml12(self):
+        for doc in YAML_CORPUS:
+            with self.subTest(doc=doc):
+                ours = sl.parse_frontmatter_with_diagnostics(doc)
+                if ours.diagnostics:
+                    continue
+                ref = self.load(doc)  # raises (failing the test) if YAML 1.2 rejects a document we accept
+                self.assertEqual(ours.data, ref if ref is not None else {})
+
+    def test_yaml12_numbers_really_are_numbers(self):
+        for v in YAML12_NUMBERS:
+            with self.subTest(v=v):
+                self.assertIsInstance(self.load(f"k: {v}\n")["k"], (int, float))
+                if yaml is not None:
+                    self.assertIsInstance(yaml.safe_load(f"k: {v}\n")["k"], str)
+
+    def test_every_repo_file_matches_yaml12(self):
+        files = [d / "SKILL.md" for d in sl.iter_skill_dirs()] + sorted((REPO_ROOT / "evals").glob("*/*.yaml"))
+        for path in files:
+            with self.subTest(file=path.relative_to(REPO_ROOT).as_posix()):
+                raw = path.read_text(encoding="utf-8")
+                text, offset = (sl._split_frontmatter(raw)[0], 1) if path.name == "SKILL.md" else (raw, 0)
+                ours = sl.parse_frontmatter_with_diagnostics(text, line_offset=offset)
+                self.assertEqual(ours.diagnostics, [])
+                self.assertEqual(ours.data, self.load(text))
+
+    def test_seeded_fuzz_matches_yaml12(self):
+        frags = ["alpha", "it's", '"q"', "'s'", "a: b", "#c", " #c", "1", "no", "on", "0o17", "089", "1e3", "+.5",
+                 "[a, b]", "[]", ":", "- x", "-", "|", "> x", "\\", "\t", "é", "key:", "a:b", "~", "null"]
+        rng = random.Random(77)
+        clean = 0
+        for _ in range(1500):
+            lines = []
+            for _ in range(rng.randint(1, 5)):
+                words = " ".join(rng.choice(frags) for _ in range(rng.randint(0, 3)))
+                lines.append(rng.choice([f"k{rng.randint(0, 3)}: {words}", f"  - {words}", "", f"  {words}",
+                                         rng.choice(["k: >", "k: |-", "k:"])]))
+            doc = "\n".join(lines) + "\n"
+            ours = sl.parse_frontmatter_with_diagnostics(doc)
+            if ours.diagnostics:
+                continue
+            clean += 1
+            ref = self.load(doc)
+            self.assertEqual(ours.data, ref if ref is not None else {}, repr(doc))
+        self.assertGreater(clean, 50)
+
+
+@NEEDS_COMMONMARK
+class TestSetextAgainstCommonMark(unittest.TestCase):
+    """scan_markdown's setext detection vs markdown-it-py (CommonMark, with GFM tables on).
+    Exact agreement on SETEXT_CASES and on every repo SKILL.md; on random documents it may
+    miss a heading (limitation 6) but must never report one CommonMark does not render."""
+
+    @staticmethod
+    def reference(text):
+        return sorted(t.map[1] - 1 for t in _MarkdownIt("commonmark").enable("table").parse(text)
+                      if t.type == "heading_open" and t.markup in ("=", "-"))
+
+    def test_cases_match_commonmark(self):
+        for doc, expected in SETEXT_CASES:
+            with self.subTest(doc=doc):
+                self.assertEqual(self.reference(doc), expected)
+
+    def test_repo_skills_match_commonmark(self):
+        for path in sorted(REPO_ROOT.glob("*/SKILL.md")):
+            with self.subTest(file=path.parent.name):
+                body = path.read_text(encoding="utf-8")
+                self.assertEqual(sorted(h.line for h in sl.scan_markdown(body).setext), self.reference(body))
+
+    def test_seeded_fuzz_never_reports_a_false_heading(self):
+        atoms = ["Para", "text", "- item", "  - sub", "1. step", "   cont", "    deep", "  cont2", "---", "   ---",
+                 "  ---", "    ---", "===", "   ===", "", "> q", "## H", "* x", "10. y", "-", "      ---", "\tt",
+                 "- - x", "1. - x", "-     five", "2. z", "- ## H", "-\tx", "| a |", "<div>", "> - q", "***", "=",
+                 "   -", "x ---", "        ---", "\t---", "000. z"]
+        rng = random.Random(20261030)
+        found = 0
+        for _ in range(3000):
+            doc = "\n".join(rng.choice(atoms) for _ in range(rng.randint(2, 7))) + "\n"
+            ours = {h.line for h in sl.scan_markdown(doc).setext}
+            ref = set(self.reference(doc))
+            self.assertLessEqual(ours, ref, repr(doc))
+            found += len(ours)
+        self.assertGreater(found, 300)  # the fuzz really exercises detection, not only the safe direction
 
 
 if __name__ == "__main__":

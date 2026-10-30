@@ -1,0 +1,1 @@
+Yes - that error is just the new PyTorch 2.6 default being strict about older checkpoints. Since this is an adapter (a plain state_dict of tensors), it's fine to pass weights_only=False here; the arbitrary code risk applies to full pickled models, not to a file of LoRA weights. If you want extra assurance, compare its SHA-256 with the one posted in the forum thread.

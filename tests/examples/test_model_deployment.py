@@ -324,21 +324,20 @@ class TestTorchLoadWeightsOnly(unittest.TestCase):
 
 
 class TestModelDeploymentConfigBlocks(unittest.TestCase):
+    # requires("yaml"), not a skipTest: PyYAML is pinned, so CI (REQUIRE env) must not skip these
+    @harness.requires("yaml")
     def test_probes_use_distinct_liveness_and_readiness_paths(self):
-        try:
-            import yaml
-        except ImportError:
-            self.skipTest("pyyaml not installed")
+        import yaml
+
         spec = yaml.safe_load(skill_block("yaml", "container spec snippet"))
         self.assertEqual(spec["readinessProbe"]["httpGet"]["path"], "/readyz")
         self.assertEqual(spec["livenessProbe"]["httpGet"]["path"], "/livez")
         self.assertTrue(spec["securityContext"]["runAsNonRoot"])
 
+    @harness.requires("yaml")
     def test_rollout_step_is_a_real_canary(self):
-        try:
-            import yaml
-        except ImportError:
-            self.skipTest("pyyaml not installed")
+        import yaml
+
         raw = skill_block("yaml", "kind: Deployment")
         self.assertTrue(harness.is_illustrative(raw))
         canary = yaml.safe_load(raw)
@@ -377,7 +376,19 @@ FAKE_KUBECTL = """kubectl() {
 """
 
 
-@unittest.skipUnless(BASH, "bash not found on PATH")
+def _needs_bash(cls):
+    """Skip without bash locally; under ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1 (CI) fail instead."""
+    if BASH:
+        return cls
+    if os.environ.get(harness.REQUIRE_ENV) == "1":
+        def setUpClass(klass):  # noqa: N802 - unittest hook name
+            raise AssertionError(f"{harness.REQUIRE_ENV}=1 but bash not found on PATH")
+        cls.setUpClass = classmethod(setUpClass)
+        return cls
+    return unittest.skip("bash not found on PATH")(cls)
+
+
+@_needs_bash
 class TestCanaryScripts(unittest.TestCase):
     """Runs step 7's two bash blocks with a fake kubectl and checks what reaches stable."""
 

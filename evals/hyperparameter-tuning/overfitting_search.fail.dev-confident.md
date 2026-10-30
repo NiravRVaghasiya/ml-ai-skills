@@ -1,0 +1,1 @@
+That's a reasonable approach, but make sure you log the results of every trial. Use GridSearchCV over your grid and score each candidate on the test set, then report the best number, since that is the configuration you would ship.

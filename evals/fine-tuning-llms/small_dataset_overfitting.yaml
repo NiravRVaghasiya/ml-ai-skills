@@ -17,7 +17,7 @@ must_include:
   - '\b(held-?out|hold-?out|validation (split|set|examples)|eval(uation)? (split|set)|dev set|cross-?validat\w+|leave-one-out)\b'
 must_not_include:
   - '\b40 (labeled |labelled )?examples (is|are|should be|will be) (plenty|enough|sufficient|fine|ok|okay)\b'
-  - '\boverfit\w*\b[^.]{0,20}\b(isn''t|is not|won''t be|will not be|is rarely|is never) (really |much |a big |an? )?(concern|issue|problem|risk)\b'
+  - '\boverfit\w*\b[^.]{0,20}\b(isn''t|is not|won''t be|will not be|is rarely|is never) ((really|much|that|too|a|an|big|major|serious|real) ){0,3}(concern|issue|problem|risk)\b(?!\s(you|we|to|that|worth)\b)(?![^.]{0,40}\b(only if|unless|if)\b[^.]{0,30}\b(few-?shot|prompting|in-?context|retrieval|rag|instead of fine-?tun\w*|more (labeled |labelled )?(data|examples))\b)'
   - '(?<!n''t )(?<!not )(?<!never )\bskip (the )?(validation|held-?out|hold-?out|eval)'
 executable_tests:
   - 'examples.test_fine_tuning_llms.TestFineTuningLLMsExamples.test_dataset_keeps_input_field_and_holds_out_eval_split'
@@ -32,3 +32,10 @@ limitations:
 notes: >
   Tests whether the skill applies dataset-size judgment conditionally instead of
   running the same LoRA recipe regardless of scale.
+  The overfitting-dismissal pattern was rewritten on 2026-10-29. It allowed one qualifier, so it
+  missed "overfitting isn't really a concern" (fail.dev-confident), and it failed the correct
+  "Overfitting is not a risk you can ignore" (pass.dev-borderline).
+  Review fix (same day): the if/unless guard skipped any condition, so it missed "overfitting
+  won't be a big issue unless you train for 20 epochs" (fail.dev-borderline). Only a condition
+  that leaves fine-tuning on 40 examples (few-shot, prompting, in-context, retrieval, more data)
+  exempts it now.

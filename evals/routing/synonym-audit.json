@@ -1,0 +1,770 @@
+{
+  "description": "Audit of the scripts/router.py synonym map (KNOWN-ISSUES #9). A key stays only if skill text uses it for the canonical concept. tests/test_router_synonym_audit.py recomputes the rule against the current SKILL.md files and checks that SYNONYMS equals 'kept'.",
+  "date": "2026-10-29",
+  "method": {
+    "passages": "A skill's metadata (description before 'NOT for', capabilities, display name, slug) is one passage; each paragraph, list item and numbered step of the body is another. Fenced code, HTML comments, link targets, URLs and the References section are left out. Text is tokenised and Porter-stemmed like the router's input.",
+    "same-passage": "some passage contains the key phrase (contiguous stems) and at least one canonical stem that is not part of the key. A one-word key must also be used that way in at least 50% of all passages that contain it (it is not mostly another sense in this library).",
+    "variant": "spelling or inflection of a kept key, or of a metadata word, with the same canonical words",
+    "history": "Round 1 (2026-10-29) kept any key that occurred anywhere in a skill's text, code included; review found that this does not show equivalence ('shift', 'bot', 'assistant', 'nan'). Round 2 applies the rule above to all 77 original keys.",
+    "dev_queries": "number of dev-split queries containing the key; informational, never used in the decision. Test-split queries were not read."
+  },
+  "kept": [
+    {
+      "key": "retrieval augmented",
+      "value": "rag retrieval",
+      "basis": "same-passage",
+      "skills": [
+        "rag-evaluation",
+        "rag-pipeline"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 0
+    },
+    {
+      "key": "vector store",
+      "value": "vector database",
+      "basis": "same-passage",
+      "skills": [
+        "agents-and-tools",
+        "rag-pipeline"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 0
+    },
+    {
+      "key": "function calling",
+      "value": "tool calling",
+      "basis": "same-passage",
+      "skills": [
+        "agents-and-tools",
+        "prompt-engineering"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 3,
+      "dev_queries": 0
+    },
+    {
+      "key": "tool use",
+      "value": "tool calling",
+      "basis": "same-passage",
+      "skills": [
+        "agents-and-tools",
+        "prompt-engineering"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 1
+    },
+    {
+      "key": "injected instructions",
+      "value": "prompt injection",
+      "basis": "same-passage",
+      "skills": [
+        "ai-ml-security",
+        "rag-pipeline"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 3,
+      "dev_queries": 0
+    },
+    {
+      "key": "ignore previous instructions",
+      "value": "prompt injection",
+      "basis": "same-passage",
+      "skills": [
+        "ai-ml-security"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "ignore all previous instructions",
+      "value": "prompt injection",
+      "basis": "variant",
+      "variant_of": "ignore previous instructions",
+      "dev_queries": 1
+    },
+    {
+      "key": "grade",
+      "value": "evaluate score",
+      "basis": "same-passage",
+      "skills": [
+        "agent-evaluation",
+        "llm-evaluation"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 2,
+      "dev_queries": 1
+    },
+    {
+      "key": "grading",
+      "value": "evaluate score",
+      "basis": "same-passage",
+      "skills": [
+        "agent-evaluation",
+        "llm-evaluation"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 2,
+      "dev_queries": 1
+    },
+    {
+      "key": "redact",
+      "value": "remove",
+      "basis": "same-passage",
+      "skills": [
+        "data-privacy"
+      ],
+      "passages_with_key": 2,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "folds",
+      "value": "cross validation",
+      "basis": "same-passage",
+      "skills": [
+        "data-preprocessing",
+        "feature-engineering",
+        "hyperparameter-tuning",
+        "model-evaluation",
+        "supervised-learning"
+      ],
+      "passages_with_key": 20,
+      "passages_with_concept": 10,
+      "dev_queries": 1
+    },
+    {
+      "key": "a/b",
+      "value": "ab test",
+      "basis": "same-passage",
+      "skills": [
+        "statistics-for-ml"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 4,
+      "dev_queries": 1
+    },
+    {
+      "key": "fp16",
+      "value": "mixed precision",
+      "basis": "same-passage",
+      "skills": [
+        "training-deep-models"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 0
+    },
+    {
+      "key": "bf16",
+      "value": "mixed precision",
+      "basis": "same-passage",
+      "skills": [
+        "training-deep-models"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "step size",
+      "value": "learning rate",
+      "basis": "same-passage",
+      "skills": [
+        "neural-net-fundamentals",
+        "reinforcement-learning"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 2
+    },
+    {
+      "key": "warm up",
+      "value": "warmup",
+      "basis": "variant",
+      "variant_of": "warmup",
+      "dev_queries": 0
+    },
+    {
+      "key": "neural net",
+      "value": "neural network",
+      "basis": "same-passage",
+      "skills": [
+        "neural-net-fundamentals",
+        "rnn-sequence"
+      ],
+      "passages_with_key": 5,
+      "passages_with_concept": 2,
+      "dev_queries": 0
+    },
+    {
+      "key": "trial and error",
+      "value": "reinforcement reward",
+      "basis": "same-passage",
+      "skills": [
+        "reinforcement-learning"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 1
+    },
+    {
+      "key": "http",
+      "value": "api endpoint",
+      "basis": "same-passage",
+      "skills": [
+        "model-deployment"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 1
+    },
+    {
+      "key": "docker",
+      "value": "container",
+      "basis": "same-passage",
+      "skills": [
+        "model-deployment"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 2
+    },
+    {
+      "key": "shift",
+      "value": "drift",
+      "basis": "same-passage",
+      "skills": [
+        "ml-monitoring"
+      ],
+      "passages_with_key": 13,
+      "passages_with_concept": 7,
+      "dev_queries": 1
+    },
+    {
+      "key": "pull request",
+      "value": "ci",
+      "basis": "same-passage",
+      "skills": [
+        "ci-cd-for-ml"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 1
+    },
+    {
+      "key": "github actions",
+      "value": "ci",
+      "basis": "same-passage",
+      "skills": [
+        "ci-cd-for-ml"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 2
+    },
+    {
+      "key": "personal data",
+      "value": "pii",
+      "basis": "same-passage",
+      "skills": [
+        "data-privacy"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 2,
+      "dev_queries": 1
+    },
+    {
+      "key": "personal information",
+      "value": "pii",
+      "basis": "same-passage",
+      "skills": [
+        "data-privacy"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "disparity",
+      "value": "fairness",
+      "basis": "same-passage",
+      "skills": [
+        "ai-ethics-fairness"
+      ],
+      "passages_with_key": 3,
+      "passages_with_concept": 2,
+      "dev_queries": 1
+    },
+    {
+      "key": "protected attribute",
+      "value": "fairness",
+      "basis": "same-passage",
+      "skills": [
+        "ai-ethics-fairness"
+      ],
+      "passages_with_key": 2,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "bounding box",
+      "value": "object detection",
+      "basis": "same-passage",
+      "skills": [
+        "computer-vision"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    },
+    {
+      "key": "bounding boxes",
+      "value": "object detection",
+      "basis": "same-passage",
+      "skills": [
+        "computer-vision"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 1,
+      "dev_queries": 0
+    }
+  ],
+  "removed": [
+    {
+      "key": "language model",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "typ-046",
+        "par-020"
+      ],
+      "passages_with_key": 2,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "chatbot",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "par-021",
+        "amb-003",
+        "mul-010",
+        "con-003"
+      ],
+      "passages_with_key": 0,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "chat bot",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words; variant of 'chatbot', which is not kept (or maps to other words)",
+      "dev_ids": [],
+      "passages_with_key": 0,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "bot",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "par-018",
+        "par-023",
+        "par-040"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "gpt",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [],
+      "passages_with_key": 2,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "assistant",
+      "value": "llm",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "par-038",
+        "con-029",
+        "non-027"
+      ],
+      "passages_with_key": 1,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "jailbreak",
+      "value": "prompt injection",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [],
+      "passages_with_key": 1,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "grader",
+      "value": "evaluate judge",
+      "reason": "no prose passage or metadata uses it together with the canonical words; variant of 'grade', which is not kept (or maps to other words)",
+      "dev_ids": [
+        "par-021"
+      ],
+      "passages_with_key": 0,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "nan",
+      "value": "missing",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "par-047",
+        "con-023"
+      ],
+      "passages_with_key": 6,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "strip",
+      "value": "remove",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "mul-010"
+      ],
+      "passages_with_key": 4,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "scrub",
+      "value": "remove",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [],
+      "passages_with_key": 2,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "held out",
+      "value": "validation",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [
+        "par-005"
+      ],
+      "passages_with_key": 8,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "holdout",
+      "value": "validation",
+      "reason": "one-word key used in the canonical sense in 1 of 3 passages (< 50%): the library mostly uses it in another sense",
+      "dev_ids": [],
+      "passages_with_key": 3,
+      "passages_with_concept": 1,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "machine learning",
+      "value": "ml",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [],
+      "passages_with_key": 0,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "by chance",
+      "value": "statistically significant",
+      "reason": "no prose passage or metadata uses it together with the canonical words",
+      "dev_ids": [],
+      "passages_with_key": 1,
+      "passages_with_concept": 0,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "shrink",
+      "value": "smaller",
+      "reason": "one-word key used in the canonical sense in 1 of 10 passages (< 50%): the library mostly uses it in another sense",
+      "dev_ids": [
+        "par-034"
+      ],
+      "passages_with_key": 10,
+      "passages_with_concept": 1,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "attribution",
+      "value": "explain feature importance",
+      "reason": "one-word key used in the canonical sense in 4 of 11 passages (< 50%): the library mostly uses it in another sense",
+      "dev_ids": [],
+      "passages_with_key": 11,
+      "passages_with_concept": 4,
+      "audit": "round 2 (2026-10-29): same-passage rule"
+    },
+    {
+      "key": "look up",
+      "value": "retrieval",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "lookup",
+      "value": "retrieval",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "vector db",
+      "value": "vector database",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "hidden instructions",
+      "value": "prompt injection",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "hide instructions",
+      "value": "prompt injection",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-038"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "make things up",
+      "value": "hallucination",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-018"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "made up",
+      "value": "hallucination",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "blank",
+      "value": "missing",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-001"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "blanks",
+      "value": "missing",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-001"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "null",
+      "value": "missing",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "nulls",
+      "value": "missing",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "labelled",
+      "value": "supervised label",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "typ-041",
+        "par-001",
+        "par-003"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "labeled",
+      "value": "supervised label",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "typ-041",
+        "par-001",
+        "par-003"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "spreadsheet",
+      "value": "tabular",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-001"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "csv",
+      "value": "tabular",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "typ-001",
+        "typ-041",
+        "con-024"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "excel",
+      "value": "tabular",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "random chance",
+      "value": "statistically significant",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "half precision",
+      "value": "mixed precision",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-015"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "ramp up",
+      "value": "warmup",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "distribution shift",
+      "value": "drift",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "compress",
+      "value": "smaller",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "personally identifiable",
+      "value": "pii",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "equity",
+      "value": "fairness",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-035"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "discrimination",
+      "value": "fairness bias",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "ethnic",
+      "value": "fairness group",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-035"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "gender",
+      "value": "fairness group",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "typ-035"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "race",
+      "value": "fairness group",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "contributions",
+      "value": "explain feature importance",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-036"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "pixel by pixel",
+      "value": "segmentation",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [
+        "par-025"
+      ],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "per pixel",
+      "value": "segmentation",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    },
+    {
+      "key": "pixel level",
+      "value": "segmentation",
+      "reason": "no SKILL.md uses the phrase together with the canonical words, and it is not a spelling variant of a key that is backed",
+      "dev_ids": [],
+      "audit": "round 1 (2026-10-29): the phrase occurs in no skill text"
+    }
+  ]
+}

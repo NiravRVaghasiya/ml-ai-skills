@@ -45,6 +45,7 @@ limitations:
   - 'Fixtures labelled adversarial / blind are verbatim texts from the independent review''s stress test. They were written after reading the patterns (adversarial probes, not a random or blind sample of model output), and the patterns were then tuned until they grade correctly, so they are regression fixtures and no longer measure held-out discrimination.'
 notes: >
   See pytorch-patterns/SKILL.md workflow step 5 and Gotchas, "torch.save(model) instead of
-  torch.save(model.state_dict())". The weights_only default flip in PyTorch 2.6 is recorded in
-  the skill's version_constraints as a model-knowledge estimate. The security angle of loading
+  torch.save(model.state_dict())". The weights_only default flip in PyTorch 2.6 is documented in
+  the skill's version_constraints from the PyTorch 2.6.0 release notes (docs/claims.json
+  torch-load-weights-only-added-1-13-default-2-6). The security angle of loading
   third-party pickles is covered by ai-ml-security/pickle_supply_chain.

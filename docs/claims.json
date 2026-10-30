@@ -21,28 +21,28 @@
       "skill": null,
       "claim": "sklearn.cross_validation is not importable in current scikit-learn (backs the 'sklearn-cross-validation' known_stale_patterns entry)",
       "verification": "runtime-test",
-      "evidence": "tests/test_check_freshness.py::TestKnownStaleApisStillGone::test_sklearn_cross_validation_gone (skips when scikit-learn is not installed)",
+      "evidence": "tests/test_check_freshness.py::TestKnownStaleApisStillGone::test_sklearn_cross_validation_gone (skips when scikit-learn is not installed); re-run on 2026-10-29 with scikit-learn 1.9.0 (global Python 3.13.2, Windows), OK",
       "source_url": "https://scikit-learn.org/stable/whats_new/v0.18.html",
       "source_accessed": "2026-10-27",
       "applies_to": {"package": "scikit-learn", "api": "sklearn.cross_validation", "version": "1.9.0"},
       "reviewer": null,
       "status": "current",
-      "last_reviewed": "2026-10-27",
-      "notes": "Only absence in the tested version is runtime-verified. The v0.18 release notes (read 2026-10-27) say the new sklearn.model_selection 'groups together the functionalities of formerly sklearn.cross_validation'. The v0.20 notes do not mention cross_validation, so the release that removed it is not verified and the pattern message does not name one."
+      "last_reviewed": "2026-10-29",
+      "notes": "Only absence in the tested version is runtime-verified. The v0.18 release notes (read 2026-10-27) deprecate sklearn.cross_validation in favour of sklearn.model_selection. The removal release was read from source, not from release notes (they do not mention it): sklearn/cross_validation.py exists at git tag 0.19.2 and is absent at tag 0.20.0 (raw.githubusercontent.com, read 2026-10-29 by an agent), so it was removed in 0.20."
     },
     {
       "id": "sklearn-preprocessing-imputer-not-importable",
       "skill": null,
       "claim": "sklearn.preprocessing has no Imputer and sklearn.impute.SimpleImputer exists in current scikit-learn (backs the 'sklearn-preprocessing-imputer' known_stale_patterns entry)",
       "verification": "runtime-test",
-      "evidence": "tests/test_check_freshness.py::TestKnownStaleApisStillGone::test_sklearn_preprocessing_imputer_gone (skips when scikit-learn is not installed)",
+      "evidence": "tests/test_check_freshness.py::TestKnownStaleApisStillGone::test_sklearn_preprocessing_imputer_gone (skips when scikit-learn is not installed); re-run on 2026-10-29 with scikit-learn 1.9.0 (global Python 3.13.2, Windows), OK",
       "source_url": "https://scikit-learn.org/stable/whats_new/v0.20.html",
       "source_accessed": "2026-10-27",
       "applies_to": {"package": "scikit-learn", "api": "sklearn.preprocessing.Imputer", "version": "1.9.0"},
       "reviewer": null,
       "status": "current",
-      "last_reviewed": "2026-10-27",
-      "notes": "The v0.20 release notes (read 2026-10-27) say sklearn.impute is a 'New module, adopting preprocessing.Imputer as impute.SimpleImputer'. The release in which preprocessing.Imputer was finally removed is not verified."
+      "last_reviewed": "2026-10-29",
+      "notes": "The v0.20 release notes (read 2026-10-27 and 2026-10-29) deprecate preprocessing.Imputer and say sklearn.impute is a 'New module, adopting preprocessing.Imputer as impute.SimpleImputer'. The removal release was read from source: at git tag 0.21.3 sklearn/preprocessing/imputation.py defines Imputer with @deprecated('... will be removed in 0.22'), and at tag 0.22 sklearn/preprocessing/__init__.py no longer imports or exports it (read 2026-10-29 by an agent)."
     },
     {
       "id": "sklearn-externals-joblib-not-importable",
@@ -75,30 +75,30 @@
     {
       "id": "tensorflow-2-removed-contrib",
       "skill": null,
-      "claim": "tf.contrib does not exist in TensorFlow 2.x (backs the 'tensorflow-contrib' known_stale_patterns entry)",
-      "verification": "unverified",
-      "evidence": "model knowledge at authoring time; tensorflow is not installed in any environment this repo's tests run in",
-      "source_url": null,
-      "source_accessed": null,
-      "applies_to": {"package": "tensorflow", "api": "tensorflow.contrib", "version": ">=2.0"},
+      "claim": "tf.contrib does not exist in TensorFlow 2.x: tensorflow 2.21.0 has no tf.contrib attribute and 'import tensorflow.contrib' raises ImportError (backs the 'tensorflow-contrib' known_stale_patterns entry)",
+      "verification": "runtime-test",
+      "evidence": "tests/test_check_freshness.py::TestTensorflowContribGone::test_tf_contrib_not_importable; passed on 2026-10-29 (1 test, OK) in a scratch venv with tensorflow-cpu 2.21.0 from PyPI (PYTHONPATH=tests python -m unittest tests.test_check_freshness.TestTensorflowContribGone)",
+      "source_url": "https://github.com/tensorflow/tensorflow/releases/tag/v2.0.0",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": "tensorflow-cpu", "api": "tensorflow.contrib", "version": "2.21.0"},
       "reviewer": null,
-      "status": "unverified",
-      "last_reviewed": "2026-10-27",
-      "notes": null
+      "status": "current",
+      "last_reviewed": "2026-10-29",
+      "notes": "The TensorFlow 2.0.0 release notes (GitHub release v2.0.0, published 2019-09-30, read 2026-10-29) say 'tf.contrib has been deprecated, and functionality has been either migrated to the core TensorFlow API, to an ecosystem project such as tensorflow/addons or tensorflow/io, or removed entirely.' Only tensorflow-cpu 2.21.0 was run (scratch venv, Windows 11, Python 3.13.2); no CI job installs TensorFlow, so the test skips there. Absence in 2.0-2.20 is from the release notes, not executed. So the STALE verdict this claim backs rests on one local run that no CI job repeats; re-run the test in a TensorFlow venv when refreshing last_reviewed. A second check, tests/integration/test_tensorflow.py::TestKerasSamePadding::test_tf_contrib_does_not_exist, passed 2026-10-29 against tensorflow 2.21.0 / keras 3.15.1 (CPU, Windows 11, CPython 3.13.2, opt-in ML_AI_SKILLS_INTEGRATION_TF=1, not CI)."
     },
     {
       "id": "openai-text-davinci-retired",
       "skill": null,
       "claim": "OpenAI text-davinci-* completion models are retired (backs the 'openai-text-davinci' known_stale_patterns entry)",
       "verification": "unverified",
-      "evidence": "model knowledge at authoring time",
+      "evidence": "model knowledge at authoring time. Re-check attempted 2026-10-29 by an agent, not a person: platform.openai.com/docs/deprecations and openai.com failed DNS from the test machine, the WebFetch tool refused both OpenAI doc domains, and web.archive.org answered 403/429 to urllib, so no primary statement of the retirement was read",
       "source_url": null,
       "source_accessed": null,
       "applies_to": {"package": null, "api": "OpenAI model ids text-davinci-*", "version": null},
       "reviewer": null,
       "status": "unverified",
-      "last_reviewed": "2026-10-27",
-      "notes": "Needs human-review against OpenAI's deprecations page; record the URL and access date when done."
+      "last_reviewed": "2026-10-29",
+      "notes": "Indirect hint only, not proof of retirement: openai-python main src/openai/types/completion_create_params.py (read on GitHub 2026-10-29) lists only gpt-3.5-turbo-instruct, davinci-002 and babbage-002 as known completion model ids. Because the claim is unverified, check_freshness.py reports matches of the 'openai-text-davinci' STALE pattern as REVIEW_DUE (not failing CI). Needs human-review against OpenAI's deprecations page; record the URL and access date when done."
     },
     {
       "id": "torch-load-weights-only-refuses-reduce-payload",
@@ -112,7 +112,7 @@
       "reviewer": null,
       "status": "current",
       "last_reviewed": "2026-10-28",
-      "notes": "Only torch 2.13.0+cpu was run. The release that first made weights_only=True the default, and CVE-2025-32434 (a weights_only=True bypass in <=2.5.1), come from the torch error message and NVD text read in Phase 1, not from running older releases."
+      "notes": "Only torch 2.13.0+cpu was run. When the option and the default changed comes from release notes read on 2026-10-29, not from running older releases: see claim torch-load-weights-only-added-1-13-default-2-6. CVE-2025-32434 (a weights_only=True bypass in <=2.5.1) comes from the NVD text read in Phase 1."
     },
     {
       "id": "anthropic-sdk-rejects-temperature",
@@ -245,14 +245,14 @@
       "skill": "experiment-tracking",
       "claim": "mlflow.search_runs without a status filter returns FAILED runs and can rank a crashed run first by metric",
       "verification": "runtime-test",
-      "evidence": "tests/examples/test_experiment_tracking.py::TestExperimentTrackingSkill::test_best_run_ignores_failed_runs; passed in the example-venv run of tests/examples on 2026-10-28 (327 tests, OK; ML_AI_SKILLS_SLOW_EXAMPLES=1, Windows 11, Python 3.13.2)",
+      "evidence": "tests/examples/test_experiment_tracking.py::TestExperimentTrackingSkill::test_best_run_ignores_failed_runs; passed 2026-10-29 against mlflow 3.17.2 in two runs: (1) a scratch venv with the requirements-examples.txt scikit-learn/pandas/numpy/matplotlib/pytest/SQLAlchemy/pyarrow pins, Windows 11, CPython 3.13.2, ML_AI_SKILLS_SLOW_EXAMPLES=1 ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1: 22 tests with test_ci_cd_for_ml, OK, run twice independently; (2) WSL Ubuntu 26.04, CPython 3.13.18, installed with constraints/examples-linux-cp313.txt (not a GitHub runner). Also passes on mlflow 3.16.1 (global Python 3.13.2, Windows, 2026-10-29)",
       "source_url": null,
       "source_accessed": null,
-      "applies_to": {"package": "mlflow", "api": "mlflow.search_runs", "version": "3.16.1"},
+      "applies_to": {"package": "mlflow", "api": "mlflow.search_runs", "version": "3.17.2"},
       "reviewer": null,
       "status": "current",
-      "last_reviewed": "2026-10-28",
-      "notes": "Run against mlflow 3.16.1 (the local example venv). requirements-examples.txt now pins 3.17.2 because of three published advisories; test_experiment_tracking also passed 7/7 against mlflow 3.17.2 in a separate venv on 2026-10-28. The class is opt-in: it skips unless ML_AI_SKILLS_SLOW_EXAMPLES=1 or ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1."
+      "last_reviewed": "2026-10-29",
+      "notes": "requirements-examples.txt pins mlflow 3.17.2 because of three published advisories; the two 3.17.2 runs in evidence were made by agents on 2026-10-29 (the examples and ci-deps workstreams), on Windows and WSL, not on a GitHub Actions runner. On 3.16.1 the same test passes, while the module's test_serialization_defaults_match_the_gotcha fails there, as docs/KNOWN-ISSUES.md #8 expects. The class is opt-in: it skips unless ML_AI_SKILLS_SLOW_EXAMPLES=1 or ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1."
     },
     {
       "id": "mlflow-sklearn-log-model-default-resolves-to-skops",
@@ -365,6 +365,154 @@
       "status": "current",
       "last_reviewed": "2026-10-28",
       "notes": "Parity is with PyYAML (YAML 1.1) only; Claude Code's own parser may differ in corners (docs/SKILL-SPEC.md known limitation 5)."
+    },
+    {
+      "id": "torch-load-weights-only-added-1-13-default-2-6",
+      "skill": "pytorch-patterns",
+      "claim": "torch.load gained the weights_only option in PyTorch 1.13, and PyTorch 2.6.0 changed its default to weights_only=True",
+      "verification": "unverified",
+      "evidence": "PyTorch GitHub release notes: v1.13.0 ('Added weights_only option to torch.load that restricts load to state_dict only', #86812), v2.4.0 (warning when weights_only is not specified), v2.6.0 ('Flip default torch.load to weights_only', 'flipped torch.load to use weights_only=True by default'), read through api.github.com",
+      "source_url": "https://github.com/pytorch/pytorch/releases/tag/v2.6.0",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": "torch", "api": "torch.load(weights_only=...)", "version": ">=1.13 (option), >=2.6 (default True)"},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). Also relied on by ai-ml-security and model-deployment. Releases before 2.13.0 were not executed."
+    },
+    {
+      "id": "dqn-target-network-added-in-2015-nature-version",
+      "skill": "reinforcement-learning",
+      "claim": "The 2013 arXiv DQN paper (1312.5602) uses experience replay, citing Lin 1993, and computes targets with the previous iteration's parameters; the separate target network cloned every C updates appears in the 2015 Nature paper",
+      "verification": "unverified",
+      "evidence": "arXiv 1312.5602v1 PDF text: 'experience replay mechanism [13]', ref [13] Long-Ji Lin 1993; 'The parameters from the previous iteration θi−1 are held fixed when optimising the loss'; no target-network clone. Nature 518:529-533 text (DeepMind-hosted PDF storage.googleapis.com/deepmind-media/dqn/DQNNaturePaper.pdf): 'every C updates we clone the network Q to obtain a target network'. Nature DOI metadata from api.crossref.org",
+      "source_url": "https://arxiv.org/abs/1312.5602",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": null, "api": "Mnih et al. 2013 (arXiv) and 2015 (Nature) DQN papers", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). nature.com itself served a bot challenge to urllib."
+    },
+    {
+      "id": "golle-2006-zip-dob-gender-63-percent",
+      "skill": "data-privacy",
+      "claim": "Golle (WPES 2006) found about 63% of the US population (2000 census) uniquely identifiable by {gender, 5-digit ZIP, full date of birth}, and 61% for 1990, against Sweeney's 87%",
+      "verification": "unverified",
+      "evidence": "Paper text from the Internet Archive copy of crypto.stanford.edu/~pgolle/papers/census.pdf (snapshot 2019-12-13): abstract '(63% of the US population)'; section text 'in 1990 (resp. 2000), only 61% (resp. 63%)'. Title, venue (WPES 2006, pp. 77-80) and DOI 10.1145/1179601.1179615 from api.crossref.org",
+      "source_url": "https://web.archive.org/web/20191213120808/http://crypto.stanford.edu/%7Epgolle/papers/census.pdf",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": null, "api": "Golle 2006, Revisiting the uniqueness of simple demographics in the US population", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). The author's host timed out; dl.acm.org answers 403 to scripted clients."
+    },
+    {
+      "id": "carlini-2021-training-data-extraction",
+      "skill": "data-privacy",
+      "claim": "Carlini et al. (arXiv 2012.07805, USENIX Security 2021) extracted hundreds of verbatim training sequences from GPT-2, including public names, phone numbers and email addresses, by black-box querying: sampling many generations from short or empty prompts and ranking them",
+      "verification": "unverified",
+      "evidence": "arXiv abstract ('extract hundreds of verbatim text sequences', '(public) personally identifiable information (names, phone numbers, and email addresses)') and PDF text ('initialize the language model with a one-token prompt', 'prompting LMs only with short prefixes')",
+      "source_url": "https://arxiv.org/abs/2012.07805",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": null, "api": "Carlini et al., Extracting Training Data from Large Language Models", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). The skill's earlier wording 'under targeted prompting' did not match the paper and was rewritten."
+    },
+    {
+      "id": "bagdasaryan-2019-dp-disparate-impact",
+      "skill": "data-privacy",
+      "claim": "Bagdasaryan et al. (NeurIPS 2019) show that DP-SGD reduces accuracy more for underrepresented classes and subgroups",
+      "verification": "unverified",
+      "evidence": "arXiv 1905.12101 abstract: 'accuracy of DP models drops much more for the underrepresented classes and subgroups'. Author lists differ by version: the NeurIPS 2019 proceedings page (citation_author meta tags) lists Eugene Bagdasaryan, Omid Poursaeed and Vitaly Shmatikov; the arXiv API lists Eugene Bagdasaryan and Vitaly Shmatikov",
+      "source_url": "https://proceedings.neurips.cc/paper/2019/hash/fc0de4e0396fff257ea362983c2dda5a-Abstract.html",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": null, "api": "Differential Privacy Has Disparate Impact on Model Accuracy", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). The skill cites 'Bagdasaryan et al., 2019', which is right for the three-author NeurIPS 2019 paper; an earlier edit on 2026-10-29 that changed it to 'Bagdasaryan & Shmatikov' from the two-author arXiv listing was reverted. Abstract read at https://arxiv.org/abs/1905.12101; authors read from the NeurIPS proceedings page and export.arxiv.org API on 2026-10-29. The 2018/2020 backdoor paper (arXiv 1807.00459) is not cited by any skill."
+    },
+    {
+      "id": "abadi-2016-dp-sgd",
+      "skill": "data-privacy",
+      "claim": "Abadi et al. (2016) DP-SGD clips each per-example gradient to an L2 norm bound C, adds Gaussian noise N(0, sigma^2 C^2 I) to the summed gradients, and tracks privacy cost with the moments accountant",
+      "verification": "unverified",
+      "evidence": "arXiv 1607.00133 PDF text: Algorithm 1 ('Clip gradient ... gt(xi)/max(1, ||gt(xi)||2/C)', 'Add noise ... N(0, σ2C2I)') and section 3 ('a differentially private stochastic gradient descent (SGD) algorithm, the moments accountant')",
+      "source_url": "https://arxiv.org/abs/1607.00133",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": null, "api": "Abadi et al., Deep Learning with Differential Privacy", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md)."
+    },
+    {
+      "id": "openai-structured-outputs-strict-true",
+      "skill": "prompt-engineering",
+      "claim": "OpenAI Structured Outputs is enabled with strict: true on a json_schema response format or on a function definition",
+      "verification": "unverified",
+      "evidence": "openai-python main: src/openai/types/shared_params/response_format_json_schema.py and function_definition.py both define 'strict: Optional[bool]' ('Whether to enable strict schema adherence'); OpenAI cookbook examples/Structured_Outputs_Intro.ipynb: 'Structured Outputs can be enabled by setting the parameter strict: true'",
+      "source_url": "https://github.com/openai/openai-cookbook/blob/main/examples/Structured_Outputs_Intro.ipynb",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": "openai", "api": "response_format json_schema.strict, function strict", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). platform.openai.com failed DNS locally, so OpenAI's API reference itself was not read."
+    },
+    {
+      "id": "anthropic-strict-tool-use",
+      "skill": "agents-and-tools",
+      "claim": "Anthropic tool definitions accept strict: true, which guarantees schema validation on tool names and inputs",
+      "verification": "unverified",
+      "evidence": "platform.claude.com/docs/en/build-with-claude/structured-outputs ('Strict tool use (strict: true): Guarantee schema validation on tool names and inputs') and anthropic-sdk-python main src/anthropic/types/tool_param.py ('strict: bool', 'When true, guarantees schema validation on tool names and inputs')",
+      "source_url": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "source_accessed": "2026-10-29",
+      "applies_to": {"package": "anthropic", "api": "tools[].strict", "version": null},
+      "reviewer": null,
+      "status": "unverified",
+      "last_reviewed": "2026-10-29",
+      "notes": "Read by an agent on 2026-10-29, not by a named person, so verification stays 'unverified' (docs/EVIDENCE.md). Also relied on by prompt-engineering."
+    },
+    {
+      "id": "pytorch-conv-same-padding-rejects-stride",
+      "skill": "cnn-vision",
+      "claim": "torch.nn.Conv2d(padding='same') raises ValueError when stride > 1, while 'same' keeps the size at stride 1 and 'valid' is P=0 in the output-size formula",
+      "verification": "runtime-test",
+      "evidence": "tests/examples/test_cnn_vision.py::TestPyTorchConvMatchesTheSkill::test_same_raises_for_strided_convs (with test_same_keeps_size_at_stride_1 and test_valid_is_zero_padding in the same class); passed 2026-10-30 against torch 2.13.0+cpu (global Python 3.13.2, Windows 11; PYTHONPATH=tests python -m unittest examples.test_cnn_vision: 5 tests, OK)",
+      "source_url": null,
+      "source_accessed": null,
+      "applies_to": {
+        "package": "torch",
+        "api": "torch.nn.Conv2d(padding='same')",
+        "version": "2.13.0"
+      },
+      "reviewer": null,
+      "status": "current",
+      "last_reviewed": "2026-10-30",
+      "notes": "Only torch 2.13.0+cpu was run. The test asserts a ValueError whose message mentions 'same'; the exact message text is not pinned."
+    },
+    {
+      "id": "keras-conv-same-padding-ceil",
+      "skill": "cnn-vision",
+      "claim": "TF/Keras Conv2D padding='same' gives an output size of ceil(H_in / S) at stride S, padding the extra row after the input (bottom/right)",
+      "verification": "runtime-test",
+      "evidence": "tests/integration/test_tensorflow.py::TestKerasSamePadding::test_same_is_ceil_of_h_over_s (and test_same_pads_the_extra_row_after_the_input); passed 2026-10-29 against tensorflow 2.21.0 / keras 3.15.1 (CPU, Windows 11, CPython 3.13.2, opt-in ML_AI_SKILLS_INTEGRATION_TF=1, not CI)",
+      "source_url": null,
+      "source_accessed": null,
+      "applies_to": {
+        "package": "tensorflow",
+        "api": "tf.keras.layers.Conv2D(padding='same')",
+        "version": "2.21.0"
+      },
+      "reviewer": null,
+      "status": "current",
+      "last_reviewed": "2026-10-29",
+      "notes": "One local run reported by the examples workstream; no CI job installs TensorFlow, so the class skips there. Strides > 1 combined with dilation_rate > 1 are skipped because Keras rejects them."
     }
   ]
 }

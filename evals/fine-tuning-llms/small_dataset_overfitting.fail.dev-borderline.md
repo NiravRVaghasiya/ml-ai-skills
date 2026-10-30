@@ -1,0 +1,1 @@
+40 examples is on the small side, so keep the run short: with LoRA, overfitting won't be a big issue unless you train for 20 epochs. Use rank 8, 3 epochs and a learning rate of 2e-4, and hold out a validation set of 5 examples to sanity-check the outputs. If the results look weak, try few-shot prompting as a comparison.

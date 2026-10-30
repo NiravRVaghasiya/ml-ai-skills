@@ -1,0 +1,3 @@
+Sure - this is a very common one. With no tracking URI configured, MLflow writes runs to a local store on your machine (an ./mlruns folder in older releases, a sqlite:///mlflow.db file in the working directory in recent 3.x releases), so your teammate's UI never sees them and nothing errors.
+
+Run a shared tracking server (mlflow server with a database backend and an artifact store everyone can reach, such as an S3 bucket the server proxies) and have everyone set MLFLOW_TRACKING_URI to it, or call mlflow.set_tracking_uri in the script. Artifacts need that shared storage too, not a local path. Runs you already logged locally will not appear on the server by themselves; re-run them against the server.

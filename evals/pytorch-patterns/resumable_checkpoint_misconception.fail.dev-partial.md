@@ -1,0 +1,1 @@
+Not quite: torch.save(model) pickles the module, so save a dict of state_dicts instead, with the epoch number so you can resume at epoch + 1, and write it to a temporary file and os.replace it over the old one. There's no need to save the optimizer state, though: AdamW rebuilds its moment estimates within a few hundred steps, so recreating it on resume costs almost nothing.

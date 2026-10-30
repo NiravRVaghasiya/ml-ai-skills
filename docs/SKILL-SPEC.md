@@ -64,6 +64,27 @@ page says claude.ai uploads, the Skills API and `package_skill.py` are stricter 
   https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview (fetched
   2026-10-27). The validator measures the description *as YAML parses it* (a folded
   `>` block keeps one trailing newline, which counts).
+- **What counts as an XML tag in `description`.** The wording is "Cannot contain XML tags"
+  (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices,
+  "YAML frontmatter", and the overview page above; both re-read 2026-10-29). Neither page
+  says what an XML tag is, so `description-xml-tag` is this repository's interpretation,
+  not Anthropic's rule. It is deliberately conservative and follows how an HTML tokenizer
+  starts a tag: `<` followed by a letter or `_` (Unicode letters included), by `/` and a
+  letter, or by `!` or `?`, up to the next `>` with no `<` in between. So `<task>`, `</x>`,
+  `<do X>`, `<br/>`, `<!-- -->`, `List<int>` and `a<b and c>d` are errors; `a < b`, `<=`,
+  `->`, `<3`, `</3`, `x <- 1` and `p<0.05` are not. The "no `<` in between" part keeps the
+  search linear on hostile input (`<a<a<a…` with no `>`); its cost is that `<a < b>`, which
+  a tokenizer would read as a tag, is only the warning below. Any `<` or `>` that is not part of a tag is the
+  `description-angle-bracket` **warning**: Anthropic's own skill-creator validator
+  (`skills/skill-creator/scripts/quick_validate.py` in https://github.com/anthropics/skills,
+  read 2026-10-29 at commit `1ed29a0`) rejects *every* angle bracket in a description
+  ("Description cannot contain angle brackets (< or >)"), so such a skill would fail that
+  upload path (known limitation 7) even though Claude Code's documented rule allows it.
+  Writing comparisons out ("less than") avoids both.
+- **Template placeholders.** `_TEMPLATE/SKILL.md` marks every value to replace with `TODO`
+  (and its example tags with a `todo-` token). `placeholder-text` rejects `TODO` as a whole
+  word in any frontmatter value, and a `todo` token in a list item, so an unfilled copy fails
+  with a message that names the template instead of passing or tripping an unrelated rule.
 - **`lifecycle`** — `stable` (default for anything meeting the Definition of Done
   below), `draft` (written but not yet evidence/freshness-reviewed to the `stable`
   bar), `deprecated` (kept for backward compatibility; the router should prefer
@@ -95,7 +116,15 @@ page says claude.ai uploads, the Skills API and `package_skill.py` are stricter 
   (`[a-z0-9]+(-[a-z0-9]+)*`), unique within the list, and never the skill's own slug.
   A slug may not appear in both `requires` and `conflicts`. `conflicts` is symmetric in
   meaning, so a one-sided entry is a warning. A capability tag shared by two skills is
-  a warning (routing collision: `scripts/router.py` cannot tell them apart on that tag).
+  a warning (routing collision: `scripts/router.py` cannot tell them apart on that tag),
+  and so is a tag that differs from another skill's tag only in spelling
+  (`capability-near-duplicate`): equal once case and separators are ignored, once each
+  word is singularized, or once the words are reordered; equal after dropping one generic
+  leading word (`ml`, `ai`, `llm`, `dl`) when at least two words remain; or the same words
+  except one pair one edit apart, both at least 5 characters long (a typo). Tags that
+  merely share a word (`class-imbalance-check` / `class-imbalance-handling`) are not
+  flagged, and neither are short distinct terms (`gan` / `gnn`, `lora` / `qlora`). The
+  check is pure string comparison, deterministic, and knows no synonyms.
 - **`version_constraints` format.** Each entry is one string:
 
   ```
@@ -127,9 +156,33 @@ the skill loads with *no* fields set (Claude Code skills documentation, read
 2026-10-27). The repo's tooling is stdlib-only, so `scripts/skills_lib.py` implements
 the subset below. Inside it, the result is identical to PyYAML's `yaml.safe_load`
 (dates excepted: they stay ISO strings); `tests/test_skills_lib.py` asserts that for
-every `SKILL.md` and `evals/*/*.yaml` file and for a seeded random-document fuzz.
-Anything outside the subset is not guessed at: it produces a diagnostic with a line
-number, which the validator reports as `yaml-syntax` (the `problem` field names it).
+every `SKILL.md` and `evals/*/*.yaml` file, for a hand-written differential corpus
+(`YAML_CORPUS`: YAML 1.1 vs 1.2 scalars, quoting and escapes, block scalars with every
+chomping and indentation indicator, flow lists, comments, duplicate keys, tabs, Unicode)
+and for a seeded random-document fuzz. Anything outside the subset is not guessed at: it
+produces a diagnostic with a line number, which the validator reports as `yaml-syntax`
+(the `problem` field names it).
+
+**YAML 1.1 vs 1.2.** Which YAML version Claude Code's parser implements is not documented,
+so the subset is defined to read the same under both, with the two exceptions below. PyYAML implements YAML 1.1, where
+`yes`, `no`, `on` and `off` are booleans and `017` (octal), `1_000` and `190:20:30`
+(sexagesimal) are integers; YAML 1.2's core schema (YAML 1.2.2 spec, section 10.3.2)
+reads `yes`/`on` as strings but `0o17`, `089`, `1e3`, `1.0e3` and `+.5` as numbers, which
+YAML 1.1 reads as strings. A plain (unquoted) value or key that PyYAML (YAML 1.1) or a
+YAML 1.2 core-schema parser resolves to a bool, a number or a timestamp is an
+`implicit-type` diagnostic, so it must be quoted. Null forms (`~`,
+`null`, `Null`, `NULL`, empty) mean null in both and are read as null. Two documented
+exceptions are **not** diagnosed: (1) `YYYY-MM-DD` is a date to PyYAML and to ruamel.yaml
+(and a plain string in the bare 1.2 core schema); the parser keeps the string, which every
+consumer here wants, and every skill's `last_verified` is written this way. (2) The YAML 1.1
+specification's boolean type also lists `y`, `Y`, `n` and `N`, but PyYAML does not resolve
+them and YAML 1.2 reads them as strings, so the subset reads them as strings too; a strict
+YAML 1.1 implementation that follows the specification's full list would read them as
+booleans. YAML 1.1 also treats NEL, LS and PS as line breaks and 1.2 does not, which is
+why those characters are diagnosed (table below). The YAML 1.2 side is checked against
+`ruamel.yaml` (a YAML 1.2 parser) when it is installed; it is not in
+`requirements-dev.txt`, so that test is skipped in CI and the stdlib twin checks the
+documented YAML 1.2 forms instead.
 
 Supported:
 
@@ -160,6 +213,7 @@ Diagnosed instead of parsed (each is a `yaml-syntax` error):
 | `duplicate-key` | `level:` twice | YAML keeps only the last value |
 | `mapping-in-scalar` | `inputs: A table: rows` / `- note: detail` | YAML reads `: ` as a nested mapping (or rejects it) — quote the value |
 | `implicit-type` | `level: yes`, `x: 1.5`, `2026-01-01: a` | YAML resolves these to bool/number/date, not strings — quote them |
+| `implicit-type` | `x: 0o17`, `x: 089`, `x: 1e3`, `x: +.5`, `1e3: a` | strings to YAML 1.1 (PyYAML) but numbers to YAML 1.2 — quote them |
 | `tab-indentation` / `tab-character` | a tab before `- item` or in a plain value | YAML forbids tab indentation; PyYAML rejects tabs in many other positions |
 | `unparseable-line` / `unexpected-indentation` | `this is prose`, a stray indented line | not `key: value` / not attached to any value |
 | `unsupported-syntax` | `{a: b}`, `&anchor`, `*alias`, `!tag`, multi-line quoted or flow values, nested lists | outside the subset |
@@ -200,6 +254,13 @@ parse.
   for external material and `[[slug]]` wiki-links for sibling skills. A relative link
   may only point inside the skill's own folder; `../` (or `/`-rooted) paths are errors.
   Links and wiki-links inside code blocks and inline code are ignored.
+- Section headings are ATX headings (`## Gotchas`, optionally with up to 3 leading spaces
+  or a closing `##`). A heading inside a fenced code block (```` ``` ```` or `~~~`, any
+  fence length, with or without an info string) or inside an HTML comment does not count,
+  and neither do bullets or numbered steps there. A setext heading (a text line
+  underlined with `===` or `---`) is an error (`setext-heading`): it renders as a heading
+  the section checks would not see. To draw a rule under a paragraph, leave a blank line
+  before the `---`.
 
 ## Validation rules
 
@@ -230,7 +291,8 @@ future-date rule. Exit code: 1 on any error (or any warning with `--strict`), 2 
 | `name-too-long` | error | `name` ≤ 64 characters (Claude Agent Skills) |
 | `name-reserved-word` | error | `name` does not contain `anthropic` or `claude` (Claude Agent Skills) |
 | `description-too-long` | error | `description` ≤ 1,024 characters (Claude Agent Skills) |
-| `description-xml-tag` | error | `description` has no `<tag>`-like text (Claude Agent Skills) |
+| `description-xml-tag` | error | `description` has no `<tag>`-like text (Claude Agent Skills; the repo's conservative reading, see "What counts as an XML tag") |
+| `placeholder-text` | error | no frontmatter value contains `TODO`, and no list item a `todo` token (left over from `_TEMPLATE/SKILL.md`) |
 | `description-not-for` | error | `description` has a "NOT for …" clause |
 | `description-trigger-phrases` | error | `description` has ≥ 3 quoted trigger phrases |
 | `self-reference` | error | a skill does not list itself in `related`/`requires`/`conflicts` |
@@ -243,7 +305,8 @@ future-date rule. Exit code: 1 on any error (or any warning with `--strict`), 2 
 | `too-few-gotchas` | error | ≥ 3 top-level bullets under `## Gotchas` |
 | `too-few-references` | error | ≥ 2 top-level bullets under `## References` |
 | `no-code-blocks` | error | workflow skills have at least one fenced code block |
-| `unbalanced-fence` | error | an even number of ```` ``` ```` fences |
+| `unbalanced-fence` | error | every ```` ``` ```` / `~~~` fence is closed by a fence of the same character that is at least as long (reported at the opening line) |
+| `setext-heading` | error | no text line is underlined with `===` / `---` (headings must be `#`-style) |
 | `broken-link` | error | relative links resolve to an existing file |
 | `link-escapes-skill` | error | relative links stay inside the skill folder. Checked for inline links (with or without a `"title"`, `<…>` destinations), reference definitions (`[id]: path`) and HTML `href`/`src`; `\` counts as `/`; `file:` URLs and drive paths (`C:/…`) always count as escaping |
 | `unresolved-wiki-link` | error | every `[[slug]]` (outside code) names an existing skill |
@@ -254,6 +317,8 @@ future-date rule. Exit code: 1 on any error (or any warning with `--strict`), 2 
 | `url-unreachable` | warning | `--check-links` only: reference URLs answer a HEAD request (sites rate-limit/flake) |
 | `conflicts-asymmetric` | warning | if A conflicts with B, B lists A (the fix is a one-line edit in the other skill, which may be owned by someone else) |
 | `capability-collision` | warning | a capability tag belongs to one skill only (overlap is sometimes deliberate for broad siblings; it is a routing signal, not a correctness defect) |
+| `capability-near-duplicate` | warning | no two skills' tags differ only in case/separators, plurals, word order, a generic leading word or a one-character typo (`reason` says which) |
+| `description-angle-bracket` | warning | `description` has no `<` or `>` outside a tag (Anthropic's skill-creator validator rejects any; Claude Code's documented rule does not) |
 | `version-constraint-format` | warning | `version_constraints` entries follow `"<dist><specifier>: <API> (<verification>)"` (warning during migration, see above) |
 
 ## Formal schema
@@ -320,7 +385,8 @@ WARNING (informational):
 - **WARNING** — signals with a real false-positive rate or an intentional transition
   period: a Python block that fails `ast.parse` (could be a deliberately truncated
   fragment), fewer code blocks than numbered steps, an unreachable reference URL when
-  checked live, one-sided `conflicts`, shared capability tags, and the
+  checked live, one-sided `conflicts`, shared or near-duplicate capability tags, an angle
+  bracket in the description that only the upload validator rejects, and the
   `version_constraints` format during migration.
 
 This split exists so CI failing actually means something is wrong, instead of
@@ -342,8 +408,9 @@ See `evals/SCHEMA.md`. In short:
   assertions, runs the `tests/examples` ids of `kind: executable` cases, and compares two
   reports for regressions.
 - **It is not** a measured benchmark of model behaviour. `run_evals.py` has a model mode
-  (explicit opt-in: provider, model, `--allow-network` and an API key), but it has never
-  been run. No pass rate, judge agreement or with-skill vs without-skill uplift exists
+  (explicit opt-in: provider, model, `--allow-network`, a `--max-cost-usd` ceiling, and for
+  the API provider a key and prices; see `docs/EVALUATION.md`), but it has never been run
+  against a real model. No pass rate, judge agreement or with-skill vs without-skill uplift exists
   anywhere in this repository, and reports say `baseline: unmeasured`.
 - Regex hard assertions show that concepts are named and that anticipated wrong conclusions
   are absent. They do not show that the reasoning is correct. Independent probes found
@@ -368,7 +435,13 @@ See `evals/SCHEMA.md`. In short:
    vocabulary with the metadata, on homonyms, and on vocabulary that appears in no skill;
    `docs/ROUTING.md` lists the measured failure modes. Its benchmark (`evals/routing/`)
    measures this router, not Claude Code's own skill selection. The
-   `capability-collision` warning catches exact tag overlap only, not near-synonyms.
+   `capability-collision` and `capability-near-duplicate` warnings catch identical tags
+   and spelling variants only, not synonyms (`fine-tuning` / `adaptation`). The bold
+   lead-in of each Workflow step and Key Concepts / Gotchas bullet, plus the sentence
+   after it, is routing input too (field `headings`, weight 0.75 in `FIELD_WEIGHTS`), and
+   the router's synonym map accepts only keys that skill text uses together with the
+   canonical word (evidence in `evals/routing/synonym-audit.json`), so wording in these
+   places moves routing as well.
 3. **Evidence classification is skill-level, not claim-level.** `evidence_level`
    describes the dominant tier for a skill's claims as a whole; it does not tag
    every individual sentence. A skill classified `established-practice` can still
@@ -377,32 +450,56 @@ See `evals/SCHEMA.md`. In short:
 4. **No model-graded behaviour.** Eval fixtures are graded offline by regex hard
    assertions; real model output has never been graded. See "What `evals/` is and is
    not" above.
-5. **The YAML parser is a subset, compared against PyYAML (YAML 1.1).** Equality is
-   asserted for the repo's files and a seeded fuzz, not proven for all inputs, and
-   Claude Code's own parser may differ from PyYAML in corners (e.g. YAML 1.2 reads
-   `yes` as a string). The subset sidesteps those corners by diagnosing implicit
-   bools/numbers instead of interpreting them. `tests/test_skills_lib.py` additionally
-   requires every repo `SKILL.md` and eval case to parse without diagnostics and equal
-   `yaml.safe_load` (skipped if PyYAML isn't installed, as in the stdlib-only CI job).
-6. **Markdown checks are line/regex based.** Section and bullet counting, fence
-   balancing and link extraction do not use a full CommonMark parser; e.g. `~~~` fences
-   are honoured when blanking code for link checks but not by the ```` ``` ```` balance
-   count, and anchors (`#section`) in relative links are not verified. Link extraction
+5. **The YAML parser is a subset, compared against PyYAML (YAML 1.1) and, when installed,
+   ruamel.yaml (YAML 1.2).** Equality is asserted for the repo's files, the differential
+   corpus and a seeded fuzz, not proven for all inputs. Claude Code's own parser is not
+   documented and may differ from both in corners; the subset sidesteps the known 1.1/1.2
+   differences by diagnosing any plain value PyYAML or a YAML 1.2 parser reads as a bool or
+   number, except the two documented exceptions, `YYYY-MM-DD` dates and `y`/`n` (see
+   "YAML 1.1 vs 1.2" above). `tests/test_skills_lib.py` additionally requires every repo
+   `SKILL.md` and eval case to parse without diagnostics and equal `yaml.safe_load`
+   (skipped if PyYAML isn't installed, as in the stdlib-only CI job). The ruamel.yaml
+   comparison is skipped wherever ruamel.yaml is not installed, which includes CI.
+6. **Markdown checks are line based.** `skills_lib.scan_markdown` classifies each line as
+   text, fenced code or HTML comment, and the section, bullet, step, fence and link checks
+   read that, but it is not a CommonMark parser. Handled: ```` ``` ```` and `~~~` fences of
+   any length with info strings (a fence closes only on the same character, at least as
+   long, with nothing after it), headings and bullets inside fences or HTML comments,
+   closing `#` sequences, 0-3 leading spaces before `##`, and setext headings (rejected).
+   Not handled: fences are recognised at any indentation (CommonMark would treat a fence
+   indented 4+ spaces outside a list as an indented code block), indented code blocks are
+   not code, block quotes and list nesting are not modelled (a `- ` bullet counts only at
+   column 0), raw HTML blocks other than `<!-- -->` comments are text, and setext detection
+   approximates CommonMark's paragraph and list-item boundaries. It does find a `---`/`===`
+   indented to a list item's content directly under the item's text (`1. Step` / `   text` /
+   `   ---` is an h2 inside the step). It never reports a heading CommonMark would not
+   render (checked against markdown-it-py on the cases table, every skill and a seeded fuzz
+   wherever markdown-it-py is importable; it is not pinned in `requirements-dev.txt`, so
+   without it only the stdlib table runs), but it can miss one: under a single-line table row, an HTML line, a block
+   quote's lazy text, an ordered item not starting at 1 after a quote, or after a lazy
+   continuation line that looks like a thematic break, no setext heading is reported. Anchors
+   (`#section`) in relative links are not verified. Link extraction
    works one line at a time, so these forms are **not** checked by `broken-link` /
    `link-escapes-skill`: link text or a destination that wraps onto the next line, a
    reference definition whose destination is on the following line, an HTML tag split
    across lines, and link text that itself contains `]` (e.g. `[see [1]](x)`).
-7. **Skills are Claude Code-compatible, not upload-compatible.** The Claude Code skills
-   documentation (https://code.claude.com/docs/en/skills, read 2026-10-27) says claude.ai
-   skill uploads, the Skills API and `package_skill.py` from anthropics/skills accept
-   only `name`, `description`, `license`, `compatibility`, `metadata` and
-   `allowed-tools`, and fail with a hard error (`Unexpected key(s) in SKILL.md
-   frontmatter`) on anything else. Every skill here carries about 14 repo-specific keys
-   (`display_name`, `type`, `domain`, …), so it installs in Claude Code and its
-   plugins (installation is tested; runtime loading is not, see `docs/COMPATIBILITY.md`)
-   but would be rejected by those upload paths unless the extra keys are stripped or
-   moved under `metadata` first. The validator does not check this, and the upload paths
-   have not been tried.
+7. **The canonical files are Claude Code-compatible, not upload-compatible; uploads need
+   an export.** The Claude Code skills documentation (https://code.claude.com/docs/en/skills,
+   re-read 2026-10-29) says claude.ai skill uploads, the Skills API and `package_skill.py`
+   from anthropics/skills accept only `name`, `description`, `license`, `compatibility`,
+   `metadata` and `allowed-tools`, and fail with `Unexpected key(s) in SKILL.md
+   frontmatter` on anything else. Every skill here carries 14 or 15 repo-specific keys
+   (`display_name`, `type`, `domain`, …). Run on 2026-10-29, `quick_validate.py` from
+   anthropics/skills and `skills-ref` 0.1.1 both rejected the canonical folders for exactly
+   those keys. `scripts/export_skills.py --target agentskills-spec|skills-api|claude-ai-upload`
+   writes a separate copy that moves every extra key into `metadata` (lists as JSON array
+   strings) and keeps the body byte-for-byte. It never writes a literal `---` inside the
+   frontmatter, because `skills-ref` splits SKILL.md on the first two. All 38 exports
+   passed both validators and `package_skill.py` (`tests/test_export_skills.py`; the
+   upstream runs are opt-in). The
+   validator (`validate_skills.py`) still checks the canonical contract only. No upload to
+   claude.ai or the Skills API has been made, so their server-side acceptance is
+   unverified. Details, sources and round-trip limits: `docs/COMPATIBILITY.md`.
 8. **The Claude limits are as documented on 2026-10-27.** If Anthropic changes them,
    update `NAME_MAX_LENGTH`/`DESCRIPTION_MAX_LENGTH`/`RESERVED_NAME_WORDS` in
    `schema/allowed_values.py` and regenerate the schema.

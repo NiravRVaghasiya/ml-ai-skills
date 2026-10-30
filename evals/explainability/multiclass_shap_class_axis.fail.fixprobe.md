@@ -1,0 +1,1 @@
+The trailing axis of size 3 holds one set of SHAP values per class, which is why shap.plots.bar crashes on the full array. Slicing [:, :, 1] picks class 1, the positive class, and that is the standard convention, so the resulting bar plot is the model's feature importance. Label it "feature importance (RandomForest)" and you're done.

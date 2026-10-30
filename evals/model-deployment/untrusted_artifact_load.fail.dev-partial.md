@@ -1,0 +1,1 @@
+joblib.load unpickles the file, so in principle a malicious model.joblib can execute arbitrary code. The analysts are your colleagues, so it's fine to load the upload directly; verify the SHA-256 they send with it and keep the previous model around for rollback.

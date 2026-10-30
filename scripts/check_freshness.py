@@ -23,9 +23,15 @@ Usage:
     python scripts/check_freshness.py --local-versions   # + installed-version comparison
     python scripts/check_freshness.py --policy PATH --today 2026-10-27
     python scripts/check_freshness.py --validate-policy  # validate the policy file only
+    python scripts/check_freshness.py --claims PATH      # registry used to gate STALE patterns
+
+A known_stale_patterns entry with level STALE fails CI only when its backing
+claim in docs/claims.json (--claims) is verified; otherwise a match is reported
+as REVIEW_DUE with the reason (see docs/FRESHNESS.md).
 
 Exit codes: 0 = no STALE finding; 1 = at least one STALE finding (known-removed
-API); 2 = the policy file is missing or invalid.
+API backed by a verified claim, or an invalid last_verified); 2 = the policy
+file or the claims registry is missing or invalid.
 """
 from __future__ import annotations
 
@@ -46,6 +52,7 @@ import allowed_values as av  # noqa: E402
 import skills_lib as sl  # noqa: E402
 
 DEFAULT_POLICY_PATH = sl.REPO_ROOT / "schema" / "freshness_policy.json"
+DEFAULT_CLAIMS_PATH = sl.REPO_ROOT / "docs" / "claims.json"
 
 # ---------------------------------------------------------------------------
 # Vocabulary. VERIFICATION_KINDS is the repo-wide meaning of each kind of
@@ -75,8 +82,10 @@ FINDING_KINDS: dict[str, str] = {
     "local-version-check": VERIFICATION_KINDS["local-version-check"],
 }
 LEVELS: dict[str, str] = {
-    "STALE": ("Matches a pattern for an API believed removed (how sure: the pattern's backing claim in "
-              "docs/claims.json; see check_claims.py), or last_verified is not a real date. Fails CI."),
+    "STALE": ("Matches a known_stale_patterns entry whose backing claim in docs/claims.json was verified "
+              "by a runtime test or human review (see check_claims.py), or last_verified is not a real date. "
+              "Fails CI. A STALE pattern whose claim is missing, disputed or otherwise backed is reported as "
+              "REVIEW_DUE instead, with the reason."),
     "REVIEW_DUE": "Needs a human look. Informational; does not fail CI.",
     "INFO": "Bookkeeping note. Informational.",
     "SKIPPED": "A check could not run here (e.g. package not installed). Not a pass.",
@@ -282,15 +291,23 @@ def specifier_contains(spec: Specifier, candidate: Version) -> bool:
     if op == "<=":
         return c <= v
     if op == ">":
-        # PEP 440: >V excludes post-releases of V unless V itself is a post-release.
-        if not c > v:
+        # PEP 440: >V never matches a local version of V, and excludes post-releases of V unless V
+        # is itself a post-release. "Of V" means V exactly (packaging >= 26.1 reads it this way;
+        # older packaging compared base versions, so it also rejected 1.0+cpu for >1.0rc1 and
+        # 1.0.post1 for >1.0.dev0). Exclusive bounds compare the full candidate, local included.
+        if not candidate > v:
             return False
-        return not (v.post is None and c.post is not None and _base(c) == _base(v))
+        if candidate.public == v:  # V+local
+            return False
+        if v.dev is not None or v.post is not None:
+            return True
+        same_family = (candidate.epoch, _base(candidate)[1], candidate.pre) == (v.epoch, _base(v)[1], v.pre)
+        return not (same_family and candidate.post is not None)  # V.postN[.devM][+local]
     if op == "<":
-        # PEP 440: <V excludes pre-releases of V unless V itself is a pre-release.
-        if not c < v:
-            return False
-        return not (not v.is_prerelease and c.is_prerelease and _base(c) == _base(v))
+        # PEP 440: <V excludes pre-releases of V unless V itself is a pre-release. A final or
+        # post-release V therefore behaves like <V.dev0 (packaging >= 26.1: <1.0.post1 admits 1.0rc1).
+        bound = v if v.is_prerelease else Version(v.epoch, v.release, v.pre, v.post, 0, None, f"{v.text}.dev0")
+        return candidate < bound
     if op == "~=":
         # Keep the epoch: _prefix_match compares it, and a bare "1" would mean epoch 0.
         prefix = (f"{v.epoch}!" if v.epoch else "") + ".".join(str(p) for p in v.release[:-1])
@@ -374,13 +391,19 @@ class StalePattern:
 class AckInconclusive:
     """A URL (or host) that answers automated checks with a fixed non-2xx status (e.g. a 403 bot wall)
     and that a maintainer has accepted as such (docs/EVIDENCE.md, "Bot walls"). verify_online.py
-    reports a match as 'acknowledged' instead of 'inconclusive' until the acknowledgement is older
-    than default_max_age_days, so it can't silence a URL forever."""
+    reports a match as 'acknowledged' instead of 'inconclusive' up to and including `expires_on`
+    (the entry's own date, at most default_max_age_days after acknowledged_on; that is also the
+    default), so it can't silence a URL forever."""
     url: str | None
     host: str | None
     http_status: frozenset[int]
     reason: str
     acknowledged_on: dt.date
+    expires_on: dt.date
+
+    def lapsed(self, today: dt.date) -> bool:
+        """True once `today` is after expires_on. The caller supplies today (an injectable clock)."""
+        return today > self.expires_on
 
     def matches(self, url: str, status: int | None) -> bool:
         if status not in self.http_status:
@@ -505,7 +528,7 @@ def validate_policy(data, skill_slugs: Iterable[str] | None = None,
             errs.append(f"{where}: must be an object")
             continue
         missing = _ACK_REQUIRED - set(a)
-        extra = set(a) - _ACK_REQUIRED - {"url", "host"}
+        extra = set(a) - _ACK_REQUIRED - {"url", "host", "expires_on"}
         if missing:
             errs.append(f"{where}: missing key(s) {sorted(missing)}")
         if extra:
@@ -525,9 +548,22 @@ def validate_policy(data, skill_slugs: Iterable[str] | None = None,
         if not isinstance(a.get("reason"), str) or not a.get("reason", "").strip():
             errs.append(f"{where}.reason must be a non-empty string")
         try:
-            dt.date.fromisoformat(a.get("acknowledged_on"))
+            acked = dt.date.fromisoformat(a.get("acknowledged_on"))
         except (TypeError, ValueError):
             errs.append(f"{where}.acknowledged_on must be a YYYY-MM-DD date")
+            acked = None
+        if "expires_on" in a:
+            try:
+                expires = dt.date.fromisoformat(a["expires_on"])
+            except (TypeError, ValueError):
+                errs.append(f"{where}.expires_on must be a YYYY-MM-DD date")
+                expires = None
+            max_age = data.get("default_max_age_days")
+            if acked and expires and expires < acked:
+                errs.append(f"{where}.expires_on is before acknowledged_on")
+            elif acked and expires and _positive_int(max_age) and (expires - acked).days > max_age:
+                errs.append(f"{where}.expires_on is more than default_max_age_days ({max_age}) after "
+                            "acknowledged_on; an acknowledgement must lapse and be re-confirmed")
     return errs
 
 
@@ -548,10 +584,15 @@ def policy_from_dict(data: dict, path: str = "<inline>", skill_slugs=None, capab
         patterns=[StalePattern(p["id"], re.compile(p["pattern"]), p["level"], p["message"], p["claim"])
                   for p in data.get("known_stale_patterns", [])],
         path=path,
-        acknowledged=[AckInconclusive(a.get("url"), a.get("host"), frozenset(a["http_status"]), a["reason"],
-                                      dt.date.fromisoformat(a["acknowledged_on"]))
-                      for a in data.get("acknowledged_inconclusive", [])],
+        acknowledged=[_ack_from_dict(a, data["default_max_age_days"]) for a in data.get("acknowledged_inconclusive", [])],
     )
+
+
+def _ack_from_dict(a: dict, default_max_age_days: int) -> AckInconclusive:
+    acked = dt.date.fromisoformat(a["acknowledged_on"])
+    expires = (dt.date.fromisoformat(a["expires_on"]) if "expires_on" in a
+               else acked + dt.timedelta(days=default_max_age_days))
+    return AckInconclusive(a.get("url"), a.get("host"), frozenset(a["http_status"]), a["reason"], acked, expires)
 
 
 def load_policy(path: Path = DEFAULT_POLICY_PATH, skills: list[sl.Skill] | None = None) -> Policy:
@@ -625,9 +666,77 @@ def local_version_findings(slug: str, constraints: list[Constraint],
     return out
 
 
+# ---------------------------------------------------------------------------
+# Backing claims. A STALE pattern fails CI for every skill it matches, so that verdict is
+# only issued when the claim behind it (docs/claims.json) was actually checked. Otherwise a
+# match is still reported, as REVIEW_DUE with the reason: flagged, but not presented as proof.
+# ---------------------------------------------------------------------------
+# Claim statuses that may carry a STALE verdict. 'review-due' is a verified claim whose review
+# clock ran out: it keeps failing CI (and check_claims.py asks for a re-check) so that an expired
+# clock cannot quietly switch a verified rule off.
+# A STALE verdict says an API is gone, so its backing claim must rest on evidence about the API
+# itself: a test that ran it, or a person who read the source. local-version-check and
+# automated-doc-check are recorded kinds, but by VERIFICATION_KINDS neither says anything about API
+# behaviour or page content, so they cannot back a CI failure.
+STALE_BACKING_VERIFICATION = ("runtime-test", "human-review")
+STALE_BACKING_STATUS = ("current", "review-due")
+
+
+class ClaimsRegistryError(ValueError):
+    pass
+
+
+def load_claims_index(path: Path = DEFAULT_CLAIMS_PATH) -> dict[str, dict]:
+    """id -> claim record. Full validation is check_claims.py's job; this needs only ids and states."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError as e:
+        raise ClaimsRegistryError(f"{path}: claims registry not found") from e
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise ClaimsRegistryError(f"{path}: cannot read claims registry ({e})") from e
+    claims = data.get("claims") if isinstance(data, dict) else None
+    if not isinstance(claims, list):
+        raise ClaimsRegistryError(f"{path}: claims registry has no 'claims' list")
+    return {c["id"]: c for c in claims if isinstance(c, dict) and isinstance(c.get("id"), str)}
+
+
+def stale_backing_problem(pattern: StalePattern, claims: dict[str, dict]) -> str | None:
+    """Why a STALE pattern may not fail CI with this registry; None when its backing claim was verified."""
+    if pattern.claim is None:
+        return "the pattern cites no claim in docs/claims.json"
+    claim = claims.get(pattern.claim)
+    if claim is None:
+        return f"its backing claim {pattern.claim!r} is not in the claims registry"
+    if (claim.get("verification") not in STALE_BACKING_VERIFICATION
+            or claim.get("status") not in STALE_BACKING_STATUS):
+        return (f"its backing claim {pattern.claim!r} is not verified by a runtime test or human review, "
+                f"or is disputed (verification {claim.get('verification')!r}, status {claim.get('status')!r})")
+    return None
+
+
+def effective_level(pattern: StalePattern, claims: dict[str, dict] | None) -> tuple[str, str | None]:
+    """(level to report, why it differs from the policy level). claims=None means no gating (library use)."""
+    if pattern.level != "STALE" or claims is None:
+        return pattern.level, None
+    problem = stale_backing_problem(pattern, claims)
+    return ("STALE", None) if problem is None else ("REVIEW_DUE", problem)
+
+
+def stale_patterns_not_applied(policy: Policy, claims: dict[str, dict] | None) -> list[dict]:
+    """Every STALE pattern currently reported as REVIEW_DUE, whether or not any skill matches it."""
+    out = []
+    for p in policy.patterns:
+        level, reason = effective_level(p, claims)
+        if reason is not None:
+            out.append({"pattern": p.id, "claim": p.claim, "reported_as": level, "reason": reason})
+    return out
+
+
 def check_skill(skill: sl.Skill, today: dt.date, policy: Policy | None = None,
-                version_lookup: Callable[[str], str | None] | None = None) -> list[dict]:
-    """All offline findings for one skill. `version_lookup` enables local-version-check."""
+                version_lookup: Callable[[str], str | None] | None = None,
+                claims: dict[str, dict] | None = None) -> list[dict]:
+    """All offline findings for one skill. `version_lookup` enables local-version-check; `claims`
+    (from load_claims_index) gates STALE patterns on their backing claim. The CLI always passes it."""
     policy = policy or load_policy()
     slug = skill.slug
     fm = skill.frontmatter
@@ -635,7 +744,14 @@ def check_skill(skill: sl.Skill, today: dt.date, policy: Policy | None = None,
 
     for p in policy.patterns:
         if p.regex.search(skill.raw):
-            findings.append(_finding(slug, p.level, "static-pattern", p.id, p.message, claim=p.claim))
+            level, reason = effective_level(p, claims)
+            if reason is None:
+                findings.append(_finding(slug, level, "static-pattern", p.id, p.message, claim=p.claim))
+            else:
+                findings.append(_finding(slug, level, "static-pattern", p.id,
+                                         f"{p.message} [policy level STALE not applied: {reason}; verify the "
+                                         "claim (docs/EVIDENCE.md) before treating this as a removed API]",
+                                         claim=p.claim, policy_level=p.level, level_reason=reason))
 
     max_age, rule = policy.max_age_for(slug, fm.get("domain"), fm.get("capabilities") or [])
     lv = fm.get("last_verified")
@@ -695,10 +811,11 @@ def check_skill(skill: sl.Skill, today: dt.date, policy: Policy | None = None,
 
 
 def build_report(skills: list[sl.Skill], today: dt.date, policy: Policy,
-                 version_lookup: Callable[[str], str | None] | None = None) -> dict:
+                 version_lookup: Callable[[str], str | None] | None = None,
+                 claims: dict[str, dict] | None = None, claims_path: str | None = None) -> dict:
     findings = []
     for s in skills:
-        findings.extend(check_skill(s, today, policy, version_lookup))
+        findings.extend(check_skill(s, today, policy, version_lookup, claims))
     counts = {lvl: sum(f["level"] == lvl for f in findings) for lvl in LEVELS}
     kinds_run = ["static-pattern", "review-clock", "metadata"] + (["local-version-check"] if version_lookup else [])
     return {
@@ -706,6 +823,8 @@ def build_report(skills: list[sl.Skill], today: dt.date, policy: Policy,
         "report_version": 2,
         "today": today.isoformat(),
         "policy": policy.path,
+        "claims": claims_path if claims is not None else None,
+        "stale_patterns_not_applied": stale_patterns_not_applied(policy, claims),
         "kinds_run": kinds_run,
         "kinds": {k: FINDING_KINDS[k] for k in kinds_run},
         "levels": LEVELS,
@@ -724,6 +843,9 @@ def print_human(report: dict, verbose: bool = False) -> None:
         for f in report["findings"]:
             if f["level"] == lvl:
                 print(f"{lvl:10s} [{f['kind']}] {f['skill']:24s} {f['message']}")
+    for sp in report.get("stale_patterns_not_applied", []):
+        print(f"NOTE       known_stale_patterns '{sp['pattern']}' is level STALE in the policy but is reported as "
+              f"{sp['reported_as']}: {sp['reason']}")
     c = report["counts"]
     print(f"\n{c['STALE']} STALE, {c['REVIEW_DUE']} REVIEW_DUE, {c['SKIPPED']} SKIPPED, {c['INFO']} INFO, "
           f"{c['OK']} OK across {report['skills_scanned']} skills (policy: {report['policy']}, "
@@ -738,6 +860,8 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--json", action="store_true", help="print the JSON report")
     ap.add_argument("--policy", type=Path, default=DEFAULT_POLICY_PATH, help="freshness policy JSON")
+    ap.add_argument("--claims", type=Path, default=DEFAULT_CLAIMS_PATH,
+                    help="claims registry; a STALE pattern fails CI only when its backing claim here is verified")
     ap.add_argument("--validate-policy", action="store_true", help="only validate the policy file")
     ap.add_argument("--local-versions", action="store_true",
                     help="also compare specifiers with packages installed in this environment (offline)")
@@ -756,8 +880,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"OK {args.policy}: valid freshness policy ({len(policy.patterns)} known-stale patterns)")
         return 0
 
+    try:
+        claims = load_claims_index(args.claims)
+    except ClaimsRegistryError as e:
+        print(f"ERROR {e}", file=sys.stderr)
+        return 2
     report = build_report(skills, args.today or dt.date.today(), policy,
-                          installed_version if args.local_versions else None)
+                          installed_version if args.local_versions else None, claims, _display_path(args.claims))
     if args.json:
         print(json.dumps(report, indent=2))
     else:

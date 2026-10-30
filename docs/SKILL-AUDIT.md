@@ -216,3 +216,60 @@ Legend: **risk** = `risk_level`, **evid** = `evidence_level`.
 2. No live package/API verification occurred — every `version_constraints` entry and every "no evidence issues found" line above reflects reviewer knowledge at authoring time, not a live check. See docs/FRESHNESS.md.
 3. *(Resolved by the Phase 2 router rewrite: on 2026-10-28 "evaluate my model" routes to `model-evaluation`, and "is this difference statistically significant" to `statistics-for-ml`. Current router failure modes are measured in docs/ROUTING.md.)* The router's vocabulary-collision failure mode was reduced but not eliminated by the `capabilities` tags — `model-evaluation` failed to surface for a query that explicitly asked to "evaluate" a model.
 4. This audit did not attempt Phase 14's full agent-engineering skill decomposition (tool design, state management, memory, planning, retries, observability as separate skills) — `agents-and-tools` (existing) and `agent-evaluation` (new) cover agent loops and their evaluation, but planning/memory/observability as dedicated skills were judged out of scope for this pass to avoid adding skills without a demonstrated need beyond the mission brief's checklist. Recorded as future work, not silently dropped.
+
+## Claims, version bounds and references re-check (2026-10-29)
+
+Done by an agent, not a person. Sources were read from the test machine with urllib
+(GitHub release API and raw files, PyPI JSON, arXiv, api.crossref.org, platform.claude.com,
+the Internet Archive). Where a statement was confirmed, the skill text or its
+`version_constraints` note now names the source; checkable claims are in
+`docs/claims.json` with `verification: unverified` unless a test ran, because an agent's
+reading is not a human review (docs/EVIDENCE.md).
+
+### Claims from model knowledge (KNOWN-ISSUES #18)
+
+| Claim | Source read | Result | Skill change |
+|---|---|---|---|
+| `torch.load(weights_only=True)` default | PyTorch v1.13.0, v2.4.0, v2.6.0 GitHub release notes | Confirmed: option added in 1.13, warning in 2.4, default flipped in 2.6.0 | `model-deployment` Gotcha names 2.6; `model-deployment` and `pytorch-patterns` notes cite the release notes |
+| `sklearn.cross_validation` removal | v0.18 release notes; source at git tags 0.19.2 / 0.20.0 | Deprecated in 0.18; file present at 0.19.2, absent at 0.20.0 | policy message names 0.20 |
+| `preprocessing.Imputer` removal | v0.20 release notes; source at tags 0.21.3 / 0.22 | Deprecated in 0.20 ("will be removed in 0.22"); not exported at 0.22 | policy message names 0.22 |
+| DQN target network first in the 2015 Nature paper | arXiv 1312.5602v1 PDF; DeepMind-hosted Nature PDF; Crossref | Confirmed: 2013 holds θ<sub>i−1</sub> fixed per iteration and cites Lin 1993 for replay; 2015 clones a target network every C updates | none (already correct) |
+| Golle 2006 figures | Internet Archive copy of the author's PDF; Crossref | 63% (2000 census), 61% (1990), against Sweeney's 87% | `data-privacy` now states the figures |
+| Carlini et al. 2021 | arXiv 2012.07805 abstract and PDF | Extraction by black-box sampling from short or empty prompts, not "targeted prompting"; the PII was publicly posted | `data-privacy` sentence rewritten |
+| Bagdasaryan 2019 (DP disparate impact) | arXiv 1905.12101 abstract and API; NeurIPS 2019 proceedings page | Finding confirmed. Authors differ by version: NeurIPS 2019 lists Bagdasaryan, Poursaeed, Shmatikov; arXiv lists Bagdasaryan, Shmatikov | none: "Bagdasaryan et al., 2019" matches the published paper (a same-day change to "& Shmatikov" was reverted) |
+| Abadi et al. 2016 | arXiv 1607.00133 PDF | Confirmed: per-example L2 clipping, Gaussian noise, moments accountant | none |
+| OpenAI `strict: true` | openai-python `response_format_json_schema.py`, `function_definition.py`; OpenAI cookbook `Structured_Outputs_Intro.ipynb` | Confirmed in the SDK and cookbook; OpenAI's API reference itself failed DNS | none |
+| Anthropic `strict: true` tools | platform.claude.com structured-outputs page; anthropic-sdk-python `tool_param.py` | Confirmed | none |
+
+Not resolved: the `text-davinci-*` retirement (OpenAI's deprecations page failed DNS, the
+WebFetch tool refused the domain, and the Internet Archive answered 403/429). That claim
+stays `unverified`, so `check_freshness.py` reports its pattern as `REVIEW_DUE`.
+
+### Version lower bounds (KNOWN-ISSUES #7)
+
+Twelve lower bounds are now documented in their notes: torchvision 0.13 and torchmetrics 1.0
+(`computer-vision`), SQLAlchemy 2.0 (`data-pipelines`), scikit-learn 1.1
+(`data-preprocessing`) and 0.22 (`explainability`), Airflow 2.4 (`ml-monitoring`), torch
+1.13 (`model-deployment`, `pytorch-patterns`), 2.6 (`model-optimization`) and 2.3
+(`training-deep-models`), NumPy 1.17 (`python-for-ml`), statsmodels 0.11 (`time-series`).
+None of those bounds was executed. Bounds marked "lower bound not verified" (or "an
+estimate") were not checked and were left as they are, never replaced by a guess. The
+mlflow notes in `ci-cd-for-ml` and `experiment-tracking` now say they ran on the local
+3.16.1 environment and point to KNOWN-ISSUES #8 for 3.17.2.
+
+### References that failed from the test machine (KNOWN-ISSUES #17)
+
+No reference was found to be wrong, and none was replaced. An HTTP failure alone was not
+treated as evidence against a link.
+
+| Reference (skill) | Direct result | Alternate check | Limitation |
+|---|---|---|---|
+| doi.org/10.1162/neco.1997.9.8.1735 (`rnn-sequence`) | 403 | Crossref: Hochreiter & Schmidhuber, "Long Short-Term Memory", Neural Computation 1997, resolves to direct.mit.edu | The author mirror at bioinf.jku.at still has an expired TLS certificate |
+| doi.org/10.1162/089976698300017197 (`statistics-for-ml`) | 403 | Crossref: Dietterich 1998, Neural Computation | Publisher page not read |
+| dl.acm.org/doi/10.1145/582415.582418 (`rag-evaluation`) | 403 | Crossref: Järvelin & Kekäläinen, "Cumulated gain-based evaluation of IR techniques", ACM TOIS 2002 | Publisher page not read |
+| nature.com/articles/nature14236 (`reinforcement-learning`) | 200, bot-challenge page | Crossref metadata; full text from DeepMind's own copy | — |
+| link.springer.com/book/10.1007/978-0-387-21736-9 (`statistics-for-ml`) | 200, bot-challenge page | Crossref: Wasserman, *All of Statistics*, Springer 2004 | Publisher page not read |
+| huggingface.co/docs/peft/index (`fine-tuning-llms`), .../transformers/main_classes/pipelines and .../tasks/token_classification (`nlp-tasks`) | DNS failure | The docs' source files exist in the huggingface/peft and huggingface/transformers GitHub repos (`docs/source/...`) | Rendered pages not read |
+| spinningup.openai.com (`reinforcement-learning`) | DNS failure | Source `docs/index.rst` in the openai/spinningup GitHub repo | Rendered site not read |
+| anthropic.com/research/building-effective-agents (`agent-evaluation`, `agents-and-tools`) | DNS failure | Anthropic's own cookbook (`patterns/agents/README.md`) links this URL as the article it implements | Article text not read |
+| platform.claude.com docs (`agents-and-tools`, `prompt-engineering`) | 200 | — | Earlier DNS failures were for anthropic.com, not this host |

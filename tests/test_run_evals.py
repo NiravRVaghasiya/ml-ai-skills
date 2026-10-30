@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import email.message
 import hashlib
+import http.client
 import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,12 +22,14 @@ from unittest import mock
 
 from test_evals import LEAK_FAIL, LEAK_PASS, make_repo
 
-import eval_lib as el  # scripts/ is on sys.path via testutil
+import eval_backends as eb  # scripts/ is on sys.path via testutil
+import eval_lib as el
 import run_evals as re_
 
 FIXED_ENV = {"python_version": "3.x", "python_implementation": "CPython", "platform": "test",
              "git_revision": None, "git_dirty": None}
 API_KEY = "sk-test-not-a-real-key-123"
+JUDGE_COST = ("--judge-price-input-per-mtok", "1", "--judge-price-output-per-mtok", "1")
 
 
 class FakeTransport:
@@ -84,8 +89,10 @@ class Base(unittest.TestCase):
         p.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
         return p
 
+    COST_ARGS = ("--max-cost-usd", "1000", "--price-input-per-mtok", "1", "--price-output-per-mtok", "1")
+
     def model_args(self, *extra):
-        return ("--provider", "anthropic", "--model", "model-x", "--allow-network", *extra)
+        return ("--provider", "anthropic", "--model", "model-x", "--allow-network", *self.COST_ARGS, *extra)
 
 
 class OfflineReportTests(Base):
@@ -94,9 +101,12 @@ class OfflineReportTests(Base):
         self.assertEqual(code, 0)
         for key in ("schema", "schema_version", "harness_version", "generated_at", "nondeterministic_fields", "mode",
                     "environment", "dependencies", "dataset", "validation", "input_errors", "fixture_self_tests",
-                    "graded", "executable", "skipped", "summary", "skill_uplift", "baseline", "model_run"):
+                    "graded", "executable", "skipped", "summary", "skill_uplift", "baseline", "model_run",
+                    "grader_version", "provenance", "uplift", "verdict_rules", "model_evaluation"):
             self.assertIn(key, r)
-        self.assertEqual((r["schema"], r["schema_version"], r["mode"]), (re_.REPORT_SCHEMA, 1, "offline"))
+        self.assertEqual((r["schema"], r["schema_version"], r["mode"]), (re_.REPORT_SCHEMA, 2, "offline"))
+        self.assertEqual(r["model_evaluation"]["status"], "not-run")
+        self.assertIn("no model configured", r["model_evaluation"]["reason"])
         self.assertEqual(r["harness_version"], el.HARNESS_VERSION)
         self.assertEqual(r["nondeterministic_fields"], ["generated_at"])
         self.assertEqual(r["baseline"]["status"], "unmeasured")
@@ -170,8 +180,8 @@ class RecordedResponseTests(Base):
         for x in r["graded"]:
             self.assertEqual(x["subjective"]["status"], "not-graded")
         self.assertEqual(r["summary"]["hard"]["with_skill"],
-                         {"responses": 2, "gradable": 1, "passed": 1, "failed": 0, "errors": 0, "not_gradable": 1,
-                          "pass_rate": 1.0})
+                         {"responses": 2, "gradable": 1, "passed": 1, "failed": 0, "errors": 0, "refusals": 0,
+                          "not_gradable": 1, "pass_rate": 1.0})
         self.assertEqual(r["summary"]["hard"]["without_skill"]["pass_rate"], 0.0)
         self.assertIsNone(r["summary"]["subjective"]["with_skill"]["rubric_pass_rate"])
         up = r["skill_uplift"]
@@ -346,12 +356,49 @@ class ModelModeRefusalTests(Base):
 
     def test_each_missing_requirement_refuses(self):
         env = {"ANTHROPIC_API_KEY": API_KEY}
-        self.assert_refused(["--allow-network"], env, ["--provider anthropic", "--model <model id>"])
-        self.assert_refused(["--provider", "anthropic", "--model", "m"], env, ["--allow-network"])
-        self.assert_refused(["--provider", "anthropic", "--allow-network"], env, ["--model <model id>"])
+        no_model = "not-run: no model configured"
+        self.assert_refused(["--allow-network"], env, [no_model, "--provider (anthropic", "--model <model id>"])
+        self.assert_refused(["--provider", "anthropic", "--model", "m", *self.COST_ARGS], env, ["--allow-network"])
+        self.assert_refused(["--provider", "anthropic", "--allow-network", *self.COST_ARGS], env,
+                            [no_model, "--model <model id>"])
         self.assert_refused(list(self.model_args()), {}, ["ANTHROPIC_API_KEY"])
         self.assert_refused(list(self.model_args()), {"ANTHROPIC_API_KEY": ""}, ["ANTHROPIC_API_KEY"])
-        self.assert_refused(["--judge-model", "j"], env, ["--provider anthropic", "--allow-network"])
+        self.assert_refused(["--judge-model", "j"], env, ["judge options need responses to grade"])
+        self.assert_refused(["--provider", "replay"], env, ["--replay-file"])
+
+    def test_api_key_with_whitespace_or_control_characters_is_refused_without_echoing_it(self):
+        # http.client rejects such a header value with a ValueError that quotes the key
+        # (security review 2026-10-30); refuse up front and never print the value.
+        for bad in (API_KEY + "\r", API_KEY + "\n", " " + API_KEY, API_KEY[:5] + "\x00" + API_KEY[5:]):
+            with self.subTest(bad=repr(bad[-2:])):
+                t = FakeTransport([message("x")])
+                code, out, err = self.run_cli(*self.model_args(), env={"ANTHROPIC_API_KEY": bad}, transport=t)
+                self.assertEqual(code, 2, err)
+                self.assertEqual(t.requests, [])
+                self.assertIn("without surrounding whitespace or control", err)
+                self.assertNotIn(API_KEY.strip()[4:], err)
+
+    def test_paid_providers_refuse_without_a_cost_ceiling_or_prices(self):
+        env = {"ANTHROPIC_API_KEY": API_KEY}
+        base = ["--provider", "anthropic", "--model", "m", "--allow-network"]
+        self.assert_refused(base + ["--price-input-per-mtok", "1", "--price-output-per-mtok", "1"], env,
+                            ["model mode refused", "--max-cost-usd"])
+        self.assert_refused(base + ["--max-cost-usd", "5"], env, ["--price-input-per-mtok and --price-output-per-mtok"])
+        self.assert_refused(["--provider", "claude-cli", "--model", "m", "--allow-network"], env, ["--max-cost-usd"])
+        # Without the CLI's own --max-budget-usd nothing caps a single call, so prices become mandatory.
+        self.assert_refused(["--provider", "claude-cli", "--model", "m", "--allow-network", "--max-cost-usd", "1",
+                             "--no-cli-budget-flag"], env, ["required with --no-cli-budget-flag"])
+        self.assert_refused(list(self.model_args("--max-cost-usd", "0")), env, ["--max-cost-usd must be > 0"])
+        self.assert_refused(list(self.model_args("--endpoint", "http://api.example/v1/messages")), env,
+                            ["--endpoint must be an https:// URL"])
+
+    def test_worst_case_above_the_ceiling_is_refused_before_any_request(self):
+        t = FakeTransport([message("x")])
+        args = ["--provider", "anthropic", "--model", "m", "--allow-network", "--max-cost-usd", "0.001",
+                "--price-input-per-mtok", "3", "--price-output-per-mtok", "15"]
+        code, out, err = self.run_cli(*args, env={"ANTHROPIC_API_KEY": API_KEY}, transport=t)
+        self.assertEqual((code, out, t.requests), (2, "", []))
+        self.assertIn("not-run: the worst-case estimate", err)
 
     def test_model_only_flags_without_model_mode_are_refused_not_ignored(self):
         env = {"ANTHROPIC_API_KEY": API_KEY}
@@ -362,7 +409,7 @@ class ModelModeRefusalTests(Base):
                             (["--max-tokens", "10"], "--max-tokens"),
                             (["--anthropic-version", "2099-01-01"], "--anthropic-version")):
             with self.subTest(args=args):
-                self.assert_refused(args, env, [named, "--provider anthropic", "--allow-network"])
+                self.assert_refused(args, env, [named, "not-run: no model configured", "--provider (anthropic"])
         self.assertFalse(saved.exists())
 
     def test_default_run_never_touches_the_network(self):
@@ -444,7 +491,7 @@ class ModelModeTests(Base):
                 return message(json.dumps(verdict))
             return by_condition(body)
         t = FakeTransport([judge_or_answer])
-        code, out, _ = self.run_cli(*self.model_args("--judge-model", "judge-x", "--conditions", "with_skill"),
+        code, out, _ = self.run_cli(*self.model_args(*JUDGE_COST, "--judge-model", "judge-x", "--conditions", "with_skill"),
                                     env=self.env, transport=t)
         self.assertEqual(code, 0)
         r = json.loads(out)
@@ -460,7 +507,7 @@ class ModelModeTests(Base):
         def judge_or_answer(body):
             return message("I think it is fine.") if body["system"] == re_.JUDGE_SYSTEM_PROMPT else by_condition(body)
         t = FakeTransport([judge_or_answer])
-        _, out, _ = self.run_cli(*self.model_args("--judge-model", "j", "--conditions", "with_skill"),
+        _, out, _ = self.run_cli(*self.model_args(*JUDGE_COST, "--judge-model", "j", "--conditions", "with_skill"),
                                  env=self.env, transport=t)
         r = json.loads(out)
         self.assertEqual({x["subjective"]["status"] for x in r["graded"]}, {"unparseable"})
@@ -489,7 +536,7 @@ class ModelModeTests(Base):
                 return by_condition(body)
             with self.subTest(label):
                 t = FakeTransport([judge_or_answer])
-                _, out, _ = self.run_cli(*self.model_args("--judge-model", "j", "--conditions", "with_skill"),
+                _, out, _ = self.run_cli(*self.model_args(*JUDGE_COST, "--judge-model", "j", "--conditions", "with_skill"),
                                          env=self.env, transport=t)
                 r = json.loads(out)
                 self.assertEqual({x["subjective"]["status"] for x in r["graded"]}, {"unparseable"})
@@ -654,10 +701,46 @@ class UrllibTransportTests(unittest.TestCase):
         req = self.api_request()
         self.assertIsNone(redirect[0].redirect_request(req, None, 302, "Found", {}, "http://evil/"))
 
+    def test_rejected_header_value_never_appears_in_the_error(self):
+        # The real http.client path: putheader() rejects a trailing CR before any connection
+        # is opened (port 1 on loopback is never contacted), quoting the value in its ValueError.
+        secret = "sk-ant-NOT-REAL-0123456789"
+        with self.assertRaises(eb.TransportError) as ctx:
+            eb.urllib_transport("https://127.0.0.1:1/v1/messages", b"{}", {"x-api-key": secret + "\r"}, 1.0)
+        self.assertNotIn(secret, str(ctx.exception))
+        self.assertIsNone(ctx.exception.__cause__)
+        self.assertTrue(ctx.exception.__suppress_context__)
+
     def test_persistent_connection_failure_gives_up_cleanly(self):
         _, calls, sleeps, err = self.run_client([urllib.error.URLError("dns")] * 3, max_retries=2)
         self.assertEqual((len(calls), len(sleeps)), (3, 2))
         self.assertIn("gave up after 3 attempt(s); last error: connection error: URLError: dns", str(err))
+
+    class TruncatedResp(Resp):
+        def read(self):
+            raise http.client.IncompleteRead(b"partial", 100)
+
+    def test_truncated_and_malformed_http_responses_are_retried_not_crashes(self):
+        # http.client.HTTPException subclasses are not OSErrors; they used to escape and kill the run.
+        ok = self.Resp({"content": [{"type": "text", "text": "ok"}], "model": "m"})
+        outcomes = [self.TruncatedResp({}), http.client.BadStatusLine("garbage"), ok]
+        msg, calls, sleeps, err = self.run_client(outcomes)
+        self.assertIsNone(err)
+        self.assertEqual((re_.response_text(msg), len(calls)), ("ok", 3))
+        _, calls, _, err = self.run_client([self.TruncatedResp({})] * 2, max_retries=1)
+        self.assertIn("connection error: IncompleteRead", str(err))
+        # an HTTP error whose body is cut off keeps its status
+        broken = urllib.error.HTTPError(re_.API_URL, 400, "err", self.headers(), None)
+        broken.read = mock.Mock(side_effect=http.client.IncompleteRead(b"", 10))
+        _, calls, _, err = self.run_client([broken])
+        self.assertEqual((len(calls), err.status), (1, 400))
+
+    def test_backend_maps_a_truncated_body_to_a_status_and_counts_unconfirmed_attempts(self):
+        with mock.patch.object(re_._OPENER, "open", lambda req, timeout: self.TruncatedResp({})):
+            client = re_.MessagesClient(API_KEY, sleep=lambda s: None, max_retries=2)
+            c = eb.AnthropicBackend(client, "m").complete(eb.Request(system="s", user="u", max_tokens=10))
+        self.assertEqual((c.status, c.attempts, c.meta["unconfirmed_attempts"]), ("error", 3, 3))
+        self.assertIn("IncompleteRead", c.error)
 
 
 class ExecutableRunnerTests(Base):
@@ -677,6 +760,9 @@ class ExecutableRunnerTests(Base):
         self.assertIn("needs a gpu", next(x for x in ex["results"] if x["status"] == "skipped")["detail"])
         self.assertEqual(ex["counts"], {"passed": 1, "failed": 1, "skipped": 1})
         self.assertEqual(code, 1)  # a failing executable test fails the run
+        failed = next(x for x in ex["results"] if x["status"] == "failed")
+        self.assertIn("Traceback", failed["output_tail"])  # the evidence for the failure is kept
+        self.assertNotIn("output_tail", next(x for x in ex["results"] if x["status"] == "passed"))
 
     def test_not_run_by_default_and_reported(self):
         self.set_tests("examples.test_fake.FakeTest.test_ok")
@@ -692,6 +778,760 @@ class ExecutableRunnerTests(Base):
         res = r["executable"]["results"]
         self.assertEqual([(x["status"], x["detail"]) for x in res],
                          [("skipped", "case requires gpu; not run by the offline harness")])
+
+
+# --------------------------------------------------------------------------
+# Executable cases: skipped is reported as not evidence, opt-in env, --require-executed (#10)
+# --------------------------------------------------------------------------
+
+ENV_GATED_TESTS = """import os
+import unittest
+
+
+class Gated(unittest.TestCase):
+    def test_slow(self):
+        if os.environ.get("ML_AI_SKILLS_SLOW_EXAMPLES") != "1":
+            self.skipTest("slow; set ML_AI_SKILLS_SLOW_EXAMPLES=1 to run")
+"""
+
+
+class ExecutableOptInTests(Base):
+    TEST_ID = "examples.test_gated.Gated.test_slow"
+
+    def setUp(self):
+        super().setUp()
+        (self.root / "tests" / "examples" / "test_gated.py").write_text(ENV_GATED_TESTS, encoding="utf-8")
+        y = self.root / "evals" / "skill-a" / "leak.yaml"
+        text = y.read_text(encoding="utf-8").replace("kind: response", "kind: executable")
+        y.write_text(text + f"executable_tests:\n  - {self.TEST_ID}\n", encoding="utf-8")
+        # The developer's shell (or CI's examples job) may set these; the tests decide them explicitly.
+        cleaned = {k: v for k, v in os.environ.items()
+                   if k not in (re_.SLOW_EXAMPLES_ENV, re_.REQUIRE_EXAMPLE_DEPS_ENV)}
+        patcher = mock.patch.dict(os.environ, cleaned, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_default_run_reports_skipped_as_not_evidence(self):
+        code, out, err = self.run_cli("--run-executable")
+        r = json.loads(out)
+        [res] = r["executable"]["results"]
+        self.assertEqual((res["status"], res["executed"], res["status_label"]),
+                         ("skipped", False, "skipped (not evidence)"))
+        self.assertIn("set ML_AI_SKILLS_SLOW_EXAMPLES=1", res["detail"])
+        self.assertEqual(r["executable"]["counts"], {"passed": 0, "failed": 0, "skipped": 1})
+        self.assertEqual(code, 0)  # a skip is not a failure by default ...
+        self.assertIn("skipped (not evidence)", err)
+
+    def test_executable_flags_without_run_executable_are_a_usage_error(self):
+        # Without --run-executable nothing runs, so --require-executed would silently pass.
+        for flag in ("--require-executed", "--slow-examples", "--require-example-deps"):
+            with self.subTest(flag=flag):
+                code, out, err = self.run_cli(flag)
+                self.assertEqual((code, out), (2, ""))
+                self.assertIn(f"{flag} need(s) --run-executable", err)
+
+    def test_require_executed_fails_on_a_skip(self):
+        code, _, err = self.run_cli("--run-executable", "--require-executed")
+        self.assertEqual(code, 1)  # ... but it is never evidence
+        self.assertIn("--require-executed: 1 executable test(s) were skipped", err)
+
+    def test_slow_examples_flag_runs_the_opt_in_test(self):
+        code, out, _ = self.run_cli("--run-executable", "--slow-examples", "--require-executed")
+        r = json.loads(out)
+        self.assertEqual(code, 0)
+        self.assertEqual(r["executable"]["results"][0]["status"], "passed")
+        self.assertEqual(r["executable"]["env_overrides"], {"ML_AI_SKILLS_SLOW_EXAMPLES": "1"})
+
+    def test_requires_blocked_case_counts_as_skipped_for_require_executed(self):
+        y = self.root / "evals" / "skill-a" / "leak.yaml"
+        y.write_text(y.read_text(encoding="utf-8") + "requires:\n  - gpu\n", encoding="utf-8")
+        code, out, _ = self.run_cli("--run-executable", "--slow-examples", "--require-executed")
+        [res] = json.loads(out)["executable"]["results"]
+        self.assertEqual((code, res["status"], res["executed"]), (1, "skipped", False))
+
+
+# --------------------------------------------------------------------------
+# Backends, statuses, budget, resume, provenance, redaction
+# --------------------------------------------------------------------------
+
+def leak_answer(req: eb.Request) -> str:
+    return LEAK_PASS if "<skill name=" in req.system else LEAK_FAIL
+
+
+class FakeFactory:
+    """backend_factory for main(): an in-process answering backend (and judge) per role."""
+
+    def __init__(self, answer=leak_answer, judge=None, *, paid=False, pricing=None):
+        self.backends = {"answer": eb.CallableBackend(answer, paid=paid, pricing=pricing)}
+        if judge:
+            self.backends["judge"] = eb.CallableBackend(judge, provider="fake-judge", model="judge-m")
+
+    def __call__(self, role, args):
+        return self.backends[role]
+
+
+REPLAY = ("--provider", "replay", "--replay-file")
+
+
+def run_main(root: Path, *args, env=None, **kw) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    code = re_.main(["--root", str(root), *args], env=env or {}, now=lambda: "2026-01-01T00:00:00+00:00",
+                    environment=FIXED_ENV, stdout=out, stderr=err, **kw)
+    return code, out.getvalue(), err.getvalue()
+
+
+class ReplayAndStatusTests(Base):
+    def replay_file(self, rows):
+        return str(self.responses_file(rows, "replay.jsonl"))
+
+    def test_replay_runs_the_full_pipeline_offline_and_reports_uplift(self):
+        f = self.replay_file([
+            {"case_id": "skill-a/leak", "condition": "with_skill", "response": LEAK_PASS},
+            {"case_id": "skill-a/leak", "condition": "without_skill", "response": LEAK_FAIL},
+            {"case_id": "skill-a/plain", "condition": "with_skill", "response": "steps"},
+            {"case_id": "skill-a/plain", "condition": "without_skill", "response": "steps"}])
+        code, r = self.report(*REPLAY, f)
+        self.assertEqual(code, 0)
+        self.assertEqual(r["mode"], "model")
+        self.assertEqual(r["model_run"]["backend"]["provider"], "replay")
+        self.assertEqual(r["model_evaluation"], {"status": "run", "complete": True, "attempts": 4,
+                                                 "by_status": {"ok": 4}, "provider": "replay",
+                                                 "model": "replay:replay.jsonl"})
+        g = {(x["case_id"], x["condition"]): x for x in r["graded"]}
+        self.assertEqual(g[("skill-a/leak", "with_skill")]["verdict"]["final"], "structural-pass")
+        self.assertEqual(g[("skill-a/leak", "without_skill")]["verdict"]["final"], "fail")  # must_not_include hit
+        self.assertTrue(g[("skill-a/leak", "without_skill")]["verdict"]["critical_error"])
+        self.assertEqual(g[("skill-a/plain", "with_skill")]["verdict"]["final"], "ungraded")
+        up = r["uplift"]
+        self.assertEqual((up["structural"]["status"], up["structural"]["delta"]), ("measured", 1.0))
+        self.assertEqual(up["critical_error"]["delta"], -0.5)  # leak: 0 vs 1 critical errors; plain: 0 vs 0
+        self.assertEqual(up["correct"]["status"], "unmeasured")  # no rubric verdict: never "correct"
+        self.assertEqual(r["summary"]["final"]["with_skill"]["correct"]["n"], 0)
+        self.assertEqual(r["provenance"]["replay_file_sha256"], el.sha256_file(Path(f)))
+
+    def test_failed_attempts_are_recorded_never_passes_and_break_pairs(self):
+        f = self.replay_file([
+            {"case_id": "skill-a/leak", "condition": "with_skill", "status": "rate-limited", "error": "429"},
+            {"case_id": "skill-a/leak", "condition": "without_skill", "response": LEAK_FAIL},
+            {"case_id": "skill-a/plain", "condition": "with_skill", "status": "timeout"},
+            {"case_id": "skill-a/plain", "condition": "without_skill", "status": "refusal", "response": ""}])
+        code, r = self.report(*REPLAY, f)
+        self.assertEqual(code, 0)
+        g = {(x["case_id"], x["condition"]): x for x in r["graded"]}
+        self.assertEqual(g[("skill-a/leak", "with_skill")]["verdict"]["final"], "rate-limited")
+        self.assertIsNone(g[("skill-a/leak", "with_skill")]["hard"]["passed"])
+        self.assertEqual(g[("skill-a/plain", "with_skill")]["verdict"]["final"], "timeout")
+        self.assertEqual(g[("skill-a/plain", "without_skill")]["verdict"]["final"], "refusal")
+        self.assertFalse(r["model_evaluation"]["complete"])
+        self.assertEqual(r["summary"]["hard"]["with_skill"]["errors"], 2)
+        self.assertEqual(r["summary"]["hard"]["without_skill"]["refusals"], 1)
+        su = r["skill_uplift"]
+        self.assertEqual(su["status"], "unmeasured")
+        self.assertEqual(su["incomplete_cases"][0]["case_id"], "skill-a/leak")
+        self.assertIn("with_skill: 1 of 1 attempt(s) have no structural outcome", su["incomplete_cases"][0]["reasons"])
+        self.assertEqual(self.run_cli(*REPLAY, f, "--strict")[0], 1)
+
+    def test_samples_average_per_case_and_an_errored_sample_makes_the_pair_incomplete(self):
+        rows = [{"case_id": "skill-a/leak", "condition": "with_skill", "sample": s, "response": LEAK_PASS}
+                for s in (0, 1)]
+        rows += [{"case_id": "skill-a/leak", "condition": "without_skill", "sample": 0, "response": LEAK_PASS},
+                 {"case_id": "skill-a/leak", "condition": "without_skill", "sample": 1, "response": LEAK_FAIL}]
+        code, r = self.report(*REPLAY, self.replay_file(rows), "--samples", "2", "--case", "leak")
+        self.assertEqual(code, 0)
+        st = r["uplift"]["structural"]
+        self.assertEqual((st["paired_cases"], st["samples_per_arm"], st["delta"]), (1, [2], 0.5))
+        self.assertEqual((st["with_skill_rate"]["k"], st["with_skill_rate"]["n"]), (2, 2))
+        self.assertEqual([g["sample"] for g in r["graded"]], [0, 1, 0, 1])
+        rows[3] = {**rows[3], "status": "server-error"}
+        _, r = self.report(*REPLAY, self.replay_file(rows), "--samples", "2", "--case", "leak")
+        self.assertEqual(r["uplift"]["structural"]["status"], "unmeasured")
+
+    def test_dry_run_sends_nothing_and_needs_no_key_or_network(self):
+        t = FakeTransport([message("x")])
+        code, out, err = self.run_cli("--provider", "anthropic", "--model", "m", "--dry-run", "--max-tokens", "100",
+                                      "--price-input-per-mtok", "3", "--price-output-per-mtok", "15",
+                                      transport=t)
+        self.assertEqual((code, t.requests), (0, []), err)
+        plan = json.loads(out)
+        self.assertEqual((plan["schema"], plan["status"]), (re_.PLAN_SCHEMA, "not-run"))
+        self.assertEqual(plan["preflight"]["answer_requests"], 4)
+        self.assertGreater(plan["preflight"]["worst_case_usd"], 0)
+        self.assertIn("worst-case cost $", err)
+        p = plan["provenance"]
+        self.assertEqual((p["report_schema"], p["git_revision"], p["git_dirty"]), (re_.PLAN_SCHEMA, None, None))
+        self.assertEqual(p["config"]["model"], "m")
+        self.assertEqual(p["config_sha256"], re_._json_sha(p["config"]))
+
+    def test_regex_only_critical_fail_in_both_arms_leaves_correct_unmeasured(self):
+        # Regression: a must_not_include hit in both arms with no rubric used to make the correct layer
+        # "measured" at 0 vs 0 while summary.final.correct had n=0.
+        f = self.replay_file([{"case_id": "skill-a/leak", "condition": c, "response": LEAK_FAIL}
+                              for c in ("with_skill", "without_skill")])
+        _, r = self.report(*REPLAY, f, "--case", "leak")
+        self.assertEqual([g["verdict"]["final"] for g in r["graded"]], ["fail", "fail"])
+        self.assertEqual(r["uplift"]["correct"]["status"], "unmeasured")
+        self.assertEqual(r["summary"]["final"]["with_skill"]["correct"]["n"], 0)
+        self.assertEqual((r["uplift"]["critical_error"]["status"], r["uplift"]["critical_error"]["delta"]),
+                         ("measured", 0.0))
+
+
+class BudgetTests(Base):
+    env = {"ANTHROPIC_API_KEY": API_KEY}
+
+    def test_ceiling_stops_calls_before_it_is_exceeded(self):
+        # Each call uses all 100 max_tokens at $1000/Mtok output = $0.10, exactly its worst case.
+        t = FakeTransport([message(LEAK_PASS, usage={"input_tokens": 0, "output_tokens": 100})])
+        args = ("--provider", "anthropic", "--model", "m", "--allow-network", "--max-tokens", "100",
+                "--price-input-per-mtok", "0", "--price-output-per-mtok", "1000", "--max-cost-usd", "0.25")
+        code, out, err = self.run_cli(*args, env=self.env, transport=t)
+        self.assertEqual((code, t.requests), (2, []))  # worst case $0.40 > $0.25: refused up front
+        code, out, err = self.run_cli(*args, "--allow-partial-budget", env=self.env, transport=t)
+        r = json.loads(out)
+        self.assertEqual(len(t.requests), 2)
+        self.assertEqual(sorted(g["status"] for g in r["graded"]),
+                         ["budget-exhausted", "budget-exhausted", "ok", "ok"])
+        b = r["model_run"]["budget"]
+        self.assertLessEqual(b["spent_usd_estimate"], 0.25)
+        self.assertTrue(b["exhausted"])
+        self.assertGreater(r["model_run"]["preflight"]["worst_case_usd"], 0.25)
+        self.assertIn("INCOMPLETE", err)
+
+    def test_unpriced_paid_backend_stops_once_the_ceiling_is_reached(self):
+        backend = eb.CallableBackend(lambda req: eb.Completion(status="ok", text=LEAK_PASS, cost_usd=0.6), paid=True)
+        code, out, err = run_main(self.root, "--provider", "claude-cli", "--model", "m", "--allow-network",
+                                  "--max-cost-usd", "1", backend_factory=lambda role, args: backend)
+        r = json.loads(out)
+        self.assertEqual(len(backend.calls), 2)  # $0 < $1 -> call; $0.6 < $1 -> call; $1.2 -> stop
+        self.assertEqual(sorted(g["status"] for g in r["graded"]),
+                         ["budget-exhausted", "budget-exhausted", "ok", "ok"])
+
+    def test_unpriced_paid_call_reporting_no_cost_stops_the_run(self):
+        # Regression: a claude CLI result without total_cost_usd (and no --price-*) used to be charged
+        # nothing, so the ceiling never bound and every call went out (20 calls at a $0.01 ceiling).
+        calls = []
+
+        def run(argv, **kw):
+            if argv[-1] == "--version":
+                return subprocess.CompletedProcess(argv, 0, "x\n", "")
+            calls.append(argv)
+            return subprocess.CompletedProcess(argv, 0, json.dumps(
+                {"type": "result", "subtype": "success", "is_error": False, "result": LEAK_PASS}) + "\n", "")
+        code, out, err = run_main(self.root, "--provider", "claude-cli", "--model", "m", "--allow-network",
+                                  "--max-cost-usd", "0.01", "--samples", "5", cli_runner=run)
+        r = json.loads(out)
+        self.assertEqual(len(calls), 1)
+        statuses = [g["status"] for g in r["graded"]]
+        self.assertEqual((statuses.count("ok"), statuses.count("budget-exhausted")), (1, 19))
+        b = r["model_run"]["budget"]
+        self.assertEqual((b["exhausted"], b["uncosted_calls"]), (True, 1))
+        self.assertIn("spend can no longer be bounded", b["stop_reason"])
+        self.assertIn("spend can no longer be bounded",
+                      next(g["error"] for g in r["graded"] if g["status"] == "budget-exhausted"))
+        self.assertFalse(r["model_evaluation"]["complete"])
+        self.assertIn("INCOMPLETE", err)
+
+    def test_unconfirmed_http_attempts_are_charged_a_worst_case_each(self):
+        # One timeout, then success: the timed-out request may have been billed.
+        t = FakeTransport([re_.TransportError("TimeoutError: timed out"),
+                           message(LEAK_PASS, usage={"input_tokens": 0, "output_tokens": 10})])
+        args = ("--provider", "anthropic", "--model", "m", "--allow-network", "--max-tokens", "100",
+                "--price-input-per-mtok", "0", "--price-output-per-mtok", "1000", "--max-cost-usd", "5",
+                "--case", "leak", "--conditions", "with_skill", "--backoff-base", "0")
+        code, out, err = self.run_cli(*args, env=self.env, transport=t)
+        self.assertEqual(code, 0, err)
+        [g] = json.loads(out)["graded"]
+        self.assertEqual((g["status"], g["attempts"]), ("ok", 2))
+        # observed $0.01 + one worst case ($0.10 output; input priced at 0)
+        self.assertAlmostEqual(json.loads(out)["model_run"]["budget"]["spent_usd_estimate"], 0.11)
+
+    def test_cli_that_cannot_start_is_charged_nothing(self):
+        def run(argv, **kw):
+            if argv[-1] == "--version":
+                return subprocess.CompletedProcess(argv, 0, "x\n", "")
+            raise FileNotFoundError("claude")
+        _, out, _ = run_main(self.root, "--provider", "claude-cli", "--model", "m", "--allow-network",
+                             "--max-cost-usd", "1", cli_runner=run)
+        r = json.loads(out)
+        self.assertEqual({g["status"] for g in r["graded"]}, {"error"})  # every case tried, none charged
+        self.assertEqual((r["model_run"]["budget"]["spent_usd_estimate"], r["model_run"]["budget"]["exhausted"]),
+                         (0.0, False))
+
+
+class RunDirResumeTests(Base):
+    def setUp(self):
+        super().setUp()
+        self.dummy = self.responses_file([], "dummy.jsonl")  # satisfies --replay-file; the factory answers
+        self.run_dir = self.tmp / "run"
+
+    def run_fake(self, factory, *args):
+        code, out, err = run_main(self.root, *REPLAY, str(self.dummy), *args, backend_factory=factory)
+        return code, (json.loads(out) if out else None), err
+
+    def test_resume_reuses_only_completed_attempts_with_matching_provenance(self):
+        fail_once = {"n": 0}
+
+        def flaky(req):
+            if req.case_id == "skill-a/leak" and req.condition == "with_skill" and fail_once["n"] == 0:
+                fail_once["n"] += 1
+                return eb.Completion(status="timeout", error="timed out")
+            return leak_answer(req)
+        f1 = FakeFactory(flaky)
+        code, r, _ = self.run_fake(f1, "--run-dir", str(self.run_dir))
+        self.assertEqual((code, len(f1.backends["answer"].calls)), (0, 4))
+        self.assertFalse(r["model_evaluation"]["complete"])
+        self.assertTrue((self.run_dir / "manifest.json").is_file())
+        self.assertTrue((self.run_dir / "report.json").is_file())
+        recs = [json.loads(x) for x in (self.run_dir / "records.jsonl").read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(len(recs), 4)
+        self.assertEqual({x["completion"]["status"] for x in recs}, {"ok", "timeout"})
+        # without --resume a used run dir is refused
+        code, _, err = self.run_fake(FakeFactory(), "--run-dir", str(self.run_dir))
+        self.assertEqual(code, 2)
+        self.assertIn("already has records", err)
+        # --resume re-attempts only the timed-out key
+        f2 = FakeFactory()
+        code, r, _ = self.run_fake(f2, "--run-dir", str(self.run_dir), "--resume")
+        calls = [(q.case_id, q.condition) for q in f2.backends["answer"].calls]
+        self.assertEqual(calls, [("skill-a/leak", "with_skill")])
+        self.assertTrue(r["model_evaluation"]["complete"])
+        self.assertEqual(r["model_run"]["resume"]["reused"], 3)
+        self.assertEqual(r["model_run"]["resume"]["reattempted"], 1)
+        # editing SKILL.md changes the with_skill prompt: those answers are stale, without_skill ones are not
+        sk = self.root / "skill-a" / "SKILL.md"
+        sk.write_text(sk.read_text(encoding="utf-8") + "\nMore guidance.\n", encoding="utf-8")
+        f3 = FakeFactory()
+        _, r, _ = self.run_fake(f3, "--run-dir", str(self.run_dir), "--resume")
+        self.assertEqual(sorted((q.case_id, q.condition) for q in f3.backends["answer"].calls),
+                         [("skill-a/leak", "with_skill"), ("skill-a/plain", "with_skill")])
+        self.assertEqual(r["model_run"]["resume"]["stale_ignored"], 2)
+
+    def test_truncated_last_line_is_skipped_and_counted(self):
+        self.run_fake(FakeFactory(), "--run-dir", str(self.run_dir))
+        with (self.run_dir / "records.jsonl").open("a", encoding="utf-8") as f:
+            f.write('{"type": "answer", "key": "skill-a/leak|with')  # crash mid-write
+        f2 = FakeFactory()
+        code, r, _ = self.run_fake(f2, "--run-dir", str(self.run_dir), "--resume")
+        self.assertEqual((code, len(f2.backends["answer"].calls)), (0, 0))
+        self.assertEqual(r["model_run"]["resume"]["corrupt_lines"], 1)
+
+    def test_resume_without_records_is_a_usage_error(self):
+        code, _, err = self.run_fake(FakeFactory(), "--run-dir", str(self.run_dir), "--resume")
+        self.assertEqual(code, 2)
+        self.assertIn("does not exist or is empty", err)
+        code, _, err = self.run_fake(FakeFactory(), "--resume")
+        self.assertEqual(code, 2)
+        self.assertIn("--resume needs --run-dir", err)
+
+    def test_judge_results_are_recorded_and_reused(self):
+        def judge(req):
+            n_mn = req.user.split("must_not (")[1].count("\n0. ")
+            return json.dumps({"expected_behavior": [{"index": 0, "met": True, "reason": "r"}],
+                               "must_not": [{"index": 0, "violated": False, "reason": "r"}] if n_mn else []})
+        jargs = ("--judge-provider", "replay", "--judge-replay-file", str(self.dummy))
+        f1 = FakeFactory(judge=judge)
+        code, r, err = self.run_fake(f1, "--run-dir", str(self.run_dir), *jargs)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(f1.backends["judge"].calls), 4)
+        g = {(x["case_id"], x["condition"]): x for x in r["graded"]}
+        self.assertEqual(g[("skill-a/leak", "with_skill")]["verdict"]["final"], "correct")
+        self.assertEqual(g[("skill-a/leak", "without_skill")]["verdict"]["final"], "fail")  # regex must_not_include
+        self.assertEqual(g[("skill-a/plain", "with_skill")]["verdict"]["final"], "correct")
+        self.assertEqual(r["uplift"]["correct"]["delta"], 0.5)
+        self.assertEqual(r["provenance"]["judge_prompt_sha256"], re_.eg.judge_prompt_sha256())
+        f2 = FakeFactory(judge=judge)
+        _, r2, _ = self.run_fake(f2, "--run-dir", str(self.run_dir), "--resume", *jargs)
+        self.assertEqual((len(f2.backends["answer"].calls), len(f2.backends["judge"].calls)), (0, 0))
+        self.assertEqual(r2["uplift"], r["uplift"])
+        # Editing only the judge prompt re-buys the judge calls, never the answers.
+        f3 = FakeFactory(judge=judge)
+        with mock.patch.object(re_.eg, "JUDGE_SYSTEM_PROMPT", re_.eg.JUDGE_SYSTEM_PROMPT + " Be strict."):
+            _, r3, _ = self.run_fake(f3, "--run-dir", str(self.run_dir), "--resume", *jargs)
+        self.assertEqual((len(f3.backends["answer"].calls), len(f3.backends["judge"].calls)), (0, 4))
+        self.assertEqual(r3["provenance"]["prompt_template_sha256"], r["provenance"]["prompt_template_sha256"])
+        self.assertNotEqual(r3["provenance"]["judge_prompt_sha256"], r["provenance"]["judge_prompt_sha256"])
+
+
+class ProvenanceTests(Base):
+    def test_report_provenance_block(self):
+        rows = self.responses_file([{"case_id": "skill-a/leak", "condition": "with_skill", "response": LEAK_PASS}])
+        _, r = self.report("--responses", str(rows))
+        p = r["provenance"]
+        for key in ("git_revision", "git_dirty", "dataset_sha256", "skill_sha256", "case_sha256",
+                    "prompt_template_sha256", "grader_version", "harness_version", "config", "config_sha256",
+                    "responses_sha256", "schema_version"):
+            self.assertIn(key, p)
+        self.assertEqual(p["dataset_sha256"], r["dataset"]["dataset_sha256"])
+        self.assertEqual(p["responses_sha256"], el.sha256_file(rows))
+        self.assertEqual(p["config"]["responses"], str(rows))
+        self.assertNotIn("root", p["config"])
+        self.assertEqual(r["verdict_rules"], list(re_.eg.VERDICT_RULES))
+
+    def test_compare_reads_schema_v1_reports_and_rejects_unknown_versions(self):
+        row = {"case_id": "skill-a/leak", "condition": "with_skill", "response": LEAK_PASS}
+        p = self.tmp / "new.json"
+        self.run_cli("--responses", str(self.responses_file([row])), "--out", str(p))
+        v1 = json.loads(p.read_text(encoding="utf-8"))
+        v1["schema_version"] = 1
+        for k in ("provenance", "uplift", "verdict_rules", "model_evaluation", "grader_version"):
+            v1.pop(k)
+        for g in v1["graded"]:
+            for k in ("sample", "rubric", "verdict"):
+                g.pop(k)
+        old = self.tmp / "v1.json"
+        old.write_text(json.dumps(v1), encoding="utf-8")
+        code, out, _ = self.run_cli("--compare", str(old), str(p))
+        self.assertEqual((code, json.loads(out)["regressions"]), (0, []))
+        v1["schema_version"] = 99
+        old.write_text(json.dumps(v1), encoding="utf-8")
+        code, _, err = self.run_cli("--compare", str(old), str(p))
+        self.assertEqual(code, 2)
+        self.assertIn("schema_version 99", err)
+
+
+class RubricLabelTests(Base):
+    def test_labels_drive_the_combined_verdict(self):
+        rows = self.responses_file([
+            {"case_id": "skill-a/leak", "condition": "with_skill", "response": LEAK_PASS},
+            {"case_id": "skill-a/leak", "condition": "without_skill", "response": LEAK_PASS + " Extra."},
+            {"case_id": "skill-a/plain", "condition": "with_skill", "response": "steps"}])
+        sha = lambda t: hashlib.sha256(t.encode("utf-8")).hexdigest()  # noqa: E731
+        labels = self.tmp / "labels.jsonl"
+        labels.write_text("\n".join(json.dumps(x) for x in [
+            {"case_id": "skill-a/leak", "response_sha256": sha(LEAK_PASS), "expected_behavior": [True],
+             "must_not": [False], "label_source": "human"},
+            {"case_id": "skill-a/leak", "response_sha256": sha(LEAK_PASS + " Extra."), "expected_behavior": [True],
+             "must_not": [True], "label_source": "human"},
+            {"case_id": "skill-a/plain", "response_sha256": sha("steps"), "expected_behavior": [False],
+             "must_not": [], "label_source": "agent-adjudicated"}]) + "\n", encoding="utf-8")
+        code, r = self.report("--responses", str(rows), "--rubric-labels", str(labels))
+        self.assertEqual(code, 0)
+        g = {(x["case_id"], x["condition"]): x for x in r["graded"]}
+        self.assertEqual(g[("skill-a/leak", "with_skill")]["verdict"]["final"], "correct")
+        bad = g[("skill-a/leak", "without_skill")]["verdict"]
+        self.assertEqual((bad["final"], bad["critical_sources"]), ("fail", ["rubric (labels:human)"]))
+        self.assertEqual(g[("skill-a/plain", "with_skill")]["verdict"]["final"], "incorrect")
+        self.assertEqual(g[("skill-a/plain", "with_skill")]["rubric"]["source"], "labels:agent-adjudicated")
+        fin = r["summary"]["final"]["with_skill"]
+        self.assertEqual((fin["correct"]["k"], fin["correct"]["n"]), (1, 2))
+        self.assertIsNotNone(fin["correct"]["ci95"])
+
+    def test_bad_label_file_is_an_input_error(self):
+        labels = self.tmp / "labels.jsonl"
+        labels.write_text('{"case_id": "x"}\n', encoding="utf-8")
+        code, r = self.report("--rubric-labels", str(labels))
+        self.assertEqual(code, 1)
+        self.assertIn("needs case_id, response_sha256", r["input_errors"][0])
+
+
+class RedactionTests(Base):
+    SECRET = "sk-ant-api03-super-secret-value-XYZ"
+    OTHER = "ghp_other_token_value_123456"
+
+    def test_secrets_never_reach_reports_records_logs_or_saved_responses(self):
+        env = {"ANTHROPIC_API_KEY": self.SECRET, "SOME_SERVICE_TOKEN": self.OTHER}
+        # A misbehaving proxy that echoes the key in an error body, and a "model" that echoes another secret.
+        echo = (400, {"error": {"type": "invalid_request_error", "message": f"bad header {self.SECRET}"}})
+
+        def respond(body):
+            if body["messages"][0]["content"].startswith("Walk"):
+                return echo
+            return message(f"{LEAK_PASS} {self.OTHER}")
+        t = FakeTransport([respond])
+        run_dir, saved, out_file = self.tmp / "run", self.tmp / "saved.jsonl", self.tmp / "report.json"
+        code, out, err = self.run_cli(*self.model_args("--run-dir", str(run_dir), "--save-responses", str(saved),
+                                                       "--out", str(out_file)), env=env, transport=t)
+        self.assertEqual(code, 0, err)
+        self.assertTrue(any(q["headers"]["x-api-key"] == self.SECRET for q in t.requests))  # the key was used
+        texts = {"stderr": err, "report": out_file.read_text(encoding="utf-8"),
+                 "saved": saved.read_text(encoding="utf-8")}
+        texts.update({p.name: p.read_text(encoding="utf-8") for p in run_dir.iterdir()})
+        self.assertIn("records.jsonl", texts)
+        for name, text in texts.items():
+            with self.subTest(file=name):
+                self.assertNotIn(self.SECRET, text)
+                self.assertNotIn(self.OTHER, text)
+        self.assertIn(eb.REDACTED, texts["report"])
+        self.assertIn(eb.REDACTED, texts["records.jsonl"])
+        self.assertEqual(json.loads(texts["report"])["provenance"]["config"]["api_key_env"], "ANTHROPIC_API_KEY")
+
+
+class ClaudeCliBackendTests(Base):
+    CLI_OK = {"type": "result", "subtype": "success", "is_error": False, "result": LEAK_PASS, "num_turns": 1,
+              "total_cost_usd": 0.01, "usage": {"input_tokens": 5, "output_tokens": 7},
+              "modelUsage": {"model-cli-1": {}}}
+
+    def fake_runner(self, payload=None, *, exc=None, returncode=0, stdout=None):
+        calls = []
+
+        def run(argv, **kw):
+            if argv[-1] == "--version":
+                return subprocess.CompletedProcess(argv, 0, "9.9.9 (fake)\n", "")
+            sp = argv[argv.index("--system-prompt-file") + 1]
+            calls.append({"argv": argv, "system": Path(sp).read_text(encoding="utf-8"), "cwd": kw["cwd"],
+                          "input": kw["input"], "timeout": kw["timeout"]})
+            if exc:
+                raise exc
+            body = stdout if stdout is not None else json.dumps(payload or self.CLI_OK) + "\n"
+            return subprocess.CompletedProcess(argv, returncode, body, "boom")
+        return run, calls
+
+    def cli_args(self, *extra):
+        return ("--provider", "claude-cli", "--model", "cli-model", "--allow-network", "--max-cost-usd", "2",
+                "--conditions", "with_skill", "--case", "leak", *extra)
+
+    def test_priced_cli_backend_claims_no_per_call_worst_case(self):
+        # The CLI ignores max_tokens, so a price x max_tokens "worst case" would understate a
+        # call and let --no-cli-budget-flag runs overshoot the ceiling (security review 2026-10-30).
+        backend = eb.ClaudeCliBackend("m", pricing=eb.Pricing(3.0, 15.0), budget_flag=False)
+        req = eb.Request(system="s", user="u", max_tokens=16)
+        self.assertIsNone(backend.worst_case_cost(req))
+
+    def test_argv_stdin_isolation_and_parsing(self):
+        run, calls = self.fake_runner()
+        code, out, err = run_main(self.root, *self.cli_args("--timeout", "33", "--claude-cli-arg=--bare"),
+                                  cli_runner=run)
+        self.assertEqual(code, 0, err)
+        [c] = calls
+        argv = c["argv"]
+        self.assertEqual(argv[:4], ["claude", "-p", "--output-format", "json"])
+        for flag in ("--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"):
+            self.assertIn(flag, argv)
+        self.assertEqual(argv[argv.index("--tools") + 1], "")
+        self.assertEqual(argv[argv.index("--model") + 1], "cli-model")
+        self.assertEqual(argv[argv.index("--max-budget-usd") + 1], "2.0000")
+        self.assertEqual(argv[-1], "--bare")
+        self.assertIn('<skill name="skill-a">', c["system"])  # SKILL.md is the system prompt, not the user turn
+        self.assertEqual(c["input"].strip(), "Can I scale the whole dataset before splitting?")
+        self.assertEqual(c["timeout"], 33.0)
+        self.assertFalse(Path(c["cwd"]).exists())  # temporary working directory removed
+        self.assertNotIn(str(self.root), c["cwd"])
+        r = json.loads(out)
+        [g] = r["graded"]
+        self.assertEqual((g["status"], g["model_reported"], g["cost_usd"]), ("ok", "model-cli-1", 0.01))
+        self.assertTrue(g["hard"]["passed"])
+        self.assertEqual(r["model_run"]["backend"]["cli_version"], "9.9.9 (fake)")
+        self.assertEqual(r["model_run"]["budget"]["spent_usd_estimate"], 0.01)
+
+    def test_cli_failures_map_to_explicit_statuses(self):
+        cases = {
+            "timeout": dict(exc=subprocess.TimeoutExpired("claude", 1)),
+            "error": dict(returncode=1, stdout="not json"),
+            "budget-exhausted": dict(payload={**self.CLI_OK, "is_error": True, "subtype": "error_max_budget_usd"}),
+        }
+        for status, kw in cases.items():
+            with self.subTest(status=status):
+                run, _ = self.fake_runner(**kw)
+                _, out, _ = run_main(self.root, *self.cli_args(), cli_runner=run)
+                [g] = json.loads(out)["graded"]
+                self.assertEqual((g["status"], g["verdict"]["final"], g["hard"]["passed"]), (status, status, None))
+
+    def test_real_subprocess_with_a_fake_cli_and_a_bounded_timeout(self):
+        script = self.tmp / "fake_claude.py"
+        script.write_text(
+            "import json, sys, time\n"
+            "argv = sys.argv[1:]\n"
+            "if '--sleep' in argv:\n"
+            "    time.sleep(30)\n"
+            "system = open(argv[argv.index('--system-prompt-file') + 1], encoding='utf-8').read()\n"
+            "user = sys.stdin.read()\n"
+            "print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': False,\n"
+            "                  'result': 'echo:' + str(len(system)) + ':' + user.strip(), 'total_cost_usd': 0.0}))\n",
+            encoding="utf-8")
+        backend = eb.ClaudeCliBackend("m", command=[sys.executable, str(script)], timeout=60)
+        c = backend.complete(eb.Request(system="SYS", user="hello", max_tokens=10))
+        self.assertEqual((c.status, c.text), ("ok", "echo:3:hello"))
+        slow = eb.ClaudeCliBackend("m", command=[sys.executable, str(script)], timeout=2, extra_args=("--sleep",))
+        c = slow.complete(eb.Request(system="SYS", user="hello", max_tokens=10))
+        self.assertEqual(c.status, "timeout")
+
+
+# --------------------------------------------------------------------------
+# Labelled-set grading CLI (--grade-labelled / --grade-heldout)
+# --------------------------------------------------------------------------
+
+def item(item_id, text, label, **kw):
+    base = {"item_id": item_id, "case_id": "skill-a/leak", "skill": "skill-a", "partition": "heldout",
+            "intended_label": label if label != "unresolved" else "pass", "final_label": label,
+            "label_source": "agent-adjudicated", "answer_text": text,
+            "adjudicated_labels": [{"labeler": "labeler-a", "label": label}, {"labeler": "labeler-b", "label": label}]}
+    base.update(kw)
+    return {k: v for k, v in base.items() if v is not None}
+
+
+class GradeLabelledCliTests(Base):
+    def write_manifest(self, items, partition="heldout") -> Path:
+        d = self.root / "evals" / "_grading" / partition
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / "manifest.jsonl"
+        p.write_text("".join(json.dumps(i) + "\n" for i in items), encoding="utf-8")
+        return p
+
+    def test_heldout_scoring_with_exclusions(self):
+        self.write_manifest([
+            item("ok-1", "Split first; otherwise statistics leak.", "pass"),
+            item("ok-missed", "Fit the scaler on the training portion only to avoid contamination.", "pass"),
+            item("bad-caught", "Yes, scale it all.", "fail"),
+            item("bad-missed", "Leakage is a myth; split first if you like, it changes nothing.", "fail"),
+            item("unsure", "Maybe.", "unresolved", adjudicated_labels=[{"labeler": "a", "label": "pass"},
+                                                                       {"labeler": "b", "label": "fail"}]),
+            item("overlap", LEAK_PASS, "pass"),
+            item("unknown", "x", "pass", case_id="skill-a/nope"),
+        ])
+        code, out, err = self.run_cli("--grade-heldout")
+        self.assertEqual(code, 0, err)
+        r = json.loads(out)
+        self.assertEqual((r["schema"], r["partition"], r["status"]["status"]),
+                         ("ml-ai-skills/grader-calibration", "heldout", "measured"))
+        self.assertEqual(r["counts"], {"items": 7, "usable": 4,
+                                       "excluded": {"unresolved": 1, "unknown_case": 1, "dev_overlap": 1}})
+        a = r["graders"]["regex"]["aggregate"]
+        self.assertEqual((a["tp"], a["fn"], a["tn"], a["fp"]), (1, 1, 1, 1))
+        self.assertEqual((a["fpr"]["rate"], a["fpr"]["n"]), (0.5, 2))
+        self.assertEqual(a["fpr"]["ci95"], re_.eg.wilson(1, 2))
+        self.assertIn("skill-a", r["graders"]["regex"]["by_skill"])
+        self.assertIn("not measured: no item is human-labelled", r["status"]["against_humans"])
+        self.assertIn("FPR 0.500", err)
+        self.assertEqual(r["manifest"]["path"], "evals/_grading/heldout/manifest.jsonl")
+
+    def test_missing_or_empty_manifest_is_unmeasured_not_a_pass(self):
+        code, out, _ = self.run_cli("--grade-heldout")
+        r = json.loads(out)
+        self.assertEqual((code, r["status"]["status"]), (0, "unmeasured"))
+        self.assertIn("no labelled set at", r["warnings"][0])
+        self.write_manifest([])
+        _, out, _ = self.run_cli("--grade-labelled", "heldout")
+        self.assertEqual(json.loads(out)["status"]["reason"], "the labelled set is empty")
+
+    def test_manifest_errors_exit_1(self):
+        self.write_manifest([
+            item("dev-labelled", "x", "pass", label_source="fixture-author", adjudicated_labels=[]),
+            item("wrong-partition", "Split first; leak.", "pass", partition="calibration"),
+            item("contradiction", "y", "pass", adjudicated_labels=[{"labeler": "a", "label": "fail"}]),
+            item("traversal", None, "pass", answer_file="../../secret.md"),
+        ])
+        code, out, _ = self.run_cli("--grade-heldout")
+        r = json.loads(out)
+        self.assertEqual(code, 1)
+        joined = "\n".join(r["errors"])
+        for needle in ("fixture-author labels are dev data", "not partition 'heldout': wrong-partition",
+                       "contradicts unanimous adjudicated label", "answer_file must be a relative POSIX path"):
+            self.assertIn(needle, joined)
+
+    def test_dev_fixtures_score_perfectly_by_construction(self):
+        code, out, _ = self.run_cli("--grade-labelled", "dev-fixtures")
+        a = json.loads(out)["graders"]["regex"]["aggregate"]
+        self.assertEqual(code, 0)
+        self.assertEqual((a["tp"], a["tn"], a["fp"], a["fn"]), (1, 1, 0, 0))
+
+    def test_judge_and_layered_graders_are_scored_when_a_judge_is_configured(self):
+        self.write_manifest([item("ok", "Split first; otherwise statistics leak.", "pass"),
+                             item("bad", "Leakage is a myth; split first if you like, it changes nothing.", "fail")])
+
+        def judge(req):
+            bad = "myth" in req.user
+            return json.dumps({"expected_behavior": [{"index": 0, "met": not bad, "reason": "r"}],
+                               "must_not": [{"index": 0, "violated": bad, "reason": "r"}]})
+        dummy = self.responses_file([], "dummy.jsonl")
+        factory = FakeFactory(judge=judge)
+        code, out, err = run_main(self.root, "--grade-heldout", "--judge-provider", "replay", "--judge-replay-file",
+                                  str(dummy), backend_factory=factory)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(factory.backends["judge"].calls), 2)  # one judge call per item, shared by both graders
+        r = json.loads(out)
+        self.assertEqual(r["graders"]["regex"]["aggregate"]["fp"], 1)
+        self.assertEqual(r["graders"]["judge"]["aggregate"]["fp"], 0)
+        self.assertEqual(r["graders"]["layered"]["aggregate"]["tn"], 1)
+        self.assertEqual(r["judge"]["calibration"], "uncalibrated against human labels")
+
+    def test_calibration_report_carries_provenance(self):
+        p = self.write_manifest([item("ok-1", "Split first; otherwise statistics leak.", "pass")])
+        env = {**FIXED_ENV, "git_revision": "abc123", "git_dirty": True}
+        code, out, err = self.run_cli("--grade-heldout", environment=env)
+        self.assertEqual(code, 0, err)
+        prov = json.loads(out)["provenance"]
+        self.assertEqual((prov["report_schema"], prov["git_revision"], prov["git_dirty"]),
+                         ("ml-ai-skills/grader-calibration", "abc123", True))
+        self.assertEqual(prov["manifest_sha256"], el.sha256_file(p))
+        self.assertEqual(prov["config"]["grade_heldout"], True)
+        self.assertEqual(prov["config_sha256"], re_._json_sha(prov["config"]))
+        for key in ("grader_version", "harness_version", "dataset_sha256", "case_sha256", "skill_sha256"):
+            self.assertIn(key, prov)
+        self.assertIsNone(prov["judge_prompt_sha256"])
+
+    def test_manifest_errors_mean_no_judge_calls(self):
+        self.write_manifest([item("ok", "Split first; leak.", "pass"),
+                             item("bad", "y", "pass", adjudicated_labels=[{"labeler": "a", "label": "fail"}])])
+        dummy = self.responses_file([], "dummy.jsonl")
+        factory = FakeFactory(judge=lambda req: "{}")
+        code, out, _ = run_main(self.root, "--grade-heldout", "--judge-provider", "replay", "--judge-replay-file",
+                                str(dummy), backend_factory=factory)
+        r = json.loads(out)
+        self.assertEqual((code, len(factory.backends["judge"].calls)), (1, 0))
+        self.assertIn("judge not run: the manifest has errors", "\n".join(r["warnings"]))
+        self.assertNotIn("judge", r["graders"])
+
+
+class JudgeOnlyPreflightTests(Base):
+    """--responses / --grade-* with a paid judge: same worst-case refusal and --dry-run as model mode."""
+
+    write_manifest = GradeLabelledCliTests.write_manifest
+
+    def paid_judge(self):
+        verdict = json.dumps({"expected_behavior": [{"index": 0, "met": True}], "must_not": [{"index": 0,
+                                                                                             "violated": False}]})
+        self.judge = eb.CallableBackend(lambda req: verdict, provider="claude-cli", model="judge-m", paid=True,
+                                        pricing=eb.Pricing(1000.0, 1000.0))
+        return lambda role, args: self.judge
+
+    JARGS = ("--judge-provider", "claude-cli", "--judge-model", "judge-m", "--allow-network")
+
+    def test_labelled_set(self):
+        self.write_manifest([item("ok", "Split first; otherwise statistics leak.", "pass"),
+                             item("bad", "Yes, scale it all.", "fail")])
+        code, out, err = run_main(self.root, "--grade-heldout", *self.JARGS, "--max-cost-usd", "0.001",
+                                  backend_factory=self.paid_judge())
+        self.assertEqual((code, out, self.judge.calls), (2, "", []))
+        self.assertIn("not-run: the worst-case estimate", err)
+        code, out, err = run_main(self.root, "--grade-heldout", *self.JARGS, "--max-cost-usd", "0.001", "--dry-run",
+                                  backend_factory=self.paid_judge())
+        plan = json.loads(out)
+        self.assertEqual((code, self.judge.calls, plan["schema"]), (0, [], re_.PLAN_SCHEMA))
+        self.assertEqual((plan["preflight"]["judge_requests_max"], plan["preflight"]["answer_requests"]), (2, 0))
+        self.assertGreater(plan["preflight"]["worst_case_usd"], 0.001)
+        self.assertEqual(plan["provenance"]["config"]["judge_model"], "judge-m")
+        code, out, err = run_main(self.root, "--grade-heldout", *self.JARGS, "--max-cost-usd", "100",
+                                  backend_factory=self.paid_judge())
+        self.assertEqual((code, len(self.judge.calls)), (0, 2), err)
+        self.assertIn("judge-only - up to 2 request(s)", err)
+
+    def test_recorded_responses(self):
+        rows = self.responses_file([{"case_id": "skill-a/leak", "condition": "with_skill", "response": LEAK_PASS}])
+        code, out, err = run_main(self.root, "--responses", str(rows), *self.JARGS, "--max-cost-usd", "0.001",
+                                  backend_factory=self.paid_judge())
+        self.assertEqual((code, out, self.judge.calls), (2, "", []))
+        code, out, _ = run_main(self.root, "--responses", str(rows), *self.JARGS, "--max-cost-usd", "0.001",
+                                "--allow-partial-budget", backend_factory=self.paid_judge())
+        [g] = json.loads(out)["graded"]
+        self.assertEqual((code, self.judge.calls, g["subjective"]["status"]), (0, [], "judge-error"))
+        self.assertEqual(g["subjective"]["attempt_status"], "budget-exhausted")
+
+
+class ReplayJudgeLabelledTests(Base):
+    write_manifest = GradeLabelledCliTests.write_manifest
+
+    def test_a_replay_judge_is_keyed_per_answer(self):
+        good, bad = "Split first; otherwise statistics leak.", "Leakage is a myth; split first if you like."
+        self.write_manifest([item("ok", good, "pass"), item("bad", bad, "fail")])
+        verdict = lambda met: json.dumps({"expected_behavior": [{"index": 0, "met": met}],  # noqa: E731
+                                          "must_not": [{"index": 0, "violated": not met}]})
+        judge_rows = self.responses_file([
+            {"case_id": "skill-a/leak", "condition": re_.labelled_condition(t), "response": verdict(t == good)}
+            for t in (good, bad)], "judge.jsonl")
+        code, out, err = self.run_cli("--grade-heldout", "--judge-provider", "replay", "--judge-replay-file",
+                                      str(judge_rows))
+        self.assertEqual(code, 0, err)
+        a = json.loads(out)["graders"]["judge"]["aggregate"]
+        self.assertEqual((a["tp"], a["tn"], a["fp"], a["fn"], a["abstained"]), (1, 1, 0, 0, 0))
 
 
 if __name__ == "__main__":

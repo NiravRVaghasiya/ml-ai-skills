@@ -1,36 +1,39 @@
 {
-  "note": "POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in 'history', plus corrected negation scoping - a negated state/symptom ('is not training', \"isn't learning\", 'never predicts') and an avoided problem ('without leakage', 'no data leakage') are no longer exclusions, 'no idea'/'not sure'/\"don't know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under 'history' (pre-improvement keyword router first).",
-  "date": "2026-10-27",
-  "command": "python scripts/eval_router.py --top-k 5 --write-baseline evals/routing/baseline.json --baseline-date 2026-10-27 --baseline-note 'POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in '\"'\"'history'\"'\"', plus corrected negation scoping - a negated state/symptom ('\"'\"'is not training'\"'\"', \"isn'\"'\"'t learning\", '\"'\"'never predicts'\"'\"') and an avoided problem ('\"'\"'without leakage'\"'\"', '\"'\"'no data leakage'\"'\"') are no longer exclusions, '\"'\"'no idea'\"'\"'/'\"'\"'not sure'\"'\"'/\"don'\"'\"'t know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under '\"'\"'history'\"'\"' (pre-improvement keyword router first).'",
+  "note": "HELD-OUT RE-BASELINE (coordinator, 2026-10-30): router code unchanged from the previous entry; benchmark extended with 115 blind-written cases (78 test, 37 dev) whose writers and reviewers had no repository access; family/split assigned by an independent reviewer (a case restating a dev request went to dev; 2 split-conflicted candidates excluded); the six PROPOSED_METADATA description edits applied (ai-ethics-fairness, ai-ml-security, rag-pipeline, agents-and-tools, llm-evaluation, training-deep-models); the 85 original test-split labels reviewed by two independent model reviewers (83 agreed, 2 adjudicated); membership-inference/extraction labels adjudicated to data-privacy per ai-ml-security's NOT-for clause. First measurement on this data; nothing tuned against it. Reviewers are models, not people. The previous top-level entry was moved into history by hand because --write-baseline writes a fresh file.",
+  "date": "2026-10-30",
+  "command": "python scripts/eval_router.py --top-k 5 --split test --write-baseline C:/Users/nrvhari/AppData/Local/Temp/mlai-coord/baseline.new.json --baseline-date 2026-10-30 --baseline-note 'HELD-OUT RE-BASELINE (coordinator, 2026-10-30): router code unchanged from the previous entry; benchmark extended with 115 blind-written cases (78 test, 37 dev) whose writers and reviewers had no repository access; family/split assigned by an independent reviewer (a case restating a dev request went to dev; 2 split-conflicted candidates excluded); the six PROPOSED_METADATA description edits applied (ai-ethics-fairness, ai-ml-security, rag-pipeline, agents-and-tools, llm-evaluation, training-deep-models); the 85 original test-split labels reviewed by two independent model reviewers (83 agreed, 2 adjudicated); membership-inference/extraction labels adjudicated to data-privacy per ai-ml-security'\"'\"'s NOT-for clause. First measurement on this data; nothing tuned against it. Reviewers are models, not people. The previous top-level entry was moved into history by hand because --write-baseline writes a fresh file.'",
   "top_k": 5,
-  "benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+  "benchmark_sha256": "ce6a0c7472e5245aa95fe96b531abcedd82c41cbaed408e2c74e9d333a888e86",
   "metrics": {
     "dev": {
-      "precision": 0.7547,
-      "recall": 0.9286,
-      "top1_accuracy": 0.8936,
-      "task_accuracy": 0.8729,
-      "false_activation_rate": 0.0769,
-      "mean_unnecessary_activations": 0.3305,
-      "forbidden_selection_rate": 0.1481
+      "precision": 0.7799,
+      "recall": 0.8535,
+      "top1_accuracy": 0.8011,
+      "task_accuracy": 0.8249,
+      "false_activation_rate": 0.1053,
+      "mean_unnecessary_activations": 0.2719,
+      "forbidden_selection_rate": 0.0737,
+      "negative_false_activation_rate": 0.2195
     },
     "test": {
-      "precision": 0.625,
-      "recall": 0.8701,
-      "top1_accuracy": 0.7879,
-      "task_accuracy": 0.8,
+      "precision": 0.5475,
+      "recall": 0.7,
+      "top1_accuracy": 0.5488,
+      "task_accuracy": 0.7113,
       "false_activation_rate": 0.0,
-      "mean_unnecessary_activations": 0.5294,
-      "forbidden_selection_rate": 0.2273
+      "mean_unnecessary_activations": 0.5704,
+      "forbidden_selection_rate": 0.1059,
+      "negative_false_activation_rate": 0.2
     },
     "all": {
-      "precision": 0.6989,
-      "recall": 0.9048,
-      "top1_accuracy": 0.85,
-      "task_accuracy": 0.8424,
-      "false_activation_rate": 0.0455,
-      "mean_unnecessary_activations": 0.4138,
-      "forbidden_selection_rate": 0.1837
+      "precision": 0.6868,
+      "recall": 0.802,
+      "top1_accuracy": 0.7209,
+      "task_accuracy": 0.7799,
+      "false_activation_rate": 0.0556,
+      "mean_unnecessary_activations": 0.39,
+      "forbidden_selection_rate": 0.0889,
+      "negative_false_activation_rate": 0.2079
     }
   },
   "history": [
@@ -107,6 +110,147 @@
         }
       },
       "label": "post-improvement router, first revision (before negation-scope review fix)"
+    },
+    {
+      "note": "POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in 'history', plus corrected negation scoping - a negated state/symptom ('is not training', \"isn't learning\", 'never predicts') and an avoided problem ('without leakage', 'no data leakage') are no longer exclusions, 'no idea'/'not sure'/\"don't know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under 'history' (pre-improvement keyword router first).",
+      "date": "2026-10-27",
+      "command": "python scripts/eval_router.py --top-k 5 --write-baseline evals/routing/baseline.json --baseline-date 2026-10-27 --baseline-note 'POST-IMPROVEMENT ROUTER, review-fix revision (current regression floor): as the first post-improvement entry in '\"'\"'history'\"'\"', plus corrected negation scoping - a negated state/symptom ('\"'\"'is not training'\"'\"', \"isn'\"'\"'t learning\", '\"'\"'never predicts'\"'\"') and an avoided problem ('\"'\"'without leakage'\"'\"', '\"'\"'no data leakage'\"'\"') are no longer exclusions, '\"'\"'no idea'\"'\"'/'\"'\"'not sure'\"'\"'/\"don'\"'\"'t know\" exclude nothing. Deliberate trade-off vs the previous entry: identical task accuracy on every split; dev precision 0.7692 -> 0.7547 and unnecessary activations 0.3051 -> 0.3305 (con-024 and the already-failing adv-008 select more); test unchanged. Weights/thresholds tuned on --split dev only. Skill metadata as in the working tree on 2026-10-27. Older baselines are kept under '\"'\"'history'\"'\"' (pre-improvement keyword router first).'",
+      "top_k": 5,
+      "benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+      "metrics": {
+        "dev": {
+          "precision": 0.7547,
+          "recall": 0.9286,
+          "top1_accuracy": 0.8936,
+          "task_accuracy": 0.8729,
+          "false_activation_rate": 0.0769,
+          "mean_unnecessary_activations": 0.3305,
+          "forbidden_selection_rate": 0.1481
+        },
+        "test": {
+          "precision": 0.625,
+          "recall": 0.8701,
+          "top1_accuracy": 0.7879,
+          "task_accuracy": 0.8,
+          "false_activation_rate": 0.0,
+          "mean_unnecessary_activations": 0.5294,
+          "forbidden_selection_rate": 0.2273
+        },
+        "all": {
+          "precision": 0.6989,
+          "recall": 0.9048,
+          "top1_accuracy": 0.85,
+          "task_accuracy": 0.8424,
+          "false_activation_rate": 0.0455,
+          "mean_unnecessary_activations": 0.4138,
+          "forbidden_selection_rate": 0.1837
+        }
+      },
+      "label": "post-improvement router, review-fix revision (before the 2026-10-29 revision and re-split)"
+    },
+    {
+      "note": "ROUTER REVISION 2026-10-29/30 (router workstream, KNOWN-ISSUES #9/#31, after review) on the RE-SPLIT benchmark: 244 cases (180 dev / 64 test). Benchmark changes: 'family' and label-provenance fields on every case; 21 test cases moved to dev because a dev case restates the same request (family rule); 41 dev cases added for documented failure modes (30 in round 1, 11 from the review's probe queries). Router changes: indexed lead-in sentences of Workflow/Key Concepts/Gotchas bullets (field 'headings', weight 0.75); domain gate from curated metadata phrases and everyday-sense detection ('model railway', 'train station'); request negation after request nouns ('the deliverable is not X'); routing directives naming slugs ignored; multi-word synonym keys replace their literal words; compound-sense rule skips verb+object and past participles, and treats a clause-initial pair as a compound only when its second word is a nominalisation; 'how do I' is not a reference cue; 'leakage' is a weak anchor; synonym map audited with the same-passage rule (48 of 77 keys removed, evals/routing/synonym-audit.json). New gated metric: negative_false_activation_rate (every case with an empty expected). Weights/thresholds unchanged; new parameters chosen on --split dev only. Supersedes an uncommitted 2026-10-29 entry from before the review. NOT VALID FOR RELEASE GATING AS-IS: coverage_errors() reports ai-ethics-fairness, data-privacy, python-for-ml, rag-evaluation and training-deep-models with no test case and a 26.2% test fraction, so the test-split floor below covers 64 cases; re-baseline with the CLI after held-out test families are added. The test split was scored in aggregate twice in total (round 1 and this entry), never per case.",
+      "date": "2026-10-30",
+      "command": "python -c \"import sys; sys.path.insert(0, 'scripts'); import eval_router as er; print(er.build_baseline(er.BENCHMARK_PATH, er.load_route_fn(), 5, '2026-10-30', '', '')['metrics'])\" reproduces 'metrics' (the entry itself was written by the same build_baseline call with this note; python scripts/eval_router.py --write-baseline exits 2 until coverage_errors() passes)",
+      "top_k": 5,
+      "benchmark_sha256": "e784dac5daada8776637050cb9859738b979825b90740ddffce68a088ed8f0d7",
+      "metrics": {
+        "dev": {
+          "precision": 0.7537,
+          "recall": 0.8125,
+          "top1_accuracy": 0.7606,
+          "task_accuracy": 0.7833,
+          "false_activation_rate": 0.1111,
+          "mean_unnecessary_activations": 0.2778,
+          "forbidden_selection_rate": 0.0678,
+          "negative_false_activation_rate": 0.2368
+        },
+        "test": {
+          "precision": 0.6506,
+          "recall": 0.807,
+          "top1_accuracy": 0.6739,
+          "task_accuracy": 0.7969,
+          "false_activation_rate": 0.0,
+          "mean_unnecessary_activations": 0.4531,
+          "forbidden_selection_rate": 0.1429,
+          "negative_false_activation_rate": 0.1667
+        },
+        "all": {
+          "precision": 0.7238,
+          "recall": 0.8111,
+          "top1_accuracy": 0.7394,
+          "task_accuracy": 0.7869,
+          "false_activation_rate": 0.0741,
+          "mean_unnecessary_activations": 0.3238,
+          "forbidden_selection_rate": 0.0822,
+          "negative_false_activation_rate": 0.2143
+        }
+      }
+    },
+    {
+      "note": "PRE-IMPROVEMENT KEYWORD ROUTER re-measured on the current benchmark (same benchmark_sha256 as the current entry): scripts/router.py and scripts/skills_lib.py from commit 8328c60 (git show 8328c60:scripts/router.py / skills_lib.py into a temporary directory, passed with --router), scoring the current skill metadata. Recorded so the no-worse-than-keyword-router invariant compares like with like; the 2026-10-27 PRE-IMPROVEMENT entry was measured on an older 203-case benchmark.",
+      "date": "2026-10-30",
+      "command": "python scripts/eval_router.py --top-k 5 --split all --router C:/Users/nrvhari/AppData/Local/Temp/mlai-coord/kwrouter/router.py --write-baseline C:/Users/nrvhari/AppData/Local/Temp/mlai-coord/baseline.kw.json --baseline-date 2026-10-30 --baseline-note 'PRE-IMPROVEMENT KEYWORD ROUTER re-measured on the current benchmark (same benchmark_sha256 as the current entry): scripts/router.py and scripts/skills_lib.py from commit 8328c60 (git show 8328c60:scripts/router.py / skills_lib.py into a temporary directory, passed with --router), scoring the current skill metadata. Recorded so the no-worse-than-keyword-router invariant compares like with like; the 2026-10-27 PRE-IMPROVEMENT entry was measured on an older 203-case benchmark.'",
+      "top_k": 5,
+      "benchmark_sha256": "ce6a0c7472e5245aa95fe96b531abcedd82c41cbaed408e2c74e9d333a888e86",
+      "metrics": {
+        "dev": {
+          "precision": 0.2012,
+          "recall": 0.7576,
+          "top1_accuracy": 0.4261,
+          "task_accuracy": 0.4793,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.2258,
+          "forbidden_selection_rate": 0.5263,
+          "negative_false_activation_rate": 1.0
+        },
+        "test": {
+          "precision": 0.1385,
+          "recall": 0.66,
+          "top1_accuracy": 0.3537,
+          "task_accuracy": 0.3028,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.5986,
+          "forbidden_selection_rate": 0.5059,
+          "negative_false_activation_rate": 1.0
+        },
+        "all": {
+          "precision": 0.1763,
+          "recall": 0.7248,
+          "top1_accuracy": 0.4031,
+          "task_accuracy": 0.4095,
+          "false_activation_rate": 1.0,
+          "mean_unnecessary_activations": 4.3733,
+          "forbidden_selection_rate": 0.5167,
+          "negative_false_activation_rate": 1.0
+        }
+      }
+    }
+  ],
+  "accepted_regressions": [
+    {
+      "base_benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+      "metric": "recall",
+      "floor": 0.8701,
+      "accepted_value": 0.8571,
+      "cases": [
+        "amb-007",
+        "con-004",
+        "mul-002"
+      ],
+      "reason": "Deliberate trade-off of the 2026-10-29/30 router revision (KNOWN-ISSUES #9). On the base commit's 85-case test split the revised router fixes par-040, mul-014, adv-009, adv-012 and adv-026 (task accuracy 0.8353 vs the base floor 0.80) and stops homonym/off-topic activations, but amb-007 no longer selects data-preprocessing, con-004 no longer selects llm-evaluation and mul-002 drops supervised-learning; net of the gains on par-040 and mul-014 that is one expected-skill selection fewer (recall 66/77 vs 67/77) and one fewer top-1 hit (51/66 vs 52/66). The three regressed cases are still test-split cases and were not tuned against; two of the improved cases (par-040, adv-026) are now dev cases the router was tuned on, so the net loss may understate the regression on unseen requests. On the new benchmark's held-out test split the revised router beats the base router on task accuracy (0.711 vs 0.655) and false activation over all negatives (0.200 vs 0.317); paired McNemar p=0.077, not significant."
+    },
+    {
+      "base_benchmark_sha256": "297a157e653095e450956bcc30408103a2837e2dc45b29f7144603c5372042a6",
+      "metric": "top1_accuracy",
+      "floor": 0.7879,
+      "accepted_value": 0.7727,
+      "cases": [
+        "amb-007",
+        "con-004",
+        "mul-002"
+      ],
+      "reason": "Deliberate trade-off of the 2026-10-29/30 router revision (KNOWN-ISSUES #9). On the base commit's 85-case test split the revised router fixes par-040, mul-014, adv-009, adv-012 and adv-026 (task accuracy 0.8353 vs the base floor 0.80) and stops homonym/off-topic activations, but amb-007 no longer selects data-preprocessing, con-004 no longer selects llm-evaluation and mul-002 drops supervised-learning; net of the gains on par-040 and mul-014 that is one expected-skill selection fewer (recall 66/77 vs 67/77) and one fewer top-1 hit (51/66 vs 52/66). The three regressed cases are still test-split cases and were not tuned against; two of the improved cases (par-040, adv-026) are now dev cases the router was tuned on, so the net loss may understate the regression on unseen requests. On the new benchmark's held-out test split the revised router beats the base router on task accuracy (0.711 vs 0.655) and false activation over all negatives (0.200 vs 0.317); paired McNemar p=0.077, not significant."
     }
   ]
 }

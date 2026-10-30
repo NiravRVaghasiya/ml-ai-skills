@@ -1,0 +1,1 @@
+Loading a joblib file executes whatever the pickle contains, and that is the remote code execution risk people mention. For an internal endpoint, though, joblib.load is safe enough in practice: put the endpoint behind the VPN, log a SHA-256 of every upload, and roll back if a model misbehaves.

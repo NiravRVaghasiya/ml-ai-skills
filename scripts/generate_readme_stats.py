@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import sys
 import unittest
 from collections import Counter
@@ -35,25 +36,66 @@ DOMAIN_LABEL = {
 DOMAIN_ORDER = list(DOMAIN_LABEL)
 
 
-def count_tests() -> tuple[int, int]:
-    """Returns (default_suite_tests, example_tests).
+def _opt_in_classes(module_file: Path) -> set[str]:
+    """Top-level classes in ``module_file`` decorated with ``opt_in(...)`` / ``gate.opt_in(...)``.
 
-    The default suite is tests/test_*.py (stdlib only; optional PyYAML/jsonschema/claude-CLI
-    cross-checks skip without them). The example suite is tests/examples/ (executes SKILL.md code,
-    needs requirements-examples.txt). Counts are test methods as loaded, not outcomes of a run.
+    Read statically, so the split does not depend on which ML_AI_SKILLS_INTEGRATION_* flags are
+    set in the environment that regenerates the README.
     """
-    suite = unittest.defaultTestLoader.discover(str(sl.REPO_ROOT / "tests"), pattern="test_*.py")
-    counts = [0, 0]
+    tree = ast.parse(module_file.read_text(encoding="utf-8"), filename=str(module_file))
+    names = set()
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for dec in node.decorator_list:
+            func = dec.func if isinstance(dec, ast.Call) else dec
+            if (isinstance(func, ast.Attribute) and func.attr == "opt_in") or (
+                    isinstance(func, ast.Name) and func.id == "opt_in"):
+                names.add(node.name)
+    return names
+
+
+def count_tests() -> tuple[int, int, int]:
+    """Returns (default_suite_tests, example_tests, opt_in_integration_tests).
+
+    The default suite is everything ``unittest discover -s tests`` loads outside tests/examples/
+    (stdlib only; optional PyYAML/jsonschema/claude-CLI cross-checks skip without them). The
+    example suite is tests/examples/ (executes SKILL.md code, needs requirements-examples.txt).
+    The third bucket is the tests/integration/ classes decorated with ``gate.opt_in``; each skips
+    unless ML_AI_SKILLS_INTEGRATION_<NAME>=1. Undecorated integration classes, such as the gate's
+    own stdlib self-tests in tests/integration/test_gate.py, run by default and are counted in the
+    default suite. Counts are test methods as loaded, not outcomes of a run.
+    """
+    tests_dir = sl.REPO_ROOT / "tests"
+    suite = unittest.defaultTestLoader.discover(str(tests_dir), pattern="test_*.py")
+    counts = [0, 0, 0]
+    gated: dict[str, set[str]] = {}
+
+    def _is_opt_in(tid: str) -> bool:
+        parts = tid.split(".")  # integration.<module>.<Class>.<method>
+        if len(parts) < 4:
+            return False
+        mod_name, cls_name = parts[1], parts[2]
+        if mod_name not in gated:
+            path = tests_dir / "integration" / f"{mod_name}.py"
+            gated[mod_name] = _opt_in_classes(path) if path.is_file() else set()
+        return cls_name in gated[mod_name]
 
     def _walk(s) -> None:
         for item in s:
             if isinstance(item, unittest.TestSuite):
                 _walk(item)
+                continue
+            tid = item.id()
+            if tid.startswith("examples."):
+                counts[1] += 1
+            elif tid.startswith("integration.") and _is_opt_in(tid):
+                counts[2] += 1
             else:
-                counts[1 if item.id().startswith("examples.") else 0] += 1
+                counts[0] += 1
 
     _walk(suite)
-    return counts[0], counts[1]
+    return counts[0], counts[1], counts[2]
 
 
 def count_evals() -> tuple[int, int]:
@@ -79,7 +121,7 @@ def render() -> str:
     evidence_counts = Counter(s.frontmatter.get("evidence_level") for s in skills)
 
     eval_files, eval_skills_covered = count_evals()
-    default_tests, example_tests = count_tests()
+    default_tests, example_tests, integration_tests = count_tests()
     script_count = len(list((sl.REPO_ROOT / "scripts").glob("*.py")))
     docs_count = len(list((sl.REPO_ROOT / "docs").glob("*.md")))
 
@@ -98,8 +140,10 @@ def render() -> str:
         f"| Evidence level | {fmt_counter(evidence_counts, ['primary', 'official-documentation', 'established-practice', 'heuristic', 'opinion'])} |",
         f"| Eval cases | {eval_files} case file(s) covering {eval_skills_covered}/{total} skills — graded offline against "
         "pass/fail fixtures by regex hard assertions; no model output graded (see `evals/SCHEMA.md`) |",
-        f"| Unit tests | {default_tests} in the default suite (`tests/test_*.py`, stdlib only) + {example_tests} optional "
-        "example tests (`tests/examples/`, need `requirements-examples.txt`) |",
+        f"| Unit tests | {default_tests} in the default suite (`tests/test_*.py` and the gate self-tests, stdlib only) + "
+        f"{example_tests} optional example tests (`tests/examples/`, need `requirements-examples.txt`) + "
+        f"{integration_tests} opt-in integration tests (`tests/integration/`, skipped unless "
+        "`ML_AI_SKILLS_INTEGRATION_<NAME>=1`) |",
         f"| Scripts / docs | {script_count} scripts in `scripts/`, {docs_count} policy docs in `docs/` |",
         END,
     ]

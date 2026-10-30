@@ -32,9 +32,9 @@ related:
 inputs: A timestamped numeric series (e.g. a pandas DataFrame with a date column) to be forecast.
 outputs: A fitted SARIMA and/or Prophet forecaster, decomposition components, and walk-forward backtest error metrics.
 version_constraints:
-  - "statsmodels>=0.11: `statsmodels.tsa.seasonal.STL(robust=True)` and `adfuller` (executed against statsmodels 0.14.6 on 2026-10-27; the 0.11 minimum for STL is a model-knowledge estimate, not verified)"
+  - "statsmodels>=0.11: `statsmodels.tsa.seasonal.STL(robust=True)` and `adfuller` (executed against statsmodels 0.14.6 on 2026-10-27; 0.11 lower bound documented: the statsmodels 0.11 release notes add STL decomposition, read 2026-10-29; 0.11 itself not executed)"
   - "pmdarima>=2.1: `auto_arima(seasonal=True, m=7)` and `predict(n_periods=..., return_conf_int=True)` (executed against pmdarima 2.1.1 with numpy 2.4.4 on 2026-10-27; older releases not tested)"
-  - "prophet>=1.0: `Prophet(yearly_seasonality=auto)`, `add_country_holidays`, `make_future_dataframe` (executed against prophet 1.5.0 + holidays 0.107 on 2026-10-27; the 1.0 minimum, when the package was renamed from fbprophet, is not verified)"
+  - "prophet>=1.0: `Prophet(yearly_seasonality=auto)`, `add_country_holidays`, `make_future_dataframe` (executed against prophet 1.5.0 + holidays 0.107 on 2026-10-27; the 1.0 minimum is an estimate, not verified: PyPI's prophet project also lists 0.1.1.post1 from 2020-06-07, read 2026-10-29)"
 ---
 
 ## Overview

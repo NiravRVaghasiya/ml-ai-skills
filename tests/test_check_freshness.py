@@ -5,6 +5,8 @@ import datetime as dt
 import importlib.util
 import io
 import json
+import random
+import re
 import unittest
 
 import testutil  # noqa: F401  (inserts scripts/ and schema/ onto sys.path)
@@ -169,6 +171,89 @@ class TestStaticPatterns(unittest.TestCase):
         self.assertEqual({(x["code"], x["level"]) for x in stale},
                          {("dead-api", "STALE"), ("maybe-dead", "REVIEW_DUE")})
 
+    def test_stale_level_requires_a_verified_backing_claim(self):
+        body = "\n## Overview\nx\n\n## Workflow\n1. s\n```python\nfrom sklearn.cross_validation import KFold\n```\n"
+        skill = make_skill("a", body=body)
+
+        def policy(claim):
+            return cf.policy_from_dict(policy_dict(known_stale_patterns=[
+                {"id": "dead-api", "pattern": r"sklearn\.cross_validation", "level": "STALE", "message": "gone",
+                 "claim": claim}]))
+
+        def claim(verification, status):
+            return {"c1": {"id": "c1", "verification": verification, "status": status}}
+
+        def stale_finding(pol, claims):
+            return next(f for f in cf.check_skill(skill, TODAY, pol, claims=claims) if f["code"] == "dead-api")
+
+        for verification, status in (("runtime-test", "current"), ("human-review", "current"),
+                                     ("runtime-test", "review-due")):
+            with self.subTest(verification=verification, status=status):
+                f = stale_finding(policy("c1"), claim(verification, status))
+                self.assertEqual(f["level"], "STALE")
+                self.assertNotIn("level_reason", f)
+        not_backed = "not verified by a runtime test or human review"
+        for pol, claims, why in ((policy("c1"), claim("unverified", "unverified"), not_backed),
+                                 (policy("c1"), claim("runtime-test", "disputed"), "or is disputed"),
+                                 # recorded kinds that say nothing about API behaviour cannot back STALE
+                                 (policy("c1"), claim("automated-doc-check", "current"), not_backed),
+                                 (policy("c1"), claim("local-version-check", "current"), not_backed),
+                                 (policy("c1"), {}, "not in the claims registry"),
+                                 (policy(None), claim("runtime-test", "current"), "cites no claim")):
+            with self.subTest(why=why, claims=claims):
+                f = stale_finding(pol, claims)
+                # still flagged for review, never dropped, and the reason is part of the finding
+                self.assertEqual((f["level"], f["policy_level"]), ("REVIEW_DUE", "STALE"))
+                self.assertIn(why, f["level_reason"])
+                self.assertIn("STALE not applied", f["message"])
+        # library callers that pass no registry keep the policy level (no silent downgrade)
+        self.assertEqual(stale_finding(policy("c1"), None)["level"], "STALE")
+        report = cf.build_report([skill], TODAY, policy("c1"), claims=claim("unverified", "unverified"))
+        self.assertEqual(report["counts"]["STALE"], 0)
+        self.assertEqual([p["pattern"] for p in report["stale_patterns_not_applied"]], ["dead-api"])
+
+    def test_cli_fails_only_for_verified_stale_patterns(self):
+        import tempfile
+        from pathlib import Path
+
+        src = (testutil.REPO_ROOT / "attention-mechanisms" / "SKILL.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "root"
+            (root / "attention-mechanisms").mkdir(parents=True)
+            (root / "attention-mechanisms" / "SKILL.md").write_text(src + "\nSee dead.api.zzz for history.\n",
+                                                                     encoding="utf-8")
+            pol = Path(d) / "policy.json"
+            pol.write_text(json.dumps({"policy_version": 1, "default_max_age_days": 100000, "known_stale_patterns": [
+                {"id": "dead-zzz", "pattern": r"dead\.api\.zzz", "level": "STALE", "message": "gone",
+                 "claim": "c1"}]}), encoding="utf-8")
+            claims = Path(d) / "claims.json"
+
+            def run(verification, status):
+                claims.write_text(json.dumps({"registry_version": 1, "claims": [
+                    {"id": "c1", "verification": verification, "status": status}]}), encoding="utf-8")
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    code = cf.main(["--root", str(root), "--policy", str(pol), "--claims", str(claims),
+                                    "--today", "2026-10-29"])
+                return code, out.getvalue()
+
+            code, out = run("runtime-test", "current")
+            self.assertEqual(code, 1, out)
+            self.assertIn("STALE      [static-pattern]", out)
+            code, out = run("unverified", "unverified")
+            self.assertEqual(code, 0, out)
+            self.assertIn("REVIEW_DUE [static-pattern]", out)
+            self.assertIn("known_stale_patterns 'dead-zzz' is level STALE in the policy but is reported as "
+                          "REVIEW_DUE", out)
+            for bad in ("{not json", json.dumps({"claims": {}})):
+                claims.write_text(bad, encoding="utf-8")
+                with self.subTest(registry=bad), contextlib.redirect_stderr(io.StringIO()) as err:
+                    self.assertEqual(cf.main(["--root", str(root), "--policy", str(pol), "--claims", str(claims)]),
+                                     2)
+                self.assertIn("claims registry", err.getvalue())
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(cf.main(["--root", str(root), "--policy", str(pol), "--claims",
+                                          str(Path(d) / "missing.json")]), 2)
+
     def test_every_finding_has_a_documented_kind_and_level(self):
         body = "\n## Workflow\n```python\nimport numpy as np\nimport src\nfrom sklearn.cross_validation import x\n```\n"
         s = make_skill("a", body=body, version_constraints=["free text entry", "numpy>=1.0: arrays"])
@@ -216,9 +301,133 @@ class TestPep440Subset(unittest.TestCase):
                 self.assertEqual(cf.contains(cf.parse_specifier_set(spec), ver), expected)
 
     def test_unsupported_specifiers_raise(self):
-        for bad in ("===1.0", ">=1.*", "~=1", "^1.0", ">=1.0+local", "==1.0a1.*"):
+        # ">=1.0," (empty clause) is accepted by packaging but rejected here on purpose: in
+        # version_constraints it is more likely a typo than an intent (docs/FRESHNESS.md).
+        for bad in ("===1.0", ">=1.*", "~=1", "^1.0", ">=1.0+local", "==1.0a1.*", ">=1.0,", "~=1.0.*",
+                    "==1.0.post1.*", "<1.0+cpu"):
             with self.subTest(bad=bad), self.assertRaises(cf.InvalidVersion):
                 cf.parse_specifier_set(bad)
+
+    def test_exclusive_ordered_comparisons(self):
+        # Fixed stdlib-only cases for PEP 440's <V / >V exclusions, read literally ("of V" means V
+        # exactly), which is what packaging >= 26.1 does. Older packaging compared base versions, which
+        # is where the reviewer's four '>V-pre vs V+local' disagreements (docs/KNOWN-ISSUES.md #15) and
+        # the post/pre cases below came from.
+        cases = [
+            (">1.0rc1", "1.0+cpu", True), (">1.0rc1", "1.0", True), (">1.0rc1", "1.0rc1.post1", False),
+            (">1.0rc1", "1.0rc1+x", False), (">1.0.dev0", "1.0a1+local", True), (">1.0.dev0", "1.0.dev0+x", False),
+            (">1.0.dev0", "1.0.post1", True), (">1.0.post1", "1.0.post2+1", True), (">1.0.post1", "1.0.post1+1", False),
+            (">1!1.0a1", "1!1.0+x", True), (">1.0", "1.0+cpu", False), (">1.0", "1.0.post1", False),
+            (">1.0", "1.0.post1.dev1", False), (">1.0", "1.0.post1+cpu", False), (">1.0", "1.1+cpu", True),
+            (">1.0", "1.0.1", True), ("<1.1", "1.0+cpu", True), ("<1.0", "1.0+cpu", False), ("<1.0", "1.0rc1", False),
+            ("<1.0", "1.0.dev0+cpu", False), ("<1.0", "0.9+cpu", True), ("<1.0.post1", "1.0rc1", True),
+            ("<1.0.post1", "1.0.post1.dev1", False), ("<1.0rc2", "1.0rc1+x", True), ("<0", "0.dev0", False),
+            ("<=1.0", "1.0+cpu", True), (">=1.0", "1.0+cpu", True), ("==1.0+cpu", "1.0", False),
+            ("!=1.0+cpu", "1.0", True), ("==1.0+CPU", "1.0+cpu", True), ("==1.0+01", "1.0+1", True),
+        ]
+        for spec, ver, expected in cases:
+            with self.subTest(spec=spec, ver=ver):
+                self.assertEqual(cf.contains(cf.parse_specifier_set(spec), ver), expected)
+
+
+def _differential_matrix():
+    """Versions x specifiers covering epochs, pre/dev/post, implicit post (-N), local labels, trailing zeros."""
+    bases = ["0", "1.0", "1.0.0", "1.2", "1!1.0"]
+    suffixes = ["", "a", "rc1", ".dev0", ".dev1", "a1.dev1", ".post1", ".post1.dev1", "-2", "rc1.post1"]
+    locals_ = ["", "+local", "+1.a"]
+    versions = sorted({b + s + loc for b in bases for s in suffixes for loc in locals_})
+    spec_versions = sorted({b + s for b in bases for s in suffixes} | {b + loc for b in bases for loc in locals_})
+    specs = [op + v for op in ("==", "!=", ">=", "<=", ">", "<", "~=") for v in spec_versions]
+    specs += [op + b + ".*" for op in ("==", "!=", ">=", "~=") for b in bases]
+    specs += ["", ">=1.0,<2", ">=1.0,<2,!=1.2.*", "~=1.0,!=1.0.post1", " >= 1.0 , < 2.0 ", "==v1.0",
+              ">=1.0a1,<1.0", "===1.0", ">=1.0,"]
+    return versions, specs
+
+
+def _packaging_version() -> tuple[int, ...]:
+    import packaging
+
+    return tuple(int(p) for p in packaging.__version__.split(".")[:2] if p.isdigit())
+
+
+def _is_exclusive(spec_text: str) -> bool:
+    return any(re.match(r"\s*[<>](?!=)", part) for part in spec_text.split(","))
+
+
+@unittest.skipUnless(importlib.util.find_spec("packaging"), "packaging not installed: the differential "
+                     "comparison needs it; the fixed cases in TestPep440Subset still run")
+class TestPep440AgreesWithPackaging(unittest.TestCase):
+    """The stdlib subset must agree with the packaging library wherever both accept a specifier.
+
+    Allowed differences, all documented in docs/FRESHNESS.md: `===` (arbitrary equality) and an empty
+    clause such as '>=1.0,' are rejected here although packaging accepts them. Nothing packaging
+    rejects may be accepted here. The exclusive operators (<, >) follow packaging >= 26.1, which changed
+    them; against older packaging only the other operators are compared.
+    """
+
+    def compare(self, keep):
+        from packaging.specifiers import InvalidSpecifier, SpecifierSet
+        from packaging.version import Version
+
+        versions, specs = _differential_matrix()
+        specs = [t for t in specs if keep(t)]
+        parsed = [(v, Version(v), cf.Version.parse(v)) for v in versions]
+        out_of_subset, wrong = [], []
+        for text in specs:
+            try:
+                theirs = SpecifierSet(text)
+            except InvalidSpecifier:
+                theirs = None
+            try:
+                ours = cf.parse_specifier_set(text)
+            except cf.InvalidVersion:
+                ours = None
+            if theirs is None:
+                self.assertIsNone(ours, f"{text!r} is invalid for packaging but accepted by the subset")
+                continue
+            if ours is None:
+                out_of_subset.append(text)
+                continue
+            wrong += [(text, v) for v, pv, ov in parsed
+                      if theirs.contains(pv, prereleases=True) != cf.contains(ours, ov)]
+        self.assertEqual(wrong, [], f"{len(wrong)} disagreement(s), first: {wrong[:5]}")
+        return out_of_subset
+
+    def test_inclusive_and_equality_operators_match_packaging(self):
+        out_of_subset = self.compare(lambda t: not _is_exclusive(t))
+        self.assertEqual(sorted(out_of_subset), sorted(["===1.0", ">=1.0,"]))
+
+    def test_exclusive_operators_match_packaging(self):
+        if _packaging_version() < (26, 1):
+            self.skipTest("packaging < 26.1 reads PEP 440's <V / >V exclusions by base version; the subset "
+                          "follows packaging >= 26.1 (fixed cases in TestPep440Subset still run)")
+        self.assertEqual(self.compare(_is_exclusive), [])
+
+    def test_version_parsing_and_ordering_match_packaging(self):
+        from packaging.version import InvalidVersion, Version
+
+        versions, _ = _differential_matrix()
+        odd = ["v1.0", " 1.0 ", "1.0-rc1", "1.0_a_1", "1.0.alpha1", "1.0preview2", "1.0-r1", "1.0.rev",
+               "1.0c1", "1.0+abc-def_1", "1.0.post", "1.0-dev", "1.x", "", "1..0", "1.0+", "1.0-", "latest",
+               "1.0+a..b", "01.002", "1!", "!1.0", "1.0.dev-1", "1.0a1b2"]
+        for text in odd:
+            try:
+                theirs = Version(text)
+            except InvalidVersion:
+                theirs = None
+            with self.subTest(version=text):
+                if theirs is None:
+                    with self.assertRaises(cf.InvalidVersion):
+                        cf.Version.parse(text)
+                else:
+                    self.assertEqual(cf.Version.parse(text), cf.Version.parse(str(theirs)))
+                    versions.append(text)
+        rng = random.Random(440)
+        rng.shuffle(versions)
+        self.assertEqual([str(Version(v)) for v in sorted(versions, key=lambda v: cf.Version.parse(v).key())],
+                         [str(v) for v in sorted(Version(v) for v in versions)])
+        for a, b in zip(versions, versions[1:]):
+            self.assertEqual(Version(a) == Version(b), cf.Version.parse(a) == cf.Version.parse(b), (a, b))
 
 
 class TestConstraintParsing(unittest.TestCase):
@@ -330,6 +539,20 @@ class TestKnownStaleApisStillGone(unittest.TestCase):
 
         self.assertFalse(hasattr(sklearn.preprocessing, "Imputer"))
         self.assertTrue(hasattr(sklearn.impute, "SimpleImputer"))
+
+
+@unittest.skipUnless(importlib.util.find_spec("tensorflow"), "tensorflow not installed (no CI job installs it; "
+                     "run in a venv with tensorflow-cpu to refresh claim tensorflow-2-removed-contrib)")
+class TestTensorflowContribGone(unittest.TestCase):
+    """Runtime evidence for the 'tensorflow-contrib' STALE pattern (claim tensorflow-2-removed-contrib)."""
+
+    def test_tf_contrib_not_importable(self):
+        import tensorflow as tf
+
+        self.assertTrue(tf.__version__.startswith("2."), tf.__version__)
+        self.assertFalse(hasattr(tf, "contrib"))
+        with self.assertRaises(ImportError):
+            importlib.import_module("tensorflow.contrib")
 
 
 @unittest.skipUnless(importlib.util.find_spec("openai"), "openai not installed")

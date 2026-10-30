@@ -41,6 +41,13 @@ class TestParityWithHarness(unittest.TestCase):
             result = cec.evaluate(cov.read_text(encoding="utf-8").splitlines(), cec.inventory(tu.REPO_ROOT))
         self.assertEqual(result["skills"][RUNNABLE_SLUG]["missing"], [])
         self.assertNotIn(RUNNABLE_SLUG, " ".join(result["errors"]))
+        self.assertEqual((result["provenance"]["records"], result["provenance"]["legacy_records"]), (1, 0))
+        self.assertEqual(result["provenance"]["python"], [harness.run_provenance()["python"]])
+
+    def test_schema_constants_match_the_harness(self):
+        self.assertEqual(cec.COVERAGE_SCHEMA, harness.COVERAGE_SCHEMA)
+        self.assertIn(harness.COVERAGE_SCHEMA_VERSION, cec.COVERAGE_SCHEMA_VERSIONS)
+        self.assertTrue(set(cec.PROVENANCE_TYPES) <= set(harness.coverage_record(RUNNABLE_SLUG, [0], 2)))
 
 
 class TestGate(unittest.TestCase):
@@ -101,6 +108,29 @@ class TestGate(unittest.TestCase):
             with self.subTest(line=line[:40]):
                 code, out = self.gate(self.record([0, 1]), line)
                 self.assertEqual(code, 1, out)
+
+    def test_v2_records_with_provenance_pass_and_bad_provenance_fails(self):
+        v2 = {"schema": cec.COVERAGE_SCHEMA, "schema_version": 2, "git_revision": "abc", "git_dirty": True,
+              "git_untracked_files": 2, "python": "3.13.2", "platform": "Windows", "recorded_at": "2026-10-29T00:00:00Z", "env": {},
+              "test_id": "examples.test_x.T.test_y", "test_module": "examples.test_x"}
+        code, out = self.gate(self.record([0, 1], **v2))
+        self.assertEqual(code, 0, out)
+        self.assertIn("git revision(s) abc (0 without)", out)
+        for label, override in {"dirty not bool": {"git_dirty": "yes"}, "python not str": {"python": 3},
+                                "untracked count not int": {"git_untracked_files": "2"},
+                                "env not dict": {"env": []}, "unknown version": {"schema_version": 3},
+                                "unknown schema": {"schema": "other"}}.items():
+            with self.subTest(label):
+                code, out = self.gate(self.record([0, 1], **{**v2, **override}))
+                self.assertEqual(code, 1, out)
+                self.assertIn("malformed coverage record", out)
+
+    def test_json_output_reports_provenance(self):
+        self.cov.write_text(self.record([0, 1]) + "\n", encoding="utf-8")
+        code, out = run(self.cov, "--root", self.root, "--json")
+        self.assertEqual(code, 0, out)
+        prov = json.loads(out)["provenance"]
+        self.assertEqual((prov["records"], prov["legacy_records"], prov["records_without_revision"]), (1, 1, 1))
 
     def test_empty_or_missing_file_is_a_usage_error(self):
         self.assertEqual(self.gate("")[0], 2)

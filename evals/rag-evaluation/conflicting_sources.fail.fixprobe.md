@@ -1,0 +1,1 @@
+The two documents conflict (14 days vs 30 days), but the faithfulness check passed, which means the answer is grounded in a retrieved document. Faithfulness is the metric that matters for RAG, so the answer is fine and the analysis is complete. If you want the newer policy, add "prefer the most recent document" to the generation prompt.

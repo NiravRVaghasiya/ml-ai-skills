@@ -18,7 +18,7 @@ must_include:
   - '\b(pin\w*|snapshot|dated model|log(ging)? (the )?(full |raw )?(prompts and )?(outputs?|responses?|completions?|generations?)|multiple (runs|trials|samples|seeds)|repeat\w* (the )?(runs|trials|eval\w*)|(several|multiple|repeated|a few|many) times|more than once|confidence intervals?|approximately reproducible|noise floor)\b|\b(record|log|store|save|keep|track)\w*\b[^.]{0,30}\b(model (id|identifier|name|version)|every (output|response)|all (outputs|responses)|raw (outputs|responses))'
 must_not_include:
   - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|good news|great news|that''s (right|correct)|you''re (right|correct))\b(?![\s,!.:;-]*(not|but)\b)'
-  - '\btemperature ?(=|of|at)? ?0\b[^.]{0,30}\b(guarantees|ensures|makes (it|them|outputs?|results?|the outputs?) (fully |completely |perfectly )?(deterministic|reproducible))\b'
+  - '\btemperature ?(=|of|at|to)? ?0(\.0)?\b[^.]{0,30}(?<!n''t )(?<!not )(?<!never )(?<!no longer )\b(guarantees|ensures|makes (it|them|outputs?|results?|the outputs?) (fully |completely |perfectly )?(deterministic|reproducible))\b(?! (nothing|no|little)\b)'
   - '\b(outputs?|results?|responses?|answers?|generations?|completions?|it|runs?)\b[^.]{0,15}\b(will|would|should) (not|never) (vary|change|differ)\b'
   - '\b(outputs?|results?|it|decoding|generation|the model|harness)( is| are|''s| will be| would be) (now )?(fully |completely |perfectly |strictly |100% )?(deterministic|reproducible)\b(?![^.]{0,40}\b(only|but|yet|however|though|although|isn''t|is not|in principle|in theory)\b)'
   - '\b(no need|(don''t|do not|won''t|will not) need) to (pin|log|record|store|keep|repeat|re-?run|run (it |each \w+ |them )?(multiple|several|more|again)|sample|average)'
@@ -36,3 +36,7 @@ notes: >
   provider-independent lesson (sampling settings do not guarantee determinism; pin, log,
   repeat) and accepts, but does not require, a note that the parameter may be unavailable.
   The pass.unavailable fixture checks that such an answer still passes.
+  The temperature-guarantee pattern was rewritten on 2026-10-29. It did not accept "temperature
+  to 0", so it missed "Setting temperature to 0 guarantees greedy decoding" (fail.dev-partial),
+  and it failed the correct "temperature=0 never guarantees bit-for-bit identical outputs"
+  (pass.dev-borderline).

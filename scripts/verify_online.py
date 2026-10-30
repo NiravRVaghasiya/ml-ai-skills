@@ -6,9 +6,11 @@ Two checks, both flags for human review -- this script never edits a skill:
 1. Reference URLs: every http(s) link under each skill's `## References`, plus
    every `source_url` in docs/claims.json. HEAD first, GET fallback (many
    sites reject HEAD), per-host rate limiting, retries with exponential
-   backoff that honour `Retry-After` on 429/503, per-request timeouts, and an
-   identifying User-Agent. A reachable page is NOT proof its content still
-   supports the skill; it only rules out link rot.
+   backoff that honour `Retry-After` on 429/503, per-request timeouts capped
+   by the remaining run budget and enforced by a watchdog, a per-host circuit
+   breaker (--host-failure-limit, --breaker-on), and an identifying
+   User-Agent. A reachable page is NOT proof its content still supports the
+   skill; it only rules out link rot.
 2. PyPI latest release: for every dist named in a parseable
    `version_constraints` entry, fetch https://pypi.org/pypi/<dist>/json and
    flag the entry when its specifier excludes the latest stable release (e.g.
@@ -32,6 +34,7 @@ import os
 import re
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -106,18 +109,54 @@ def parse_retry_after(value: str | None, now: Callable[[], dt.datetime] | None =
     return max(0.0, (when - current).total_seconds())
 
 
+THROTTLE_STATUSES = {429, 503}
+# What the per-host circuit breaker can count. A request (after its own retries) is classified by
+# failure_class(); classes listed in Fetcher.breaker_on add one to the host's consecutive-failure
+# count, a definitive HTTP answer (2xx/3xx/4xx other than 429) resets it, and a failure of a class
+# that is not listed leaves it unchanged.
+BREAKER_CLASSES = ("throttle", "timeout", "server-error", "network")
+# Extra wall-clock seconds the watchdog gives a request beyond its socket timeout before abandoning
+# it. urllib's timeout applies to each blocking socket operation, not to the whole request, and DNS
+# resolution has no timeout at all, so without the watchdog a slow-dripping or unresolvable host
+# could hold one request far past --timeout and --max-seconds.
+WATCHDOG_GRACE = 2.0
+# A request is not started with less budget than this left (it would be cut off almost at once).
+MIN_REQUEST_SECONDS = 1.0
+
+
+def failure_class(res: HttpResult) -> str | None:
+    """Breaker class of a finished request; None for a definitive HTTP answer (success or 4xx)."""
+    if res.status in THROTTLE_STATUSES:
+        return "throttle"
+    if res.status is not None and 500 <= res.status <= 599:
+        return "server-error"
+    if res.error_kind in ("timeout", "network"):
+        return res.error_kind
+    return None
+
+
 class Fetcher:
     """HTTP with per-host spacing, bounded retries, a run-wide time budget and a per-host circuit breaker.
 
     `opener`, `sleep`, `clock` are injectable for tests. `max_seconds` bounds the whole run (the
     scheduled job has a hard timeout; without a budget a throttling host could eat all of it and
-    leave no report). After `host_failure_limit` consecutive requests to one host end throttled
-    (429/503 or timeout, after retries), further requests to that host are not sent this run.
+    leave no report). Budget bound: a request is only started with at least MIN_REQUEST_SECONDS of
+    budget left, its socket timeout is min(timeout, remaining budget), a pacing or retry wait that
+    would cross the deadline is not slept, and a watchdog abandons a request that has not finished
+    `watchdog_grace` seconds after its socket timeout. So `clock()` passes the deadline by at most
+    `watchdog_grace` seconds (plus the caller's own work, e.g. writing the report). An abandoned
+    request keeps running in a daemon thread until its socket gives up; its result is discarded.
+
+    Circuit breaker: after `host_failure_limit` consecutive requests to one host end in a failure
+    class listed in `breaker_on` (default: all of BREAKER_CLASSES, i.e. 429/503, other 5xx, timeouts
+    and network errors such as DNS failures or resets, each after its retries), further requests to
+    that host are not sent this run. 0 disables the breaker. HEAD and a GET fallback are two requests.
     """
 
     def __init__(self, opener=None, sleep=time.sleep, clock=time.monotonic, timeout: float = 15.0,
                  retries: int = 3, backoff: float = 2.0, max_wait: float = 120.0, min_interval: float = 1.0,
-                 user_agent: str = USER_AGENT, max_seconds: float | None = None, host_failure_limit: int = 3):
+                 user_agent: str = USER_AGENT, max_seconds: float | None = None, host_failure_limit: int = 3,
+                 breaker_on=BREAKER_CLASSES, watchdog_grace: float = WATCHDOG_GRACE):
         # Resolved at construction (not def) time so tests can patch module-level default_opener.
         self.opener = opener if opener is not None else default_opener
         self.sleep, self.clock = sleep, clock
@@ -126,31 +165,34 @@ class Fetcher:
         self.max_seconds = max_seconds if max_seconds and max_seconds > 0 else None
         self.deadline = clock() + self.max_seconds if self.max_seconds else None
         self.host_failure_limit = host_failure_limit
+        unknown = set(breaker_on) - set(BREAKER_CLASSES)
+        if unknown:
+            raise ValueError(f"unknown circuit-breaker class(es) {sorted(unknown)}; choose from {BREAKER_CLASSES}")
+        self.breaker_on = frozenset(breaker_on)
+        self.watchdog_grace = watchdog_grace
         self._last_hit: dict[str, float] = {}
         self._host_failures: dict[str, int] = {}
         self.open_circuits: set[str] = set()
         self.deadline_hit = False
         self.requests = 0  # attempts made
         self.responses = 0  # attempts that got any HTTP status back (even 4xx/5xx)
+        self.abandoned = 0  # attempts the watchdog gave up on
 
     def remaining(self) -> float:
         return float("inf") if self.deadline is None else self.deadline - self.clock()
 
-    def _pace(self, host: str) -> None:
+    def _pace_wait(self, host: str) -> float:
         last = self._last_hit.get(host)
-        if last is not None:
-            wait = self.min_interval - (self.clock() - last)
-            if wait > 0:
-                self.sleep(wait)
-        self._last_hit[host] = self.clock()
+        return 0.0 if last is None else max(0.0, self.min_interval - (self.clock() - last))
 
     def _record_outcome(self, host: str, res: HttpResult) -> None:
-        if _throttled(res):
+        cls = failure_class(res)
+        if cls is None:
+            self._host_failures[host] = 0
+        elif cls in self.breaker_on:
             self._host_failures[host] = self._host_failures.get(host, 0) + 1
             if self.host_failure_limit and self._host_failures[host] >= self.host_failure_limit:
                 self.open_circuits.add(host)
-        else:
-            self._host_failures[host] = 0
 
     def _once(self, url: str, method: str, read_body: bool, timeout: float) -> HttpResult:
         # request() refuses non-http(s) schemes before calling _once().
@@ -174,23 +216,56 @@ class Fetcher:
         except ValueError as e:  # http.client.InvalidURL and friends
             return HttpResult(url, method, None, f"invalid URL: {e}", "invalid-url")
 
+    def _guarded_once(self, url: str, method: str, read_body: bool, timeout: float) -> HttpResult:
+        """_once() under a wall-clock watchdog of timeout + watchdog_grace seconds (see class docstring)."""
+        if self.watchdog_grace is None:
+            return self._once(url, method, read_body, timeout)
+        box: dict = {}
+        done = threading.Event()
+
+        def work():
+            try:
+                box["result"] = self._once(url, method, read_body, timeout)
+            except BaseException as e:  # noqa: BLE001 - re-raised in the calling thread below
+                box["error"] = e
+            finally:
+                done.set()
+
+        threading.Thread(target=work, name="verify-online-request", daemon=True).start()
+        limit = timeout + self.watchdog_grace
+        if not done.wait(limit):
+            self.abandoned += 1
+            return HttpResult(url, method, None, f"timeout: no complete response within {limit:g}s (watchdog "
+                                                 "abandoned the request)", "timeout")
+        if "error" in box:
+            raise box["error"]  # e.g. KeyboardInterrupt from a test opener
+        return box["result"]
+
+    def _out_of_budget(self, url: str, method: str, attempt: int) -> HttpResult:
+        self.deadline_hit = True
+        return HttpResult(url, method, None, f"not sent: run time budget of {self.max_seconds:g}s "
+                                             "(--max-seconds) exhausted", "deadline", attempts=attempt)
+
     def request(self, url: str, method: str = "GET", read_body: bool = False) -> HttpResult:
         if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
             return HttpResult(url, method, None, "only http(s) URLs are fetched", "refused-scheme")
         host = urllib.parse.urlsplit(url).netloc.lower()
         if host in self.open_circuits:
             return HttpResult(url, method, None, f"not sent: {host} ended {self.host_failure_limit} consecutive "
-                                                 "requests throttled (429/503/timeout); circuit open for this run",
-                              "circuit-open")
+                                                 f"requests failed ({', '.join(sorted(self.breaker_on))}); "
+                                                 "circuit open for this run", "circuit-open")
         attempt = 0
         while True:
-            if self.remaining() <= 0:
-                self.deadline_hit = True
-                return HttpResult(url, method, None, f"not sent: run time budget of {self.max_seconds:g}s "
-                                                     "(--max-seconds) exhausted", "deadline", attempts=attempt)
+            if self.remaining() < MIN_REQUEST_SECONDS:
+                return self._out_of_budget(url, method, attempt)
+            pace = self._pace_wait(host)
+            if pace > 0:
+                if pace + MIN_REQUEST_SECONDS > self.remaining():
+                    return self._out_of_budget(url, method, attempt)
+                self.sleep(pace)
+            self._last_hit[host] = self.clock()
             attempt += 1
-            self._pace(host)
-            res = self._once(url, method, read_body, min(self.timeout, max(1.0, self.remaining())))
+            res = self._guarded_once(url, method, read_body, min(self.timeout, self.remaining()))
             res.attempts = attempt
             self.requests += 1
             self.responses += res.status is not None
@@ -204,7 +279,7 @@ class Fetcher:
                 if hinted is not None:
                     wait = hinted
             wait = min(wait, self.max_wait)
-            if wait >= self.remaining():  # sleeping would overrun the budget: stop and report what we have
+            if wait + MIN_REQUEST_SECONDS > self.remaining():  # the retry could not start in budget: stop here
                 self.deadline_hit = True
                 res.error = f"{res.error}; retry abandoned: run time budget (--max-seconds) exhausted"
                 self._record_outcome(host, res)
@@ -212,15 +287,10 @@ class Fetcher:
             self.sleep(wait)
 
 
-THROTTLE_STATUSES = {429, 503}
 # HEAD outcomes after which a GET fallback would only repeat the same wait: the server is
 # throttling or not answering, or we chose not to send at all. (405/403/404/5xx still fall back:
 # many servers mishandle HEAD specifically.)
 _NO_GET_FALLBACK = {"timeout", "deadline", "circuit-open", "refused-scheme", "invalid-url"}
-
-
-def _throttled(res: HttpResult) -> bool:
-    return res.status in THROTTLE_STATUSES or res.error_kind == "timeout"
 
 
 # ---------------------------------------------------------------------------
@@ -258,8 +328,14 @@ def collect_constraints(skills: list[sl.Skill]) -> dict[str, list[dict]]:
 # ---------------------------------------------------------------------------
 # Checks
 # ---------------------------------------------------------------------------
+def utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.timezone.utc)
+
+
 def check_url(fetcher: Fetcher, url: str, acknowledged=(), today: dt.date | None = None,
-              ack_max_age_days: int | None = None) -> dict:
+              ack_max_age_days: int | None = None, now: Callable[[], dt.datetime] = utc_now) -> dict:
+    """Check one URL. An acknowledgement applies up to and including its expires_on, judged against
+    `today` (default: now()'s UTC date; both injectable). ack_max_age_days, if given, is an extra cap."""
     head = fetcher.request(url, "HEAD")
     retry_with_get = not head.ok and head.status not in THROTTLE_STATUSES and head.error_kind not in _NO_GET_FALLBACK
     res = fetcher.request(url, "GET") if retry_with_get else head
@@ -276,10 +352,11 @@ def check_url(fetcher: Fetcher, url: str, acknowledged=(), today: dt.date | None
     if verdict == "inconclusive":
         ack = next((a for a in acknowledged if a.matches(url, res.status)), None)
         if ack is not None:
-            age = (today - ack.acknowledged_on).days if today else 0
-            lapsed = ack_max_age_days is not None and age > ack_max_age_days
+            today = today if today is not None else now().date()
+            lapsed = ack.lapsed(today) or (ack_max_age_days is not None
+                                          and (today - ack.acknowledged_on).days > ack_max_age_days)
             out["acknowledgement"] = {"reason": ack.reason, "acknowledged_on": ack.acknowledged_on.isoformat(),
-                                      "lapsed": lapsed}
+                                      "expires_on": ack.expires_on.isoformat(), "lapsed": lapsed}
             if not lapsed:  # a lapsed acknowledgement surfaces again so someone re-confirms it
                 out["verdict"] = "acknowledged"
     return out
@@ -337,11 +414,11 @@ URL_VERDICTS = ("ok", "broken", "inconclusive", "acknowledged")  # acknowledged 
 PKG_VERDICTS = ("ok", "excludes-latest", "broken", "inconclusive")
 
 
-def new_report() -> dict:
+def new_report(now: Callable[[], dt.datetime] = utc_now) -> dict:
     return {
         "tool": "verify_online", "report_version": 2, "verification_kind": "automated-doc-check",
         "meaning": cf.VERIFICATION_KINDS["automated-doc-check"],
-        "generated_at": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "generated_at": now().replace(microsecond=0).isoformat(),
         "status": "INCOMPLETE", "reason": "run in progress", "budget": {}, "urls": [], "packages": [],
         "summary": {},
         "note": "Flags for human review only; this script never edits skills. Record outcomes in docs/claims.json; "
@@ -355,7 +432,8 @@ def _update_counts(report: dict, fetcher: Fetcher) -> int:
     pkg_counts = {v: sum(p["verdict"] == v for p in report["packages"]) for v in PKG_VERDICTS}
     report["summary"] = {"urls": url_counts, "packages": pkg_counts}
     report["budget"] = {"max_seconds": fetcher.max_seconds, "exhausted": fetcher.deadline_hit,
-                        "open_circuits": sorted(fetcher.open_circuits)}
+                        "open_circuits": sorted(fetcher.open_circuits),
+                        "breaker_on": sorted(fetcher.breaker_on), "abandoned_requests": fetcher.abandoned}
     return (sum(n for k, n in url_counts.items() if k not in ("ok", "acknowledged"))
             + sum(n for k, n in pkg_counts.items() if k != "ok"))
 
@@ -363,10 +441,12 @@ def _update_counts(report: dict, fetcher: Fetcher) -> int:
 def run(skills: list[sl.Skill], fetcher: Fetcher, *, claims_path: Path | None, check_urls: bool = True,
         check_pypi: bool = True, probe: bool = True, max_urls: int | None = None,
         policy: cf.Policy | None = None, today: dt.date | None = None, report: dict | None = None,
-        on_progress: Callable[[dict], None] | None = None) -> dict:
+        on_progress: Callable[[dict], None] | None = None, now: Callable[[], dt.datetime] = utc_now) -> dict:
     """Fill `report` (status INCOMPLETE until the end) and call on_progress after each item, so a run
-    killed from outside still leaves a partial report on disk."""
-    report = new_report() if report is None else report
+    killed from outside still leaves a partial report on disk. `today` (default now()'s UTC date)
+    decides whether an acknowledgement has passed its expires_on."""
+    report = new_report(now) if report is None else report
+    today = today if today is not None else now().date()
     progress = on_progress or (lambda _r: None)
     if probe:
         p = fetcher.request(PROBE_URL, "HEAD")
@@ -383,9 +463,8 @@ def run(skills: list[sl.Skill], fetcher: Fetcher, *, claims_path: Path | None, c
     if check_urls:
         cited = collect_urls(skills, claims_path)
         acks = policy.acknowledged if policy else ()
-        ack_age = policy.default_max_age_days if policy else None
         for url in list(cited)[:max_urls]:
-            report["urls"].append({**check_url(fetcher, url, acks, today, ack_age), "cited_by": cited[url]})
+            report["urls"].append({**check_url(fetcher, url, acks, today, now=now), "cited_by": cited[url]})
             _update_counts(report, fetcher)
             progress(report)
 
@@ -415,7 +494,8 @@ def human_summary(report: dict) -> str:
     for u in report["urls"]:
         if u["verdict"] == "acknowledged":
             lines.append(f"  URL ACKNOWLEDGED {u['url']}  status={u['http_status']} (acknowledged "
-                         f"{u['acknowledgement']['acknowledged_on']}; not a finding)")
+                         f"{u['acknowledgement']['acknowledged_on']}, expires "
+                         f"{u['acknowledgement']['expires_on']}; not a finding)")
         elif u["verdict"] != "ok":
             lapsed = " (acknowledgement lapsed)" if u.get("acknowledgement", {}).get("lapsed") else ""
             lines.append(f"  URL {u['verdict'].upper():12s} {u['url']}  status={u['http_status']} "
@@ -429,6 +509,9 @@ def human_summary(report: dict) -> str:
     s = report["summary"]
     if s:
         lines.append(f"  urls: {s['urls']}  packages: {s['packages']}")
+    if report.get("budget", {}).get("abandoned_requests"):
+        lines.append(f"  watchdog abandoned {report['budget']['abandoned_requests']} request(s) that outlived "
+                     "their timeout")
     if report.get("budget", {}).get("open_circuits"):
         lines.append(f"  circuit opened for: {', '.join(report['budget']['open_circuits'])}")
     lines.append(f"  meaning: {report['meaning']}")
@@ -453,10 +536,14 @@ def main(argv: list[str] | None = None) -> int:
                     help="run time budget (default 1200; 0 = unlimited). Keep it below the CI job timeout: "
                          "unchecked items are reported 'inconclusive' (deadline) instead of the job being killed")
     ap.add_argument("--host-failure-limit", type=int, default=3,
-                    help="stop contacting a host after this many consecutive throttled requests (0 = never)")
+                    help="stop contacting a host after this many consecutive failed requests (0 = never)")
+    ap.add_argument("--breaker-on", default=",".join(BREAKER_CLASSES),
+                    help="comma-separated failure classes the circuit breaker counts: "
+                         f"{', '.join(BREAKER_CLASSES)} (default: all)")
     ap.add_argument("--policy", type=Path, default=cf.DEFAULT_POLICY_PATH,
                     help="freshness policy (for acknowledged_inconclusive)")
-    ap.add_argument("--today", type=dt.date.fromisoformat, default=None, help="date used for acknowledgement age")
+    ap.add_argument("--today", type=dt.date.fromisoformat, default=None,
+                    help="date used for acknowledgement expiry (default: today in UTC)")
     args = ap.parse_args(argv)
 
     skills = sl.load_all_skills(args.root)
@@ -465,8 +552,13 @@ def main(argv: list[str] | None = None) -> int:
     except cf.PolicyError as e:
         print(f"ERROR {e}", file=sys.stderr)
         return 3
-    fetcher = Fetcher(timeout=args.timeout, retries=args.retries, min_interval=args.min_interval,
-                      max_seconds=args.max_seconds, host_failure_limit=args.host_failure_limit)
+    breaker_on = [c.strip() for c in args.breaker_on.split(",") if c.strip()]
+    try:
+        fetcher = Fetcher(timeout=args.timeout, retries=args.retries, min_interval=args.min_interval,
+                          max_seconds=args.max_seconds, host_failure_limit=args.host_failure_limit,
+                          breaker_on=breaker_on)
+    except ValueError as e:
+        ap.error(str(e))
     report = new_report()
 
     def checkpoint(r: dict) -> None:
@@ -476,7 +568,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         run(skills, fetcher, claims_path=args.claims, check_urls=not args.skip_urls, check_pypi=not args.skip_pypi,
             probe=not args.no_probe, max_urls=args.max_urls, policy=policy,
-            today=args.today or dt.datetime.now(dt.timezone.utc).date(), report=report, on_progress=checkpoint)
+            today=args.today, report=report, on_progress=checkpoint)
     except BaseException as e:  # incl. KeyboardInterrupt: keep whatever was checked, marked INCOMPLETE
         report.update(status="INCOMPLETE", reason=f"run aborted: {type(e).__name__}: {e}")
         checkpoint(report)

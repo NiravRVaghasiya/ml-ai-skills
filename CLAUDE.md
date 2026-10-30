@@ -55,6 +55,7 @@ outputs: One-line description of what this skill produces.
 The description is plain text: no angle-bracket placeholders or tags (the validator's
 `description-xml-tag` rule rejects anything that looks like `<tag>`, as Claude's Agent
 Skills rules require), at most 1,024 characters, and at least 3 quoted trigger phrases.
+Replace every TODO left from `_TEMPLATE/SKILL.md`; the validator rejects any that remain in the frontmatter (`placeholder-text`).
 
 Any heuristic (a rule with real exceptions) MUST be phrased conditionally in
 the body — "as a rule of thumb, above roughly N..., consider..." — never as an

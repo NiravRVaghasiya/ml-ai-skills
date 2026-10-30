@@ -10,7 +10,9 @@ reports built on it:
 * **subjective rubric** — `expected_behavior` / `must_not` prose, graded by a
   human or an (optional, explicitly configured) LLM judge. Nothing here turns
   rubric prose into a pass/fail; run_evals.py records judge verdicts under a
-  separate `subjective` key and never folds them into hard pass rates.
+  separate `subjective` key and never folds them into hard pass rates. The
+  explicit rules that combine the layers into one verdict live in
+  eval_grading.py (VERDICT_RULES).
 
 Every function takes a repository `root` so tests can point it at a
 throwaway tree instead of the live repo other people are editing.
@@ -28,7 +30,7 @@ from typing import Any
 
 import skills_lib as sl
 
-HARNESS_VERSION = "1.1.0"
+HARNESS_VERSION = "1.2.0"  # 1.2.0: layered grading, report schema 2, backends, run directories
 
 EVAL_CATEGORIES = ("happy_path", "edge_case", "adversarial", "misconception", "failure_recovery", "ambiguity")
 NON_HAPPY_PATH_CATEGORIES = tuple(c for c in EVAL_CATEGORIES if c != "happy_path")
@@ -589,9 +591,8 @@ class EvalSuite:
     errors: list[str]
     warnings: list[str]
     fixture_results: list[dict[str, Any]]
-    # Reported, but NOT promoted by validate_evals.py --strict (only by --strict-advisories):
-    # the unexercised-pattern lint landed while existing cases still had such patterns.
-    # Move it into `warnings` once the repo is clean so --strict guards it.
+    # Kept out of `warnings` (run_evals.py validation) but promoted by validate_evals.py
+    # --strict and --strict-advisories; the shipped tree has none (tests/test_evals.py).
     advisories: list[str] = field(default_factory=list)
 
     def skill_by_slug(self) -> dict[str, sl.Skill]:

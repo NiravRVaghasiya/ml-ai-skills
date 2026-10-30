@@ -13,15 +13,16 @@ itself, so a broken case fails fast instead of silently grading nothing:
    patterns that match every wrong answer and cases whose wrong answers are
    all concept-free strawmen (no on-topic fail fixture). Advisory warnings
    flag must_not_include patterns that no fail fixture triggers (never shown
-   to fire); --strict does not promote those yet, --strict-advisories does.
+   to fire); --strict promotes them along with the other warnings, and
+   --strict-advisories promotes only them.
 
 Usage:
     python scripts/validate_evals.py                          # errors -> exit 1
     python scripts/validate_evals.py --coverage               # + coverage table
     python scripts/validate_evals.py --coverage --json        # machine-readable
     python scripts/validate_evals.py --require-full-coverage  # gaps -> exit 1
-    python scripts/validate_evals.py --strict                 # warnings -> exit 1
-    python scripts/validate_evals.py --strict-advisories      # advisory warnings -> exit 1
+    python scripts/validate_evals.py --strict                 # warnings + advisory warnings -> exit 1
+    python scripts/validate_evals.py --strict-advisories      # advisory warnings only -> exit 1
 """
 from __future__ import annotations
 
@@ -55,9 +56,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--coverage", action="store_true", help="print per-skill coverage")
     ap.add_argument("--require-full-coverage", action="store_true",
                     help="exit 1 if any skill lacks plan.json, a case, or a non-happy-path case")
-    ap.add_argument("--strict", action="store_true", help="treat warnings as errors")
+    ap.add_argument("--strict", action="store_true",
+                    help="treat warnings, including advisory warnings, as errors")
     ap.add_argument("--strict-advisories", action="store_true",
-                    help="also treat advisory warnings (unexercised must_not_include patterns) as errors")
+                    help="treat advisory warnings (unexercised must_not_include patterns) as errors")
     ap.add_argument("--json", action="store_true", help="print a JSON document instead of text")
     args = ap.parse_args(argv)
 
@@ -65,8 +67,11 @@ def main(argv: list[str] | None = None) -> int:
     cov = el.coverage(suite)
     fixtures_ok = sum(r["ok"] for r in suite.fixture_results)
     gaps = cov["gaps"] if args.require_full_coverage else []
+    # The advisory lint stays out of suite.warnings (run_evals.py's validation), but --strict has
+    # promoted it since the last pre-existing unexercised pattern got a fail fixture (2026-10-29).
+    strict_advisories = args.strict or args.strict_advisories
     failed = (bool(suite.errors) or bool(gaps) or (args.strict and bool(suite.warnings))
-              or (args.strict_advisories and bool(suite.advisories)))
+              or (strict_advisories and bool(suite.advisories)))
 
     if args.json:
         doc = {"harness_version": el.HARNESS_VERSION, "ok": not failed, "errors": suite.errors,
@@ -91,8 +96,9 @@ def main(argv: list[str] | None = None) -> int:
     if failed:
         if args.strict and suite.warnings and not suite.errors:
             print(f"\n{len(suite.warnings)} warning(s) (--strict)")
-        if args.strict_advisories and suite.advisories and not suite.errors:
-            print(f"\n{len(suite.advisories)} advisory warning(s) (--strict-advisories)")
+        if strict_advisories and suite.advisories and not suite.errors:
+            flag = "--strict-advisories" if args.strict_advisories else "--strict"
+            print(f"\n{len(suite.advisories)} advisory warning(s) ({flag})")
         return 1
 
     covered = sorted({c.skill_dir for c in suite.cases})

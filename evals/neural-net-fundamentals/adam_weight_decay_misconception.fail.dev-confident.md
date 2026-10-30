@@ -1,0 +1,1 @@
+In PyTorch's Adam, weight_decay adds an L2 term to the gradient, while AdamW applies decoupled decay directly to the weights. Because the adaptive per-parameter scaling is roughly uniform late in training, they're effectively the same at weight_decay=0.01, so passing it to Adam reproduces the paper.

@@ -14,9 +14,13 @@
 # mlflow, bumped for security advisories (see its comment).
 # Target interpreter: CPython 3.13 on Linux x86_64 (the CI `examples` job).
 #
-# Only these listed packages are pinned; anything they pull in that is not listed is
-# resolved at install time. Packages marked "(transitive)" are pinned only because a
-# workstream reported them as part of the environment its tests passed in.
+# This file pins the direct dependencies; anything they pull in that is not listed here is
+# pinned by the lock constraints/examples-linux-cp313.txt, which CI installs with it:
+#   pip install -r requirements-examples.txt -c constraints/examples-linux-cp313.txt
+# The lock is for Linux x86_64 / CPython 3.13 only; on other platforms install without -c.
+# Packages marked "(transitive)" are pinned here only because a workstream reported them as
+# part of the environment its tests passed in. Bumping a pin here means regenerating the lock
+# (docs/REPRODUCIBILITY.md "Dependency locks"); ci.yml's deps job fails until it is.
 #
 # CPU-only PyTorch: the +cpu builds live on the PyTorch index, not PyPI. Pinning the
 # local version (+cpu) makes pip take torch/torchvision from that index and avoids the
@@ -63,7 +67,13 @@ mlflow==3.17.2         # heavy: large dependency tree
 pandera==0.35.0
 SQLAlchemy==2.1.6
 pyarrow==25.0.1        # mlflow 3.17.2 requires <26; Dependabot ignores >=26 (.github/dependabot.yml)
-pendulum==3.3.0        # optional: enables test_pendulum_interval_end_is_accepted (skips without it)
+# pendulum: without it, test_pendulum_interval_end_is_accepted skips in a default local run
+# and fails under ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1 (the CI examples job).
+pendulum==3.3.0
+# fsspec: tests/examples/test_data_pipelines_object_store.py imports it directly
+# (@harness.requires). It also arrives transitively (torch declares an fsspec requirement); pinned here
+# at the version constraints/examples-linux-cp313.txt already locks, so the lock is unchanged.
+fsspec==2026.7.0
 
 # --- deep learning / computer vision (heavy) -----------------------------------------
 torch==2.14.1+cpu
@@ -86,6 +96,10 @@ onnxscript==0.7.2
 onnx-ir==1.1.0         # (transitive, via onnxscript)
 evidently==0.7.23      # heavy; requires plotly<6
 plotly==5.24.1        # (transitive, via evidently: <6); Dependabot ignores >=6
+# (transitive, via evidently -> formulaic) formulaic requires `wrapt>=1.17.0rc1` on Python 3.13;
+# a pre-release in a specifier lets pip pick pre-releases, and on 2026-10-29 it resolved
+# wrapt 2.5.2rc1 on Linux/CPython 3.13. Pinned to the newest final release instead.
+wrapt==2.5.1
 
 # --- LLM / NLP / RAG (heavy: transformers also slows torchmetrics' import) ------------
 transformers==5.21.0

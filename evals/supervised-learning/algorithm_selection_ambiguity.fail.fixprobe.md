@@ -1,0 +1,1 @@
+It depends on your data, but for most tabular datasets the answer is XGBoost: it handles mixed feature types, missing values and class imbalance out of the box, and it wins most Kaggle competitions. Start with XGBoost on default parameters and tune from there.

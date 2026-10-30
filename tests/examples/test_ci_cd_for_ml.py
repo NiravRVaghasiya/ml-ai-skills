@@ -52,7 +52,6 @@ SLUG = "ci-cd-for-ml"
 # 3 src/release.py. Blocks 0-2 are the pytest suite; 3 needs mlflow.
 PYTEST_BLOCKS, RELEASE_BLOCK = [0, 1, 2], 3
 SHA = "0123456789abcdef0123456789abcdef01234567"
-SLOW_ENV = "ML_AI_SKILLS_SLOW_EXAMPLES"
 # First versions with no OSV advisory on 2026-10-28 (api.osv.dev/v1/query). mlflow 2.16.2
 # had 32 GHSA ids, among them GHSA-wf7f-8fxf-xfxc (unsafe deserialization), GHSA-fhff-qmm8-h2fp
 # (tar traversal, fixed 3.9.0rc0) and GHSA-wqmh-qccw-pqwf (fixed 3.17.2); pytest 8.3.3 had
@@ -235,7 +234,12 @@ class TestCiCdForMlBlocks(unittest.TestCase):
         seed = ns["_seed_everything"].__wrapped__ if hasattr(ns["_seed_everything"], "__wrapped__") else None
         self.assertEqual(ns["SEED"], 42)
         if seed is None:
-            self.skipTest("pytest fixture object does not expose the wrapped function")
+            reason = "pytest fixture object does not expose the wrapped function"
+            if os.environ.get(harness.REQUIRE_ENV) == "1":   # pinned pytest exposes it: not a skip in CI
+                import pytest
+
+                self.fail(f"{harness.REQUIRE_ENV}=1 but {reason} (pytest {pytest.__version__})")
+            self.skipTest(reason)
         seed()
         a = (random.random(), np.random.rand())
         seed()
@@ -340,13 +344,7 @@ class TestReleaseScoresTheArtifactItPromotes(unittest.TestCase):
         self.assertEqual(calls, [], "an invalid SHA must not reach the registry filter")
 
 
-def _slow_opt_in(cls):
-    if os.environ.get(SLOW_ENV) == "1" or os.environ.get(harness.REQUIRE_ENV) == "1":
-        return cls
-    return unittest.skip(f"slow (MLflow import + SQLite store setup); set {SLOW_ENV}=1 to run")(cls)
-
-
-@_slow_opt_in
+@harness.slow("MLflow import + SQLite store setup")
 @harness.requires("mlflow", "pandas", "numpy", "sklearn")
 class TestReleaseAgainstRealMlflow(unittest.TestCase):
     """The step-5 block against real MLflow: registry search by tag, alias lookup and

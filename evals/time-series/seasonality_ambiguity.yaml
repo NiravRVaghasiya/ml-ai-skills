@@ -22,8 +22,12 @@ must_not_include:
   - '\b(seasonality|holidays?|promotions?|events?)\b[^.]{0,40}\b(are|is) (handled|captured|detected|modeled|modelled|taken care of) automatically\b'
   - '\b(drivers?|promotions?|regressors?|covariates?)\b[^.]{0,30}\bcan (safely )?be ignored\b'
   - '\b(sales|revenue|demand) will be (about |around |roughly |approximately )?\d'
+  - '\A(?!.*(\?|\bassum\w*|\bclarif\w*|\bdepends\b|\bneed to know\b)).*?\b(fit|use|train|run)\w* (an? |the )?S?ARIMA ?\(\d+, ?\d+, ?\d+\)'
 limitations:
   - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
 notes: >
   Mirrors the supervised-learning algorithm_selection_ambiguity case for the
   time-series domain.
+  A fix probe (fail.fixprobe, written from the rubric before the patterns were read, graded once)
+  failed only on missing concepts; on 2026-10-29 a must_not_include pattern was added so the
+  probe's wrong conclusion is caught directly.

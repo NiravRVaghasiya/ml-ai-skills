@@ -25,6 +25,11 @@ pre-fix skill code):
 * Step 3's dtype-based column groups silently omit bool and pandas
   ``"string"``-dtype columns, and ``ColumnTransformer``'s default
   ``remainder="drop"`` then throws those features away without any error.
+* Step 2 passed ``stratify=y`` unconditionally, so a continuous (regression)
+  target raised in ``train_test_split`` and a class with a single row raised
+  sklearn's generic "least populated class" error (KNOWN-ISSUES #16). Step 2
+  now stratifies only when ``TASK = "classification"`` and names the 1-row
+  classes in its error.
 """
 from __future__ import annotations
 
@@ -191,6 +196,63 @@ class DataPreprocessingExampleTest(unittest.TestCase):
         names = ns["clf"].named_steps["prep"].get_feature_names_out().tolist()
         self.assertIn("num__is_member", names)
         self.assertEqual(sorted(n for n in names if n.startswith("cat__tier_")), ["cat__tier_a", "cat__tier_b"])
+
+    def test_classification_split_preserves_class_proportions(self):
+        import numpy as np
+
+        df = make_df(n=200)
+        df["target"] = (np.arange(200) % 10 < 3).astype(int)    # 30% positives, 60/140 rows
+        ns = run_skill(df, indices=[0, 1])
+        self.assertIs(ns["stratify"], ns["y"])
+        self.assertEqual(len(ns["y_test"]), 40)
+        self.assertEqual(int(ns["y_test"].sum()), 12)              # exactly 30% of 40
+        self.assertEqual(int(ns["y_train"].sum()), 48)             # exactly 30% of 160
+
+    def test_singleton_class_raises_an_error_naming_it(self):
+        df = make_df()
+        df.loc[0, "target"] = 7                                   # a class with one row
+        with self.assertRaisesRegex(ValueError, r"classes with 1 row: \[7\].*TASK = 'regression'"):
+            run_skill(df, indices=[0, 1])
+
+    def test_continuous_target_splits_and_trains_as_regression(self):
+        import numpy as np
+        from sklearn.model_selection import train_test_split
+
+        df = make_df()
+        df["target"] = df["income"] * 0.01 + np.random.default_rng(5).normal(0, 1, len(df))
+        # Control: the pre-fix stratify=y raises on a continuous target.
+        with self.assertRaisesRegex(ValueError, "least populated class"):
+            train_test_split(df.drop(columns="target"), df["target"], test_size=0.2,
+                             stratify=df["target"], random_state=42)
+        replace = {1: {'TASK = "classification"': 'TASK = "regression"'},
+                   4: {"import RandomForestClassifier": "import RandomForestRegressor",
+                       '"model", RandomForestClassifier(': '"model", RandomForestRegressor('}}
+        with contextlib.redirect_stdout(io.StringIO()):
+            ns = harness.run_blocks(SLUG, [0, 1, 2, 3, 4], namespace={"df": df}, replace=replace)
+        self.assertIsNone(ns["stratify"])
+        self.assertEqual((len(ns["X_train"]), len(ns["X_test"])), (96, 24))
+        preds = ns["clf"].predict(ns["X_test"])
+        self.assertEqual(preds.dtype.kind, "f")
+        self.assertGreater(len(np.unique(preds)), 2)               # a regressor, not class labels
+
+    def test_test_split_smaller_than_class_count_raises(self):
+        # Gotcha: the test split needs at least one row per class; sklearn enforces it.
+        import numpy as np
+
+        df = make_df(n=20)
+        df["target"] = np.repeat(np.arange(10), 2)                # 10 classes x 2 rows; test = 4
+        with self.assertRaisesRegex(ValueError, "number of classes"):
+            run_skill(df, indices=[0, 1])
+
+    def test_quantile_bin_stratification_from_gotcha_runs(self):
+        import numpy as np
+        import pandas as pd
+        from sklearn.model_selection import train_test_split
+
+        y = pd.Series(np.random.default_rng(6).lognormal(0, 1, 100))
+        bins = pd.qcut(y, 5, labels=False)
+        _, _, y_train, y_test = train_test_split(y, y, test_size=0.2, stratify=bins, random_state=42)
+        self.assertEqual(sorted(bins[y_test.index].value_counts().tolist()), [4] * 5)
 
     def test_original_silent_drop_mechanism(self):
         # Documents WHY the guard exists: the library itself raises nothing.

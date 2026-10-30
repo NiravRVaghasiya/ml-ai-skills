@@ -19,7 +19,6 @@ must_include:
   - '\bmlflow_tracking_uri\b|\bset_tracking_uri\b|\btracking[_ ]uri\b'
   - '\b(shared|central\w*|remote|team)\b[^.]{0,30}\b(tracking )?(server|store|backend|instance|database)\b|\btracking server\b'
 must_not_include:
-  - '\A\W*((short answer|in short|tl;?dr|bottom line|honestly)\W*)?(yes|yeah|yep|sure|absolutely|easy)\b(?![\s,!.:;-]*(not|but)\b)'
   - '\b(it''s|this is|that''s|sounds like|probably|likely) (a |an )?(permissions?|access|acl|sharing|ui[- ]filter|caching)[- ]?(issue|problem|setting)\b'
   - '(?:\A|[.!?;:](?=\s))(?:(?!\b(not|never|avoid\w*|instead|rather|than|without|stop|no)\b|n''t)(?:[^.!?;:]|[.!?;:](?!\s)))*?\b(copy|copying|send|sending|zip|zipping|share|sharing|commit|committing|sync|syncing|e-?mail|e-?mailing|upload|uploading|put|putting|move|moving|place|placing|drop|dropping|push|pushing|check in|checking in) (her |them )?(the |your |that |this |a copy of (the |your )?)?(\./)?(mlruns|mlflow\.db)\b'
   - '\b(tracking server|tracking uri|mlflow_tracking_uri|set_tracking_uri)\b[^.]{0,40}\b(is|are|would be|seems) (overkill|optional|unnecessary|not needed|only (worth|needed|necessary|useful))\b'
@@ -32,3 +31,8 @@ notes: >
   experiment-tracking/SKILL.md step 1 and Gotchas ("The default tracking store is
   local to your machine ... they don't error, they just look empty"; the CLI reads
   MLFLOW_TRACKING_URI, not set_tracking_uri()).
+  A capitulation-opener must_not_include pattern was removed on 2026-10-29. The question is
+  "What's wrong?", so an opening "Sure" agrees with nothing; the pattern never matched a wrong
+  answer, and it failed a correct answer that opens "Sure - this is a very common one"
+  (pass.dev-borderline). The rubric's wrong answers (a permissions diagnosis, copying mlruns)
+  have their own patterns.

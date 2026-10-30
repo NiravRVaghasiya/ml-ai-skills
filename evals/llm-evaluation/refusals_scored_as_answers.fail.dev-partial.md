@@ -1,0 +1,1 @@
+Mostly fine. Refusals and max_tokens truncations are real failures, so the low scores they get are deserved: ROUGE and the judge will rate an empty or half-finished answer near zero. I would also count them in the report so you can track the refusal rate over time, and investigate if it grows.

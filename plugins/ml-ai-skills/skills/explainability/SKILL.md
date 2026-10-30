@@ -31,7 +31,7 @@ related:
 inputs: A fitted, sklearn-compatible model plus held-out feature data (and optionally training data as a background sample) to explain.
 outputs: Global feature-importance rankings and per-instance attributions (SHAP/LIME) with a cross-method agreement check.
 version_constraints:
-  - "scikit-learn>=0.22: sklearn.inspection.permutation_importance(scoring='roc_auc', n_repeats=, n_jobs=) (lower bound is a model-knowledge estimate; executed against scikit-learn 1.9.0 on 2026-10-27)"
+  - "scikit-learn>=0.22: sklearn.inspection.permutation_importance(scoring='roc_auc', n_repeats=, n_jobs=) (0.22 lower bound documented: the scikit-learn 0.22 release notes add inspection.permutation_importance, read 2026-10-29; 0.22 itself not executed; executed against scikit-learn 1.9.0 on 2026-10-27)"
   - "shap>=0.45: TreeExplainer(model)(X) Explanation with (n, features, classes) values for sklearn forests, Explanation slicing [:, :, 1], shap.plots.bar/waterfall(show=False), KernelExplainer.shap_values(nsamples=), shap.sample(X, n, random_state=) (lower bound is a model-knowledge estimate of when multi-output values became one ndarray instead of a list; executed against shap 0.54.1 on 2026-10-27)"
   - "lime>=0.2: lime.lime_tabular.LimeTabularExplainer(random_state=), explain_instance(...).as_list() (executed against lime 0.2.0.1 on 2026-10-27)"
 ---

@@ -3,7 +3,8 @@ name: ai-ethics-fairness
 display_name: AI Ethics & Fairness
 description: >
   Use when the user wants to reason about or measure bias and fairness in a
-  dataset or model. Trigger phrases: "check my model for bias", "is this
+  dataset or model, such as whether outcomes differ across gender, race,
+  ethnicity or age groups. Trigger phrases: "check my model for bias", "is this
   model fair across groups", "compute demographic parity", "run a fairness
   audit", "disparate impact analysis", "which fairness metric should I use".
   NOT for explaining individual predictions (see explainability) or

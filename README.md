@@ -97,8 +97,9 @@ The exact set per plugin is in [`.claude-plugin/marketplace.json`](.claude-plugi
 <summary><b>Install without the plugin system</b> (plain files)</summary>
 
 This copies the skill folders into `~/.claude/skills/`. It needs only `bash` and standard
-command-line tools (including `sha256sum` or `shasum`), with no Python and no network access.
-So far it has been tested on Windows (Git Bash) only.
+command-line tools (including `sha256sum`, `shasum` or `openssl`), with no Python and no
+network access. Its tests have run on Windows (Git Bash) and on Linux (Ubuntu under WSL 2).
+macOS, with its older bash 3.2, has not been tested.
 
 ```bash
 git clone https://github.com/NiravRVaghasiya/ml-ai-skills.git
@@ -249,7 +250,9 @@ The line that matters in its output is the suggested skill:
 
 It matches words, not meaning. So it can miss a request worded very differently from the
 skill, and it can suggest a skill for an unrelated request that happens to share words
-(e.g. *"monitor my blood pressure"*). Measured results: [`docs/ROUTING.md`](docs/ROUTING.md).
+(e.g. *"monitor my blood pressure"*). On 142 test requests kept aside for measuring it, it
+picked the right skills, or correctly none, for 71% (95% interval 63-78%). Measured results:
+[`docs/ROUTING.md`](docs/ROUTING.md).
 
 ---
 
@@ -262,9 +265,10 @@ been checked:
 |---|---|---|
 | ✅ | Every skill follows the same structure and rules | Checked automatically (`scripts/validate_skills.py`) |
 | ✅ | The runnable Python in the 26 code-bearing skills runs | Run automatically on small made-up datasets, with outside services faked. GPUs, pretrained models and real services are not used |
-| ✅ | The plugin installs, updates and reinstalls cleanly | Tested with the real `claude` command-line tool |
+| ✅ | The plugin installs, updates and reinstalls cleanly | Tested with the real `claude` command-line tool, on Windows |
 | ⚠️ | Specific API and version claims | Some are backed by a test and some are marked `unverified` ([`docs/claims.json`](docs/claims.json)). Most minimum versions in the skills are estimates |
-| ❌ | Claude's answers improve with a skill loaded | Not measured. Eval cases are only scored against fixed sample answers |
+| ❌ | Claude's answers improve with a skill loaded | Not measured yet. A first run with and without the skills started on 2026-10-30; results go in [`docs/EVALUATION.md`](docs/EVALUATION.md) |
+| ⚠️ | The automatic answer checks catch wrong answers | Tried on 249 answers written for the purpose and labelled by AI models, not people: they failed 152 of 166 wrong answers and passed 71 of 83 correct ones. Real answers are probably harder to judge ([`docs/EVALUATION.md`](docs/EVALUATION.md)) |
 | ❌ | Claude Code picks the right skill | Not tested |
 | ❌ | Human expert review | None recorded yet |
 
@@ -278,10 +282,14 @@ Good to know:
 - The code is tested against **pinned library versions**
   ([`requirements-examples.txt`](requirements-examples.txt)). Other versions may behave
   differently.
-- Local testing was done on Windows. Linux and macOS are checked only by CI.
+- Local testing was done on Windows, with some Linux runs on Ubuntu under WSL 2. CI is set
+  up for Linux and macOS, but its results for this version have not been seen yet.
 - Only Claude Code is supported. Other tools (Cursor, Copilot, …) are not tested.
-  Uploading these files to claude.ai or the Skills API will probably fail, because each file
-  has extra header fields those services don't accept.
+  Uploading these files as they are to claude.ai or the Skills API will probably fail,
+  because each file has extra header fields those services don't accept.
+  `python scripts/export_skills.py --target claude-ai-upload --out DIR` writes copies with
+  those fields moved under `metadata`. The copies pass the published Agent Skills
+  validators when run locally, but none has been uploaded.
 
 All open issues, by severity: [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md).
 More detail: [`docs/EVIDENCE.md`](docs/EVIDENCE.md) and [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
@@ -302,9 +310,9 @@ More detail: [`docs/EVIDENCE.md`](docs/EVIDENCE.md) and [`docs/COMPATIBILITY.md`
 | Level | beginner (5) · intermediate (30) · advanced (3) |
 | Risk level | low (23) · medium (13) · high (2) |
 | Evidence level | primary (3) · official-documentation (10) · established-practice (25) |
-| Eval cases | 83 case file(s) covering 38/38 skills — graded offline against pass/fail fixtures by regex hard assertions; no model output graded (see `evals/SCHEMA.md`) |
-| Unit tests | 666 in the default suite (`tests/test_*.py`, stdlib only) + 351 optional example tests (`tests/examples/`, need `requirements-examples.txt`) |
-| Scripts / docs | 22 scripts in `scripts/`, 13 policy docs in `docs/` |
+| Eval cases | 84 case file(s) covering 38/38 skills — graded offline against pass/fail fixtures by regex hard assertions; no model output graded (see `evals/SCHEMA.md`) |
+| Unit tests | 1142 in the default suite (`tests/test_*.py` and the gate self-tests, stdlib only) + 382 optional example tests (`tests/examples/`, need `requirements-examples.txt`) + 20 opt-in integration tests (`tests/integration/`, skipped unless `ML_AI_SKILLS_INTEGRATION_<NAME>=1`) |
+| Scripts / docs | 25 scripts in `scripts/`, 14 policy docs in `docs/` |
 <!-- PROJECT-STATS:END -->
 
 ---
@@ -357,6 +365,7 @@ local tools; CI does not run them.
 | [`docs/EXAMPLE-TESTS.md`](docs/EXAMPLE-TESTS.md) | How SKILL.md code is executed |
 | [`evals/SCHEMA.md`](evals/SCHEMA.md) | Eval case format and what is (not) measured |
 | [`docs/ROUTING.md`](docs/ROUTING.md) | Router algorithm, benchmark results, known failure modes |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Model runs, grading layers, grader accuracy on held-out answers |
 | [`docs/QUALITY-GATES.md`](docs/QUALITY-GATES.md) | Which gates CI enforces |
 | [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md) | Supported environments |
 | [`docs/RELEASE.md`](docs/RELEASE.md) | Versioning and release steps |

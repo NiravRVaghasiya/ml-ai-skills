@@ -1,0 +1,1 @@
+An open port will attract scanning bots and some abuse, so keep the demo short-lived and shut the VM down afterwards. No firewall changes are needed beyond opening 8080. An internal demo doesn't need auth tokens, though, and the /docs page is what lets people try the model, so the setup you describe is workable for a week.

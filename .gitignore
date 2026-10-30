@@ -24,3 +24,11 @@ desktop.ini
 *.tmp
 *.bak
 validate_out.json
+dist/
+# eval_router.py --gate reports (CI writes them to the checkout root with --report-dir .)
+router-report*.json
+
+# --- Coverage (.coveragerc sets parallel = True: one .coverage.* file per process) ---
+.coverage
+.coverage.*
+htmlcov/

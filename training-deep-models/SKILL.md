@@ -7,7 +7,7 @@ description: >
   clipping, weight decay, or early stopping/checkpointing to fight overfitting.
   Trigger phrases: "set up mixed precision training", "add a learning rate
   scheduler", "my model is overfitting, what do I add", "add early stopping to
-  my training loop", "speed up training on GPU". NOT for the optimizer/backprop
+  my training loop", "my validation loss stopped improving", "speed up training on GPU". NOT for the optimizer/backprop
   theory behind these choices (see neural-net-fundamentals) or for idiomatic
   PyTorch loop/Dataset/hook structure itself (see pytorch-patterns).
 type: workflow
@@ -32,7 +32,7 @@ related:
 inputs: An existing PyTorch training loop and a goal (faster training, less overfitting, more stability).
 outputs: A hardened training loop with AMP, LR scheduling, gradient clipping, decoupled weight decay, and early stopping wired in.
 version_constraints:
-  - "torch>=2.3: torch.amp.GradScaler(device) and torch.autocast(device_type=..., enabled=...) (2.3 minimum is a model-knowledge estimate; all Workflow blocks executed CPU-only with AMP disabled against torch 2.13.0 on 2026-10-27; the CUDA fp16 path was not executed)"
+  - "torch>=2.3: torch.amp.GradScaler(device) and torch.autocast(device_type=..., enabled=...) (2.3 lower bound documented by source: torch/amp/grad_scaler.py with GradScaler(device=...) exists at tag v2.3.0 but not at v2.2.0, read on GitHub 2026-10-29; 2.3 itself not executed; all Workflow blocks executed CPU-only with AMP disabled against torch 2.13.0 on 2026-10-27; the CUDA fp16 path was not executed)"
 ---
 
 ## Overview

@@ -54,8 +54,9 @@ threat model, and why "we removed the names" is rarely sufficient.
   identify anyone alone but **combine** to make a large share of records
   unique — Sweeney's classic estimate (from 1990 US census data) was that
   ~87% of the US population is likely unique on just {5-digit ZIP, birth
-  date, gender}; later re-analysis on 2000 census data (Golle, 2006) put the
-  figure lower but still a majority, and the exact rate depends on the
+  date, gender}; later re-analysis (Golle, 2006) put the figure lower but
+  still a majority (about 63% on 2000 census data, 61% on 1990 data), and
+  the exact rate depends on the
   population and on how finely each field is recorded. Any real privacy
   workflow must inventory quasi-identifiers, not just obvious PII columns.
 - **De-identification vs. anonymization vs. pseudonymization.**
@@ -120,8 +121,10 @@ threat model, and why "we removed the names" is rarely sufficient.
   linked sparse movie ratings to public IMDb reviews).
 - **Memorization in trained models.** A model can itself leak its training
   data: large language models have been shown to regurgitate verbatim
-  training sequences, including personal information, under targeted
-  prompting (Carlini et al., 2021), and membership-inference attacks test
+  training sequences, including (publicly posted) names, phone numbers and
+  email addresses, to an attacker who only queries the model, sampling many
+  generations from short or empty prompts and ranking them (Carlini et al.,
+  2021, on GPT-2), and membership-inference attacks test
   whether a given record was in the training set. Scrubbing PII before
   training reduces this risk; DP-SGD bounds it formally; neither "the model
   is just weights" nor a non-public dataset is a defense. NIST AI 100-2

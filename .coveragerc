@@ -1,0 +1,31 @@
+# Coverage settings for ci.yml's unit-with-dev-deps job (coverage is a dev dependency:
+# requirements-dev.txt). Nothing reads this file unless coverage runs, so the stdlib-only
+# default test run is unaffected.
+#
+#   PYTHONPATH=tests python -m coverage run -m unittest <modules>
+#   python -m coverage combine
+#   python -m coverage report --fail-under=<floor in ci.yml>
+#
+# patch = subprocess (coverage >= 7.10) also measures the scripts the tests launch as
+# `sys.executable scripts/<name>.py`: coverage sets COVERAGE_PROCESS_CONFIG and its
+# installed a1_coverage.pth starts measurement in every child Python that inherits the
+# environment. A child started with a fresh environment (env= without os.environ), or under
+# another interpreter, is not measured. Each process writes its own .coverage.* file
+# (parallel), so `coverage combine` must run before `coverage report`.
+[run]
+branch = True
+source =
+    scripts
+    schema
+parallel = True
+patch = subprocess
+# Children that run copies of scripts/ in temp trees, or no repo code at all, collect nothing
+# under `source`; the warning would land on stderr that some tests compare.
+disable_warnings =
+    no-data-collected
+    module-not-imported
+    module-not-measured
+
+[report]
+show_missing = True
+skip_covered = True

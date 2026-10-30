@@ -1,0 +1,1 @@
+Using the t-SNE coordinates as classifier features is a bad idea: the embedding is stochastic, depends on perplexity, and sklearn's TSNE has no transform for new customers, so use PCA inside your Pipeline instead. For the stakeholder slide, t-SNE does distort global geometry somewhat, but for four clean clusters, saying A is twice as far from B as from C is a fair summary.

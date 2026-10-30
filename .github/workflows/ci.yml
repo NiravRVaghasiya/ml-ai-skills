@@ -1,16 +1,35 @@
 name: skill-library-ci
 
-# Quality gates for every push to main and every pull request. Stages:
-#   lint -> validate -> unit (3.10 + 3.13, stdlib only) / unit-with-dev-deps (coverage)
-#   examples (executes SKILL.md code), evals-offline, generated (artifact drift),
-#   installer (ubuntu + macOS), plugins (claude CLI), security (workflow audit, pip-audit, bandit rules)
-# The network freshness check lives in freshness-scheduled.yml; link-check below is manual only.
+# Quality gates for every push to main and every pull request. Jobs (all run in parallel):
+#   lint, validate, unit (3.10 + 3.13, stdlib only), unit-with-dev-deps (coverage, including
+#   scripts the tests launch as subprocesses), examples (executes SKILL.md code), evals-offline,
+#   generated (artifact drift), installer (ubuntu + macOS), plugins (claude CLI),
+#   release-archive (tests/test_release_archive.py, fast checks; release.yml adds the slow ones),
+#   security (workflow audit, pip-audit, bandit rules), deps (dependency locks resolve)
+#   all-required: needs every job above and fails unless each one succeeded. Branch protection
+#   should require this single check (a skipped or cancelled job fails it too).
+# The network freshness check lives in freshness-scheduled.yml; link-check below is manual only
+# and is deliberately not in all-required.
+#
+# Base commit. check_contract.py (validate) and the routing no-regression gate (evals-offline)
+# compare against the commit this change started from, resolved by the "Resolve the base
+# commit" step (identical in validate, evals-offline and deps; tests/test_audit_workflows.py
+# runs it): for a pull request the payload's base sha (or the test merge commit's first parent
+# when it descends from it), for a push the payload's `before`, and for a new branch or a manual
+# run the merge base with the default branch (else the first parent). Those jobs check out the
+# full history (fetch-depth: 0) so the base is normally present. A base that a force push left
+# unreferenced is fetched by sha (anonymous fetch: works while GitHub still has the object, for
+# a public repository); a base that still cannot be found fails the step instead of silently
+# comparing against something else. Recovery: push a new commit (or, for a PR, push to its
+# branch); a manual re-run reuses the same payload, and release.yml only accepts push runs.
 #
 # Hardening (enforced by scripts/audit_workflows.py, run in lint and security): read-only
 # token by default, no pull_request_target, no secrets, every action pinned to a full
-# commit SHA, checkout without persisted credentials, a timeout on every job, and no event
-# data or ref names expanded inside run: scripts (directly or via ${{ env.X }}). The audit is
-# a static, textual check - see its docstring for what it cannot trace.
+# commit SHA, checkout without persisted credentials, a timeout on every job, no event
+# data or ref names expanded inside run: scripts (directly or via ${{ env.X }}), no
+# continue-on-error, no swallowed failure (`|| true`, a bare `|| echo`, `set +e` without
+# reading $?), and no pipe without pipefail. The audit is a static, textual check - see its
+# docstring for what it cannot trace.
 #
 # Updating pinned versions
 #   * Actions: Dependabot (.github/dependabot.yml) opens weekly PRs that bump the SHA and
@@ -25,7 +44,10 @@ name: skill-library-ci
 #     `using: node24`): checkout v7.0.1, setup-python v7.1.0, setup-node v7.1.0,
 #     upload-artifact v7.0.2; attest-build-provenance v4.2.2 in release.yml (composite, wraps
 #     actions/attest v4.2.1, node24).
-#   * Python tools: requirements-dev.txt / requirements-examples.txt (Dependabot, weekly).
+#   * Python tools: requirements-dev.txt / requirements-examples.txt (Dependabot, weekly), each
+#     installed with its lock (constraints/*-linux-cp313.txt, -c). A bump must regenerate the
+#     lock in the same PR (the deps job fails until it does and uploads a regenerated lock as
+#     the dependency-locks artifact); see docs/REPRODUCIBILITY.md "Dependency locks".
 #   * Claude Code CLI: CLAUDE_CODE_VERSION below (not covered by Dependabot; bump by hand
 #     after checking https://registry.npmjs.org/@anthropic-ai/claude-code).
 
@@ -66,7 +88,8 @@ jobs:
       - name: Install the pinned ruff and shellcheck from requirements-dev.txt
         run: |
           set -euo pipefail
-          python -m pip install "$(grep -E '^ruff==' requirements-dev.txt)" "$(grep -E '^shellcheck-py==' requirements-dev.txt)"
+          python -m pip install -c constraints/dev-linux-cp313.txt \
+            "$(grep -E '^ruff==' requirements-dev.txt)" "$(grep -E '^shellcheck-py==' requirements-dev.txt)"
           ruff --version
           shellcheck --version
       - name: ruff (rules and per-file ignores in ruff.toml)
@@ -84,9 +107,78 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # HEAD^1 for the contract check: the base branch tip on a pull_request run (HEAD is
-          # GitHub's test merge commit), the previous commit on a push.
-          fetch-depth: 2
+          fetch-depth: 0  # full history: the base commit (next step) must be in the clone
+      - name: Resolve the base commit (see the header of this file)
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          sha_re='^[0-9a-f]{40}$'
+          zero=0000000000000000000000000000000000000000
+          head="$(git rev-parse HEAD)"
+          base="" how=""
+          has() { git cat-file -e "$1^{commit}" 2>/dev/null; }
+          # A commit that a force push left unreferenced is not in a fresh clone, even with full history,
+          # but GitHub still serves it by sha until it is garbage-collected: fetch it before giving up.
+          fetched() {
+            has "$1" && return 0
+            if GIT_TERMINAL_PROMPT=0 timeout 120 git fetch --no-tags --quiet origin "$1" 2>/dev/null && has "$1"; then
+              echo "fetched $1 by sha (no ref points to it)"; return 0
+            fi
+            return 1
+          }
+          case "$EVENT_NAME" in
+            pull_request)
+              if ! [[ "$PR_BASE_SHA" =~ $sha_re ]]; then
+                echo "::error::the pull_request payload's base sha '$PR_BASE_SHA' is not a 40-hex sha"; exit 1
+              fi
+              if ! fetched "$PR_BASE_SHA"; then
+                echo "::error::the PR base $PR_BASE_SHA is not in the clone and could not be fetched (base branch force-pushed?); push to the PR branch so the next run gets a fresh payload"; exit 1
+              fi
+              first="$(git rev-parse --verify --quiet 'HEAD^1')" || first=""
+              second="$(git rev-parse --verify --quiet 'HEAD^2')" || second=""
+              # HEAD is normally GitHub's test merge commit (parents: base tip, PR head). Its first
+              # parent can be newer than the payload's base sha (the base branch moved), so prefer it.
+              if [ -n "$second" ] && [ "$second" = "$PR_HEAD_SHA" ] && git merge-base --is-ancestor "$PR_BASE_SHA" "$first"; then
+                base="$first"; how="first parent of the test merge commit; payload base $PR_BASE_SHA"
+              else
+                base="$(git merge-base HEAD "$PR_BASE_SHA")" || base=""
+                how="merge base of HEAD and the payload base $PR_BASE_SHA"
+              fi ;;
+            push)
+              if [ "$PUSH_BEFORE" != "$zero" ]; then
+                if ! [[ "$PUSH_BEFORE" =~ $sha_re ]]; then
+                  echo "::error::the push payload's before sha '$PUSH_BEFORE' is not a 40-hex sha"; exit 1
+                fi
+                if ! fetched "$PUSH_BEFORE"; then
+                  echo "::error::the pushed-over commit $PUSH_BEFORE is not in the clone and could not be fetched (force push?); push a new commit on top: its run compares against this tip (a manual run does not count for release.yml, which needs a successful push run)"
+                  exit 1
+                fi
+                base="$PUSH_BEFORE"; how="the commit before the push"
+              fi ;;
+          esac
+          if [ -z "$how" ]; then  # a push that created the branch (before is all zeros), or a manual run
+            mb=""
+            if [ -n "$DEFAULT_BRANCH" ] && has "refs/remotes/origin/$DEFAULT_BRANCH"; then
+              mb="$(git merge-base HEAD "refs/remotes/origin/$DEFAULT_BRANCH")" || mb=""
+            fi
+            if [ -n "$mb" ] && [ "$mb" != "$head" ]; then
+              base="$mb"; how="merge base with origin/$DEFAULT_BRANCH"
+            else
+              base="$(git rev-parse --verify --quiet 'HEAD^1')" || base=""
+              how="first parent of HEAD"
+            fi
+          fi
+          if [ -z "$base" ]; then
+            echo "::error::no base commit ($how) for HEAD $head"; exit 1
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "base commit: $base ($how)"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
@@ -98,9 +190,17 @@ jobs:
       - name: Public contract matches its lock, and the VERSION rules hold vs the base commit's lock
         # The same-commit lock can be hand-edited to match a breaking tree; the base commit's lock
         # cannot, so a BREAKING change without a major bump fails here (docs/SKILL-SPEC.md).
-        run: python scripts/check_contract.py --check --base-ref HEAD^1
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: python scripts/check_contract.py --check --base-ref "$BASE_SHA"
       - name: Eval cases (strict, every skill covered)
         run: python scripts/validate_evals.py --strict --require-full-coverage
+      - name: Eval lint advisories (unexercised must_not_include patterns) fail too
+        run: python scripts/validate_evals.py --strict-advisories
+      - name: Every skill can be exported for the claude.ai upload path (dry run, writes nothing)
+        # validate_skills.py only warns on angle brackets in a description and does not apply the
+        # stricter upload parser; export_skills.py exits 1 if any skill cannot be exported.
+        run: python scripts/export_skills.py --target claude-ai-upload
       - name: Claims registry review clock
         run: python scripts/check_claims.py
       - name: Offline freshness scan (fails on STALE only; REVIEW_DUE is printed)
@@ -122,17 +222,20 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       # Every tests/test_*.py except test_install*.py, which the installer job runs on
-      # ubuntu and macOS (~9 min). Skips are listed in the job summary with their reasons:
-      # here PyYAML/jsonschema cross-checks skip (they run in unit-with-dev-deps) and the
-      # claude-CLI tests skip (they run in plugins).
+      # ubuntu and macOS (~9 min), and test_release_archive.py (~4 min; the release-archive
+      # job), plus tests/integration/test_gate.py (the opt-in gate's own self-tests: stdlib
+      # only, they run without any opt-in). Skips are listed in the job summary with their
+      # reasons: here PyYAML/jsonschema cross-checks skip (they run in unit-with-dev-deps) and
+      # the claude-CLI tests skip (they run in plugins).
       - name: Run unit tests
         run: |
           set -euo pipefail
           mods=()
           for f in tests/test_*.py; do
-            case "$f" in tests/test_install*) continue ;; esac
+            case "$f" in tests/test_install*|tests/test_release_archive.py) continue ;; esac
             m="${f#tests/}"; mods+=("${m%.py}")
           done
+          mods+=("integration.test_gate")
           echo "modules: ${mods[*]}"
           PYTHONPATH=tests python -m unittest -v "${mods[@]}" 2>&1 | tee unit.log
       - name: Report skipped tests
@@ -164,31 +267,68 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
-      - name: Install requirements-dev.txt
-        run: python -m pip install -r requirements-dev.txt
-      - name: Run unit tests under coverage
+      - name: Install requirements-dev.txt (with its lock)
+        run: python -m pip install -r requirements-dev.txt -c constraints/dev-linux-cp313.txt
+      - name: Run unit tests under coverage (in-process and subprocess; settings in .coveragerc)
         run: |
           set -euo pipefail
           mods=()
           for f in tests/test_*.py; do
-            case "$f" in tests/test_install*) continue ;; esac
+            case "$f" in tests/test_install*|tests/test_release_archive.py) continue ;; esac
             m="${f#tests/}"; mods+=("${m%.py}")
           done
-          PYTHONPATH=tests python -m coverage run --branch --source=scripts,schema -m unittest -v "${mods[@]}" 2>&1 | tee unit.log
-      - name: The YAML-parity and JSON-Schema cross-checks must have run, not skipped
+          mods+=("integration.test_gate")  # the opt-in gate's self-tests (stdlib only; see unit)
+          PYTHONPATH=tests python -m coverage run -m unittest -v "${mods[@]}" 2>&1 | tee unit.log
+      - name: The cross-checks that need requirements-dev.txt must have run, not skipped
+        # PyYAML (YAML parity), jsonschema (JSON Schema), packaging (PEP 440 differential) and
+        # markdown-it-py (CommonMark setext) are all pinned in requirements-dev.txt. The PEP 440
+        # differential also skips itself under packaging < 26.1, so that reason is matched too.
         run: |
-          if grep -E 'skipped .*(PyYAML|jsonschema)' unit.log; then
-            echo "::error::PyYAML/jsonschema tests skipped although requirements-dev.txt was installed"
+          if grep -E 'skipped .*(PyYAML|jsonschema|packaging not installed|packaging < 26\.1|markdown-it-py not installed)' unit.log; then
+            echo "::error::cross-check tests skipped although requirements-dev.txt was installed"
             exit 1
           fi
-      - name: Coverage report (in-process coverage of scripts/ and schema/)
-        # 84 = the branch-coverage total measured locally on 2026-10-27 (87%: 5262 statements,
-        # 2276 branches; Python 3.13 on Windows, same command, with scikit-learn/openai also
-        # installed) minus a 3-point margin for platform-dependent branches and the few tests
-        # that skip here without scikit-learn. Scripts launched as subprocesses are not
-        # measured, so CLI-only paths are under-counted. Raise the floor as coverage grows.
+      - name: Coverage report (scripts/ and schema/, including scripts run as subprocesses)
+        # .coveragerc sets parallel = True and patch = subprocess: every Python child that
+        # inherits the environment writes its own .coverage.* file, so combine before reporting.
+        # Before combining, the lines measured only in child processes (every child file's lines
+        # minus the parent's, the largest file) must reach MIN_SUBPROCESS_LINES: counting files
+        # is not enough, since a child that measured nothing still writes one, and the floor
+        # alone is not either, since the in-process total was above it. Both numbers are
+        # explained in docs/QUALITY-GATES.md "Coverage".
+        env:
+          MIN_SUBPROCESS_LINES: "100"
         run: |
-          python -m coverage report --show-missing --skip-covered --fail-under=84
+          set -euo pipefail
+          python - <<'PY'
+          import glob
+          import os
+          import sys
+
+          from coverage import CoverageData
+
+          minimum = int(os.environ["MIN_SUBPROCESS_LINES"])
+          measured = []
+          for path in sorted(glob.glob(".coverage.*")):
+              data = CoverageData(basename=path)
+              data.read()
+              lines = {(os.path.normcase(f), n) for f in data.measured_files() for n in (data.lines(f) or ())}
+              measured.append((len(lines), path, lines))
+          if len(measured) < 2:
+              print(f"::error::{len(measured)} coverage data file(s): subprocess coverage did not start")
+              sys.exit(1)
+          measured.sort(key=lambda m: (m[0], m[1]), reverse=True)
+          parent = measured[0][2]
+          child_only = set().union(*(m[2] for m in measured[1:])) - parent
+          print(f"{len(measured)} data files; parent {measured[0][1]} measured {len(parent)} lines; "
+                f"{len(child_only)} lines were measured only in subprocesses (minimum {minimum})")
+          if len(child_only) < minimum:
+              print(f"::error::only {len(child_only)} lines measured only in subprocesses (minimum {minimum}): "
+                    "subprocess coverage is not measuring the scripts the tests launch")
+              sys.exit(1)
+          PY
+          python -m coverage combine
+          python -m coverage report --fail-under=86
           python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
       - name: pip-audit the installed dev environment (transitive dependencies included)
         # requirements-dev.txt pins only the top-level tools; this audits everything pip
@@ -224,6 +364,10 @@ jobs:
       # The harness appends the block indices each run_blocks call executed here;
       # scripts/check_example_coverage.py then fails on any runnable block never executed.
       ML_AI_SKILLS_EXAMPLE_COVERAGE: ${{ github.workspace }}/example-coverage.jsonl
+      # Watchdog per run_blocks call (tests/examples/harness.py block_watchdog): a block that
+      # runs longer than 900 s dumps every thread's traceback and exits the test process with
+      # status 1, instead of hanging until the job's timeout-minutes.
+      ML_AI_SKILLS_EXAMPLE_TIMEOUT: "900"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -232,23 +376,38 @@ jobs:
         with:
           python-version: "3.13"
           cache: pip
-          cache-dependency-path: requirements-examples.txt
-      - name: Install requirements-examples.txt (CPU-only torch from the PyTorch index)
+          cache-dependency-path: |
+            requirements-examples.txt
+            constraints/examples-linux-cp313.txt
+      - name: Install requirements-examples.txt with its lock (CPU-only torch from the PyTorch index)
         id: install
+        # -c pins every package pip installs here, transitive ones included; the deps job checks
+        # the lock is complete for this platform (Linux x86_64, CPython 3.13).
         run: |
-          python -m pip install -r requirements-examples.txt
+          set -euo pipefail
+          python -m pip install -r requirements-examples.txt -c constraints/examples-linux-cp313.txt
           python -m pip freeze > examples-pip-freeze.txt
       - name: Run tests/examples
         run: |
           set -euo pipefail
           : > "$ML_AI_SKILLS_EXAMPLE_COVERAGE"
           python -m unittest discover -s tests/examples -t tests -p "test_*.py" -v 2>&1 | tee examples.log
+      - name: No example test was skipped
+        # ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1 turns a missing dependency into a failure, but a
+        # runtime skipTest (version or hardware gate) still only skips. The classified runtime
+        # skips (tests/examples/test_harness.py RUNTIME_SKIP_CLASSIFICATION) do not fire with the
+        # pinned versions on a CPU-only runner, so any skip here is unexpected.
+        run: |
+          if grep -E '\.\.\. skipped|^setUpClass .* skipped' examples.log; then
+            echo "::error::example tests were skipped under ML_AI_SKILLS_REQUIRE_EXAMPLE_DEPS=1 (listed above)"
+            exit 1
+          fi
       - name: Every runnable SKILL.md python block was executed (non-'# illustrative', current SKILL.md hash)
         run: python scripts/check_example_coverage.py
       - name: Runtime freshness checks (need the real libraries installed)
         run: python -m unittest discover -s tests -p "test_check_freshness.py" -v
-      - name: Executable eval cases
-        run: python scripts/run_evals.py --run-executable --out eval-exec-report.json
+      - name: Executable eval cases (a skipped case fails the step)
+        run: python scripts/run_evals.py --run-executable --require-executed --out eval-exec-report.json
       - name: Tests left no stray files in the checkout
         # Example code writes artifacts (models, mlruns/, parquet). Everything must land in
         # temp dirs; only this job's own report files may appear in the workspace.
@@ -279,12 +438,12 @@ jobs:
       - name: pip-audit the resolved example environment (transitive dependencies included)
         # Runs whenever the install succeeded, even if a test failed. pip-audit goes into its
         # own venv so it does not change the environment being audited; +cpu is stripped
-        # because advisories are keyed by the public version (torch 2.13.0).
+        # because advisories are keyed by the public version (torch==X+cpu is audited as X).
         if: always() && steps.install.outcome == 'success'
         run: |
           set -euo pipefail
           python -m venv "$RUNNER_TEMP/pip-audit-venv"
-          "$RUNNER_TEMP/pip-audit-venv/bin/python" -m pip install --quiet "$(grep -E '^pip-audit==' requirements-dev.txt)"
+          "$RUNNER_TEMP/pip-audit-venv/bin/python" -m pip install --quiet -c constraints/dev-linux-cp313.txt             "$(grep -E '^pip-audit==' requirements-dev.txt)"
           sed 's/+cpu$//' examples-pip-freeze.txt > "$RUNNER_TEMP/examples-audit.txt"
           wc -l < "$RUNNER_TEMP/examples-audit.txt"
           "$RUNNER_TEMP/pip-audit-venv/bin/pip-audit" --progress-spinner off --disable-pip --no-deps \
@@ -310,158 +469,112 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          # Two commits, so HEAD^1 is available: for a pull_request run HEAD is GitHub's test
-          # merge commit and HEAD^1 the base branch tip; for a push it is the previous commit.
-          fetch-depth: 2
+          fetch-depth: 0  # full history: the base commit (next step) must be in the clone
+      - name: Resolve the base commit (see the header of this file)
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          sha_re='^[0-9a-f]{40}$'
+          zero=0000000000000000000000000000000000000000
+          head="$(git rev-parse HEAD)"
+          base="" how=""
+          has() { git cat-file -e "$1^{commit}" 2>/dev/null; }
+          # A commit that a force push left unreferenced is not in a fresh clone, even with full history,
+          # but GitHub still serves it by sha until it is garbage-collected: fetch it before giving up.
+          fetched() {
+            has "$1" && return 0
+            if GIT_TERMINAL_PROMPT=0 timeout 120 git fetch --no-tags --quiet origin "$1" 2>/dev/null && has "$1"; then
+              echo "fetched $1 by sha (no ref points to it)"; return 0
+            fi
+            return 1
+          }
+          case "$EVENT_NAME" in
+            pull_request)
+              if ! [[ "$PR_BASE_SHA" =~ $sha_re ]]; then
+                echo "::error::the pull_request payload's base sha '$PR_BASE_SHA' is not a 40-hex sha"; exit 1
+              fi
+              if ! fetched "$PR_BASE_SHA"; then
+                echo "::error::the PR base $PR_BASE_SHA is not in the clone and could not be fetched (base branch force-pushed?); push to the PR branch so the next run gets a fresh payload"; exit 1
+              fi
+              first="$(git rev-parse --verify --quiet 'HEAD^1')" || first=""
+              second="$(git rev-parse --verify --quiet 'HEAD^2')" || second=""
+              # HEAD is normally GitHub's test merge commit (parents: base tip, PR head). Its first
+              # parent can be newer than the payload's base sha (the base branch moved), so prefer it.
+              if [ -n "$second" ] && [ "$second" = "$PR_HEAD_SHA" ] && git merge-base --is-ancestor "$PR_BASE_SHA" "$first"; then
+                base="$first"; how="first parent of the test merge commit; payload base $PR_BASE_SHA"
+              else
+                base="$(git merge-base HEAD "$PR_BASE_SHA")" || base=""
+                how="merge base of HEAD and the payload base $PR_BASE_SHA"
+              fi ;;
+            push)
+              if [ "$PUSH_BEFORE" != "$zero" ]; then
+                if ! [[ "$PUSH_BEFORE" =~ $sha_re ]]; then
+                  echo "::error::the push payload's before sha '$PUSH_BEFORE' is not a 40-hex sha"; exit 1
+                fi
+                if ! fetched "$PUSH_BEFORE"; then
+                  echo "::error::the pushed-over commit $PUSH_BEFORE is not in the clone and could not be fetched (force push?); push a new commit on top: its run compares against this tip (a manual run does not count for release.yml, which needs a successful push run)"
+                  exit 1
+                fi
+                base="$PUSH_BEFORE"; how="the commit before the push"
+              fi ;;
+          esac
+          if [ -z "$how" ]; then  # a push that created the branch (before is all zeros), or a manual run
+            mb=""
+            if [ -n "$DEFAULT_BRANCH" ] && has "refs/remotes/origin/$DEFAULT_BRANCH"; then
+              mb="$(git merge-base HEAD "refs/remotes/origin/$DEFAULT_BRANCH")" || mb=""
+            fi
+            if [ -n "$mb" ] && [ "$mb" != "$head" ]; then
+              base="$mb"; how="merge base with origin/$DEFAULT_BRANCH"
+            else
+              base="$(git rev-parse --verify --quiet 'HEAD^1')" || base=""
+              how="first parent of HEAD"
+            fi
+          fi
+          if [ -z "$base" ]; then
+            echo "::error::no base commit ($how) for HEAD $head"; exit 1
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "base commit: $base ($how)"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Offline eval self-tests (fixtures, plans, coverage)
         run: python scripts/run_evals.py --out eval-report.json
       - name: Routing benchmark (test split) must not regress
-        # Three checks, all on the test split, over all seven headline metrics:
+        # scripts/eval_router.py --gate (run_gate; unit-tested in tests/test_router_gate.py, and
+        # this step end to end in tests/test_audit_workflows.py). Three checks, all on the test
+        # split, over every headline metric the relevant baseline records:
         #  1. integrity: baseline.json's benchmark_sha256 must match benchmark.json, so the
         #     benchmark cannot change without a re-baseline;
-        #  2. this commit's router meets this commit's baseline.json;
-        #  3. no regression: this commit's router, run on the PARENT's benchmark, meets the
-        #     PARENT's baseline. Lowering baseline.json or deleting hard benchmark cases in the
-        #     same change therefore does not lower the bar. An intended regression has to land
-        #     as its own reviewed change that only lowers baseline.json (see docs/ROUTING.md).
-        # Check 3 validates the parent's cases per case only: the per-skill coverage rule is for
-        # this commit's benchmark (check 2), so adding a skill does not stop check 3. The
-        # parent's labels are carried over to this tree: a case expecting a skill that no longer
-        # exists, or a conflicting case whose forbidden skills are all gone, is dropped
-        # (::warning, counted in the summary; removing a skill is also a BREAKING contract
-        # change), removed slugs leave acceptable/forbidden, and a hard prerequisite this
-        # commit added becomes acceptable unless the parent forbade it (then selecting it counts
-        # as a forbidden selection). Anything that still does not validate fails the step - it
-        # is never skipped with a warning. A new skill re-weights the router's IDF for every
-        # skill, so even an unrelated one can move a parent case; that is a regression like any
-        # other (lower baseline.json in its own reviewed change first).
+        #  2. this commit's router meets this commit's baseline.json (and this commit's
+        #     benchmark passes the coverage and split-integrity rules);
+        #  3. no regression: this commit's router, run on the BASE commit's benchmark, meets the
+        #     BASE commit's baseline. Lowering baseline.json or deleting hard benchmark cases in
+        #     the same change therefore does not lower the bar. An intended regression has to
+        #     land as its own reviewed change that only lowers baseline.json (see docs/ROUTING.md).
+        # The base is the commit resolved above, passed with no --event-name so the gate uses
+        # it as is (not HEAD^1: for a push of several commits HEAD^1 is only the last one's
+        # parent, so a regression and a lowered baseline in an earlier commit would pass). An
+        # empty value fails here rather than falling back to HEAD^1. The base's labels are
+        # carried over to this tree (eval_router.adapt_parent_benchmark): a case expecting a
+        # removed skill is dropped with a ::warning, removed slugs leave acceptable/forbidden,
+        # and a hard prerequisite this commit added becomes acceptable unless the base forbade
+        # it. Anything that still does not validate fails the step; it is never skipped.
+        env:
+          ROUTING_BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          python - <<'PY'
-          import hashlib, json, os, subprocess, sys
-          from pathlib import Path
-          sys.path.insert(0, "scripts")
-          import eval_router as er
-          import skills_lib as sl
-          BENCH, BASELINE = "evals/routing/benchmark.json", "evals/routing/baseline.json"
-          FLAGS = {"precision": "--min-precision", "recall": "--min-recall", "top1_accuracy": "--min-top1",
-                   "task_accuracy": "--min-task-accuracy", "false_activation_rate": "--max-false-activation",
-                   "mean_unnecessary_activations": "--max-unnecessary",
-                   "forbidden_selection_rate": "--max-forbidden-rate"}
-          summary, errors = [], 0
-
-
-          def sha256(data):  # same normalisation as eval_router.benchmark_sha256
-              return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
-
-
-          def run(label, bench_path, baseline, report_path):
-              floor = baseline["metrics"]["test"]
-              args = [a for key, flag in FLAGS.items() if floor.get(key) is not None for a in (flag, str(floor[key]))]
-              print(f"[{label}] floors: {' '.join(args)}", flush=True)
-              with open(report_path, "w", encoding="utf-8") as out:
-                  code = subprocess.call([sys.executable, "scripts/eval_router.py", "--benchmark", bench_path,
-                                          "--split", "test", "--top-k", str(baseline.get("top_k", 5)), "--json", *args],
-                                         stdout=out)
-              if code == 2:
-                  return code, "benchmark did not validate (see stderr above)"
-              report = json.load(open(report_path, encoding="utf-8"))
-              print(json.dumps(report["splits"]["test"], indent=2))
-              for failure in report["threshold_failures"]:
-                  print(f"::error::routing regression [{label}]: {failure}")
-              return code, "pass" if code == 0 else "; ".join(report["threshold_failures"])
-
-
-          head = json.loads(Path(BASELINE).read_text(encoding="utf-8"))
-          if head.get("benchmark_sha256") != sha256(Path(BENCH).read_bytes()):
-              print(f"::error::{BASELINE} benchmark_sha256 does not match {BENCH}: re-baseline after editing the benchmark")
-              errors += 1
-              summary.append("- integrity: FAIL (benchmark_sha256 mismatch)")
-          else:
-              summary.append("- integrity: pass")
-          code, msg = run("own baseline", BENCH, head, "router-report.json")
-          errors += code != 0
-          summary.append(f"- this commit's router vs this commit's baseline: {msg}")
-
-
-          def at_parent(path):
-              r = subprocess.run(["git", "show", f"HEAD^1:{path}"], capture_output=True)
-              return r.stdout if r.returncode == 0 else None
-
-
-          def parent_cases_that_apply(bench, skills):
-              """The parent's benchmark with its labels carried over to this tree (see the step comment)."""
-              valid, requires = {s.slug for s in skills}, er.requires_map(skills)
-              kept, dropped, relabelled = [], [], []
-              for case in bench.get("cases") or []:
-                  if not isinstance(case, dict) or not all(isinstance(case.get(k), list) for k in er.LABEL_KEYS):
-                      kept.append(case)  # malformed: validate_benchmark reports it
-                      continue
-                  if any(s not in valid for s in case["expected"]) or (
-                          case.get("category") == "conflicting" and case["forbidden"]
-                          and not any(s in valid for s in case["forbidden"])):
-                      dropped.append(str(case.get("id")))
-                      continue
-                  case = {**case, "acceptable": [s for s in case["acceptable"] if s in valid],
-                          "forbidden": [s for s in case["forbidden"] if s in valid]}
-                  labelled = set(case["expected"]) | set(case["acceptable"])
-                  new = sorted({p for s in labelled for p in er.prerequisite_closure(s, requires)}
-                               - labelled - set(case["forbidden"]))
-                  if new:
-                      case["acceptable"] = case["acceptable"] + new
-                      relabelled.append(str(case.get("id")))
-                  kept.append(case)
-              return {**bench, "cases": kept}, dropped, relabelled
-
-
-          parent = subprocess.run(["git", "rev-parse", "--verify", "--quiet", "HEAD^1"],
-                                  capture_output=True, text=True).stdout.strip()
-          parent_baseline, parent_bench = (at_parent(BASELINE), at_parent(BENCH)) if parent else (None, None)
-          if parent_baseline is None or parent_bench is None:
-              print("::warning::no parent commit with a routing baseline; the no-regression check did not run")
-              summary.append("- vs parent: NOT RUN (no parent commit with a baseline)")
-          else:
-              label, skills = f"parent {parent[:12]}", sl.load_all_skills()
-              base, bench = json.loads(parent_baseline), json.loads(parent_bench)
-              adapted, dropped, relabelled = (parent_cases_that_apply(bench, skills) if isinstance(bench, dict)
-                                              else (bench, [], []))
-              problems = er.validate_benchmark(adapted, {s.slug for s in skills})
-              if dropped:
-                  print(f"::warning::{len(dropped)} {label} case(s) expect a skill this commit no longer has "
-                        f"and were dropped from the no-regression check: {', '.join(dropped)}")
-              if problems:
-                  for p in problems:
-                      print(f"::error::{label} benchmark does not validate against this commit's skills: {p}")
-                  errors += 1
-                  summary.append(f"- vs {label}: FAIL ({len(problems)} benchmark validation error(s); see the log)")
-              else:
-                  floor = base["metrics"]["test"]
-                  floors = {flag: floor[metric] for flag, (metric, _kind) in er.THRESHOLD_FLAGS.items()
-                            if floor.get(metric) is not None}
-                  print(f"[{label}] floors: {floors}", flush=True)
-                  report = er.evaluate(adapted["cases"], er.load_route_fn(None), top_k=base.get("top_k", 5),
-                                       split="test")
-                  report.pop("cases")
-                  failures = er.check_thresholds(report["splits"]["test"], floors)
-                  report.update(threshold_failures=failures, dropped_cases=dropped, relabelled_cases=relabelled)
-                  Path("router-report-parent.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n",
-                                                               encoding="utf-8")
-                  print(json.dumps(report["splits"]["test"], indent=2))
-                  for failure in failures:
-                      print(f"::error::routing regression [{label}]: {failure}")
-                  errors += bool(failures)
-                  note = (f" ({len(dropped)} case(s) dropped for removed skills, {len(relabelled)} relabelled "
-                          "for new prerequisites)") if dropped or relabelled else ""
-                  summary.append(f"- this commit's router vs {label}'s benchmark + baseline: "
-                                 f"{'; '.join(failures) or 'pass'}{note}")
-
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
-              fh.write("### Routing benchmark gate (test split)\n" + "\n".join(summary) + "\n")
-          print("\n".join(summary))
-          sys.exit(1 if errors else 0)
-          PY
+          set -euo pipefail
+          if [ -z "${ROUTING_BASE_SHA:-}" ]; then
+            echo "::error::ROUTING_BASE_SHA is empty: the base-commit step did not produce a commit"
+            exit 1
+          fi
+          python scripts/eval_router.py --gate --base-sha "$ROUTING_BASE_SHA" --report-dir .
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -511,7 +624,7 @@ jobs:
       - name: Show the shell the tests will use
         run: |
           command -v bash
-          bash --version | head -1
+          bash -c 'echo "bash $BASH_VERSION"'
       - name: Make installer scripts executable
         run: chmod +x install.sh uninstall.sh bin/ml-ai-skills
       - name: Run installer tests
@@ -574,6 +687,40 @@ jobs:
             echo "::error::claude-CLI tests skipped although the CLI was installed"
             exit 1
           fi
+      # Opt-in lifecycle test against the pinned CLI on a local clone of this checkout:
+      # marketplace add, install, installed-copy bytes, details inventory, uninstall, marketplace
+      # remove, and a leak check of the isolated config. A skip of the test or of any subtest
+      # (a CLI build without `plugin list --json` or `plugin details`) fails the step, since
+      # the pinned CLI is installed here. Not yet observed on a Linux runner.
+      - name: claude CLI lifecycle on a clean clone (opt-in test; must not skip here)
+        env:
+          ML_AI_SKILLS_CLAUDE_CLI: "1"
+        run: |
+          set -euo pipefail
+          PYTHONPATH=tests python -m unittest -v test_claude_cli_integration 2>&1 | tee cli-integration.log
+          if grep -E '\.\.\. skipped|^setUpClass .* skipped|skipped=[0-9]' cli-integration.log; then
+            echo "::error::claude CLI lifecycle test (or a subtest) skipped although the CLI was installed"
+            exit 1
+          fi
+
+  release-archive:
+    # Builds the release tarball from this checkout, extracts it and runs the documented fast
+    # checks from the extracted tree (~4 min, too long for the unit jobs' budget). release.yml's
+    # verify job runs the same module with ML_AI_SKILLS_RELEASE_SLOW=1.
+    name: Release archive is self-contained (fast checks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"  # as in release.yml's verify job
+      - name: tests/test_release_archive.py
+        run: PYTHONPATH=tests python -m unittest -v test_release_archive
 
   security:
     name: Security (workflow audit, pip-audit, bandit rules)
@@ -589,20 +736,211 @@ jobs:
       - name: Audit GitHub workflows
         run: python scripts/audit_workflows.py --strict
       - name: Install the pinned pip-audit and ruff from requirements-dev.txt
-        run: python -m pip install "$(grep -E '^pip-audit==' requirements-dev.txt)" "$(grep -E '^ruff==' requirements-dev.txt)"
-      - name: pip-audit the direct pins only (transitive deps are audited in examples / unit-with-dev-deps)
-        # --no-deps audits the exact top-level pins without installing anything; the
-        # resolved environments (incl. transitive packages) are audited in the examples and
-        # unit-with-dev-deps jobs. The +cpu local version tag is stripped because the PyPI
-        # advisory data is keyed by the public version (torch 2.13.0).
         run: |
           set -euo pipefail
-          sed 's/+cpu//' requirements-examples.txt > "$RUNNER_TEMP/requirements-examples-audit.txt"
-          pip-audit --progress-spinner off --disable-pip --no-deps -r requirements-dev.txt -r "$RUNNER_TEMP/requirements-examples-audit.txt"
+          python -m pip install -c constraints/dev-linux-cp313.txt             "$(grep -E '^pip-audit==' requirements-dev.txt)" "$(grep -E '^ruff==' requirements-dev.txt)"
+      - name: pip-audit the direct pins and both locks (every resolved package, transitive included)
+        # --no-deps audits exactly the listed versions without installing anything. The locks
+        # list every package pip installs on Linux/CPython 3.13, so this covers transitive
+        # dependencies too; the installed environments are audited again in the examples and
+        # unit-with-dev-deps jobs. The +cpu local version tag is stripped because the PyPI
+        # advisory data is keyed by the public version (torch==X+cpu is audited as X).
+        run: |
+          set -euo pipefail
+          for f in requirements-examples.txt constraints/examples-linux-cp313.txt; do
+            sed 's/+cpu//' "$f" > "$RUNNER_TEMP/audit-$(basename "$f")"
+          done
+          pip-audit --progress-spinner off --disable-pip --no-deps -r requirements-dev.txt             -r "$RUNNER_TEMP/audit-requirements-examples.txt"
+          pip-audit --progress-spinner off --disable-pip --no-deps -r constraints/dev-linux-cp313.txt             -r "$RUNNER_TEMP/audit-examples-linux-cp313.txt"
       - name: ruff security rules (flake8-bandit, S)
         # --select replaces ruff.toml's select *and* its global ignore list, so the two
         # justified global ignores are repeated here; per-file ignores still apply.
         run: ruff check --select S --ignore S603,S607 --output-format=github .
+
+  deps:
+    name: Dependency locks resolve (Linux x86_64, CPython 3.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0  # full history: the base commit (next step) must be in the clone
+      - name: Resolve the base commit (see the header of this file)
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          sha_re='^[0-9a-f]{40}$'
+          zero=0000000000000000000000000000000000000000
+          head="$(git rev-parse HEAD)"
+          base="" how=""
+          has() { git cat-file -e "$1^{commit}" 2>/dev/null; }
+          # A commit that a force push left unreferenced is not in a fresh clone, even with full history,
+          # but GitHub still serves it by sha until it is garbage-collected: fetch it before giving up.
+          fetched() {
+            has "$1" && return 0
+            if GIT_TERMINAL_PROMPT=0 timeout 120 git fetch --no-tags --quiet origin "$1" 2>/dev/null && has "$1"; then
+              echo "fetched $1 by sha (no ref points to it)"; return 0
+            fi
+            return 1
+          }
+          case "$EVENT_NAME" in
+            pull_request)
+              if ! [[ "$PR_BASE_SHA" =~ $sha_re ]]; then
+                echo "::error::the pull_request payload's base sha '$PR_BASE_SHA' is not a 40-hex sha"; exit 1
+              fi
+              if ! fetched "$PR_BASE_SHA"; then
+                echo "::error::the PR base $PR_BASE_SHA is not in the clone and could not be fetched (base branch force-pushed?); push to the PR branch so the next run gets a fresh payload"; exit 1
+              fi
+              first="$(git rev-parse --verify --quiet 'HEAD^1')" || first=""
+              second="$(git rev-parse --verify --quiet 'HEAD^2')" || second=""
+              # HEAD is normally GitHub's test merge commit (parents: base tip, PR head). Its first
+              # parent can be newer than the payload's base sha (the base branch moved), so prefer it.
+              if [ -n "$second" ] && [ "$second" = "$PR_HEAD_SHA" ] && git merge-base --is-ancestor "$PR_BASE_SHA" "$first"; then
+                base="$first"; how="first parent of the test merge commit; payload base $PR_BASE_SHA"
+              else
+                base="$(git merge-base HEAD "$PR_BASE_SHA")" || base=""
+                how="merge base of HEAD and the payload base $PR_BASE_SHA"
+              fi ;;
+            push)
+              if [ "$PUSH_BEFORE" != "$zero" ]; then
+                if ! [[ "$PUSH_BEFORE" =~ $sha_re ]]; then
+                  echo "::error::the push payload's before sha '$PUSH_BEFORE' is not a 40-hex sha"; exit 1
+                fi
+                if ! fetched "$PUSH_BEFORE"; then
+                  echo "::error::the pushed-over commit $PUSH_BEFORE is not in the clone and could not be fetched (force push?); push a new commit on top: its run compares against this tip (a manual run does not count for release.yml, which needs a successful push run)"
+                  exit 1
+                fi
+                base="$PUSH_BEFORE"; how="the commit before the push"
+              fi ;;
+          esac
+          if [ -z "$how" ]; then  # a push that created the branch (before is all zeros), or a manual run
+            mb=""
+            if [ -n "$DEFAULT_BRANCH" ] && has "refs/remotes/origin/$DEFAULT_BRANCH"; then
+              mb="$(git merge-base HEAD "refs/remotes/origin/$DEFAULT_BRANCH")" || mb=""
+            fi
+            if [ -n "$mb" ] && [ "$mb" != "$head" ]; then
+              base="$mb"; how="merge base with origin/$DEFAULT_BRANCH"
+            else
+              base="$(git rev-parse --verify --quiet 'HEAD^1')" || base=""
+              how="first parent of HEAD"
+            fi
+          fi
+          if [ -z "$base" ]; then
+            echo "::error::no base commit ($how) for HEAD $head"; exit 1
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+          echo "base commit: $base ($how)"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - name: Each lock is complete and consistent with its requirements file (pip dry-run)
+        # Resolves each requirements file with its lock as constraints, then requires that pip
+        # would install exactly what the lock lists: nothing unlisted (incomplete lock), nothing
+        # listed but unneeded (stale lock), no other version. A pin bumped in a requirements file
+        # without regenerating its lock fails here (pip: ResolutionImpossible).
+        run: |
+          set -euo pipefail
+          python -m pip install --dry-run --ignore-installed --quiet --report "$RUNNER_TEMP/examples-locked.json" \
+            -r requirements-examples.txt -c constraints/examples-linux-cp313.txt
+          python -m pip install --dry-run --ignore-installed --quiet --report "$RUNNER_TEMP/dev-locked.json" \
+            -r requirements-dev.txt -c constraints/dev-linux-cp313.txt
+          python - "$RUNNER_TEMP/examples-locked.json" constraints/examples-linux-cp313.txt \
+            "$RUNNER_TEMP/dev-locked.json" constraints/dev-linux-cp313.txt <<'PY'
+          import json, re, sys
+
+
+          def norm(name):
+              return re.sub(r"[-_.]+", "-", name).lower()
+
+
+          errors, args = 0, sys.argv[1:]
+          for report_path, lock_path in zip(args[::2], args[1::2]):
+              report = json.load(open(report_path, encoding="utf-8"))
+              resolved = {norm(i["metadata"]["name"]): i["metadata"]["version"] for i in report["install"]}
+              locked = {}
+              for n, line in enumerate(open(lock_path, encoding="utf-8"), 1):
+                  line = line.split("#", 1)[0].strip()
+                  if not line:
+                      continue
+                  name, sep, version = line.partition("==")
+                  if not sep or not name.strip() or not version.strip():
+                      print(f"::error file={lock_path},line={n}::not a 'name==version' line: {line!r}")
+                      errors += 1
+                      continue
+                  locked[norm(name.strip())] = version.strip()
+              for name in sorted(resolved.keys() - locked.keys()):
+                  print(f"::error file={lock_path}::{name}=={resolved[name]} would be installed but is not in the lock")
+                  errors += 1
+              for name in sorted(locked.keys() - resolved.keys()):
+                  print(f"::error file={lock_path}::{name}=={locked[name]} is in the lock but nothing requires it")
+                  errors += 1
+              for name in sorted(resolved.keys() & locked.keys()):
+                  if resolved[name] != locked[name]:
+                      print(f"::error file={lock_path}::{name}: pip resolved {resolved[name]}, the lock has {locked[name]}")
+                      errors += 1
+              print(f"{lock_path}: {len(resolved)} packages resolved, {len(locked)} locked")
+          sys.exit(1 if errors else 0)
+          PY
+      - name: When requirements changed, they resolve without the locks; upload regenerated locks
+        # Runs when a requirements file or a lock differs from the base commit, and on manual
+        # runs. Each whole requirements file must resolve on its own (Dependabot bumps one pin
+        # without checking it against the others), and the locks regenerated from that
+        # resolution are uploaded as the dependency-locks artifact, ready to commit. Not a drift
+        # check: new upstream releases of unpinned transitive packages change a fresh resolution
+        # over time, and the committed lock is what CI installs. Runs even when the previous step
+        # failed (a bumped pin without its lock): that is exactly when the regenerated locks are needed.
+        if: ${{ !cancelled() }}
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          changed="$(git diff --name-only "$BASE_SHA" HEAD -- requirements-dev.txt requirements-examples.txt constraints/)"
+          if [ -z "$changed" ] && [ "$EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "requirements files and locks are unchanged since $BASE_SHA; nothing to re-resolve"
+            exit 0
+          fi
+          echo "changed since $BASE_SHA: ${changed:-nothing (manual run)}"
+          mkdir -p dependency-locks
+          for pair in requirements-examples.txt:examples-linux-cp313.txt requirements-dev.txt:dev-linux-cp313.txt; do
+            req="${pair%%:*}" lock="${pair#*:}"
+            python -m pip install --dry-run --ignore-installed --quiet --report "$RUNNER_TEMP/$lock.json" -r "$req"
+            python - "$RUNNER_TEMP/$lock.json" "$req" > "dependency-locks/$lock" <<'PY'
+          import json, platform, sys
+
+          report_path, req = sys.argv[1], sys.argv[2]
+          report = json.load(open(report_path, encoding="utf-8"))
+          pins = sorted((f"{i['metadata']['name']}=={i['metadata']['version']}" for i in report["install"]),
+                        key=str.lower)
+          major_minor = ".".join(platform.python_version_tuple()[:2])
+          sys.stdout.reconfigure(newline="\n")  # LF on every OS
+          print(f"# GENERATED lock for {req}: every package pip installs for it, transitive ones included,")
+          print(f"# resolved on {sys.platform} {platform.machine()} with CPython {major_minor}.")
+          print("# Do not hand-edit. Regenerate: docs/REPRODUCIBILITY.md 'Dependency locks', or take the")
+          print("# dependency-locks artifact of ci.yml's deps job. Used as a pip constraints file (-c).")
+          print("\n".join(pins))
+          PY
+            if diff -u "constraints/$lock" "dependency-locks/$lock"; then
+              echo "constraints/$lock matches a fresh resolution of $req"
+            else
+              echo "::notice file=constraints/$lock::a fresh resolution of $req differs (diff above); the regenerated lock is in the dependency-locks artifact"
+            fi
+          done
+      - name: Upload regenerated locks
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-locks
+          path: dependency-locks/
+          if-no-files-found: ignore  # absent when nothing changed
+          retention-days: 30
 
   link-check:
     name: Live reference-link check (manual, network-dependent)
@@ -619,3 +957,30 @@ jobs:
         with:
           python-version: "3.13"
       - run: python scripts/validate_skills.py --check-links --warnings
+
+  all-required:
+    # The one check for branch protection to require: listing every job there goes stale when
+    # jobs are added, and a job skipped by a failed dependency or an `if:` would not block a
+    # merge. Fails unless every needed job succeeded (failure, cancelled and skipped all fail it).
+    # tests/test_audit_workflows.py requires `needs` to list every job except link-check.
+    name: All required checks passed
+    if: always()
+    needs: [lint, validate, unit, unit-with-dev-deps, examples, evals-offline, generated, installer, plugins, release-archive, security, deps]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every needed job succeeded
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = {job: (v or {}).get("result") for job, v in needs.items() if (v or {}).get("result") != "success"}
+          for job, result in sorted(bad.items()):
+              print(f"::error::required job '{job}' finished with result '{result}'")
+          print(f"{len(needs) - len(bad)} of {len(needs)} required jobs succeeded")
+          sys.exit(1 if bad or not needs else 0)
+          PY

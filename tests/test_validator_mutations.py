@@ -364,6 +364,17 @@ class TestRelationshipMutations(FixtureTree):
         w = self.assertFinding(report.warnings, "capability-collision", f"{REF}/SKILL.md", "capabilities", value=tag)
         self.assertIn(WF, w["shared_with"])
 
+    def test_near_duplicate_capability_is_a_warning(self):
+        tag = vs.sl.load_skill(self.root / WF).frontmatter["capabilities"][0]
+        self.edit(REF, lambda t: tu.set_key(t, "capabilities", f"\n  - ml-{tag}"))
+        report = self.report()
+        w = self.assertFinding(report.warnings, "capability-near-duplicate", f"{REF}/SKILL.md", "capabilities",
+                               value=f"ml-{tag}", near=tag)
+        self.assertEqual((w["reason"], w["shared_with"]), ("generic-prefix", [WF]))
+        self.assertFinding(report.warnings, "capability-near-duplicate", f"{WF}/SKILL.md", "capabilities",
+                           value=tag, near=f"ml-{tag}")
+        self.assertEqual([e for e in report.errors if e["file"] == f"{REF}/SKILL.md"], [])
+
     def test_index_out_of_sync(self):
         index = self.root / "INDEX.md"
         self.write(index, "\n".join(ln for ln in index.read_text(encoding="utf-8").split("\n")
@@ -397,6 +408,52 @@ class TestBodyMutations(FixtureTree):
     def test_unbalanced_fence(self):
         self.edit(WF, lambda t: t.rstrip("\n") + "\n\n```python\nprint('dangling')\n")
         self.assertError("unbalanced-fence")
+
+    def test_unclosed_tilde_fence(self):
+        # Old check counted ``` only, so an unclosed ~~~ fence (which swallows the rest of the
+        # file when rendered) passed.
+        self.edit(WF, lambda t: tu.sub_once(t, r"^## Overview[ \t]*$", "## Overview\n~~~text\nnever closed\n"))
+        e = self.assertError("unbalanced-fence", fence="~~~")
+        text = tu.read_skill(self.root, WF)
+        self.assertEqual(e["line"], text.split("\n").index("~~~text") + 1)
+
+    def test_section_heading_hidden_in_a_fence(self):
+        self.edit(WF, lambda t: tu.sub_once(t, r"^## Gotchas[ \t]*$", "```markdown\n## Gotchas\n```"))
+        self.assertError("missing-section", section="Gotchas")
+
+    def test_setext_heading(self):
+        self.edit(WF, lambda t: tu.sub_once(t, r"^## Gotchas[ \t]*$", "Gotchas\n-------"))
+        e = self.assertError("setext-heading", heading="Gotchas", level=2)
+        self.assertEqual(e["line"], tu.read_skill(self.root, WF).split("\n").index("-------") + 1)
+        self.assertError("missing-section", section="Gotchas")
+
+    def test_setext_heading_inside_a_numbered_step(self):
+        # CommonMark renders a `---` indented to a list item's content, directly under
+        # its paragraph, as an h2 inside the item: the step text becomes a heading.
+        self.edit(WF, lambda t: tu.sub_once(t, r"^   target balance before touching anything\.$",
+                                            "   target balance before touching anything.\n   ---"))
+        e = self.assertError("setext-heading", level=2)
+        self.assertTrue(e["heading"].startswith("**Profile the data first.**"), e["heading"])
+        self.assertEqual(e["line"], tu.read_skill(self.root, WF).split("\n").index("   ---") + 1)
+
+    def test_closing_hashes_still_name_the_section(self):
+        self.edit(WF, lambda t: tu.sub_once(t, r"^## Gotchas[ \t]*$", "## Gotchas ##"))
+        self.assertEqual(self.errors_for(), [])
+
+    def test_unfilled_template_copy(self):
+        """A skill folder created by copying _TEMPLATE/SKILL.md and not filling it in fails on
+        its placeholders (with a fix that names the template), not on description-xml-tag."""
+        dest = self.root / "new-skill"
+        self._touched.add(dest)
+        shutil.copytree(tu.REPO_ROOT / "_TEMPLATE", dest)
+        self.reindex()
+        self.assertError("placeholder-text", slug="new-skill", field="description")
+        errors = self.errors_for("new-skill")
+        self.assertNotIn("description-xml-tag", [e["code"] for e in errors])
+        [placeholder] = [e for e in errors if e["code"] == "placeholder-text" and e.get("field") == "description"]
+        self.assertIn("_TEMPLATE/SKILL.md", placeholder["fix"])
+        self.assertError("name-mismatch", slug="new-skill", field="name")
+        self.assertEqual([e for e in self.report().errors if e["file"] != "new-skill/SKILL.md"], [])
 
     def _append_to_overview(self, slug: str, text: str) -> None:
         self.edit(slug, lambda t: tu.sub_once(t, r"^## Overview[ \t]*$", f"## Overview\n{text}\n"))

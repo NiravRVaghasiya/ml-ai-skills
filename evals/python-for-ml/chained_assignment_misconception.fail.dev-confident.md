@@ -1,0 +1,1 @@
+The SettingWithCopyWarning means pandas can't tell whether the intermediate object returned by df[mask] is a view or a copy. For a simple boolean mask like this, df will still be updated in practice, so the warning is mostly cautious. The cleaner idiom is df.loc[df["age"] > 65, "senior"] = True, but silencing the warning won't break your current line.

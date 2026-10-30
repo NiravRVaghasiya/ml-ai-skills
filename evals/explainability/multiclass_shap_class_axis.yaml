@@ -21,6 +21,7 @@ must_not_include:
   - '\A\W*(yes|yeah|yep|yup|sure|absolutely|definitely|correct|exactly|right|indeed|agreed|of course|fine|ok|okay|great|nice|perfect|good (call|idea|plan|news)|great (idea|plan|news)|sounds (good|fine|right)|that works|that''s (right|correct|fine)|you''re (right|correct)|go ahead)\b(?![\s,!.:;-]*(not|but)\b)'
   - '(?<!n''t )(?<!not )(?:\bclass 1\b|\bindex 1\b|\[:, ?:, ?1\])[^.]{0,40}(\bis fine\b|\bworks fine\b|\bis ok(ay)?\b|\bgives the (overall|whole|global)\b|\brepresents the (whole|overall|entire) model\b|\bshows the (overall|whole|global)\b)'
   - '(?<!n''t )(?<!not )(?<!never )\b(sum|add)\w* (the )?(signed )?(shap )?(values )?(across|over) (the )?(classes|class axis|last axis)\b(?![^.]{0,40}\b(cancel\w*|zero|wrong|meaningless)\b)'
+  - '(?<!n''t )(?<!not )(?:\bclass 1\b|\bindex 1\b|\[:, ?:, ?1\]|\bpositive class\b)[^.]{0,80}\bis the model''s (overall |global |whole )?feature importance\b(?![^.]{0,30}\b(is wrong|is misleading|would be wrong)\b)'
 executable_tests:
   - 'examples.test_explainability.ExplainabilityShapExamples.test_multiclass_class_index_is_explicit'
   - 'examples.test_explainability.ExplainabilityShapExamples.test_tree_workflow_with_random_forest_multi_output'
@@ -34,3 +35,6 @@ limitations:
 notes: >
   Tests the "Multi-output SHAP values" Gotcha and the explicit class_index in explainability
   Workflow step 3, which Phase 1 changed from a hard-coded class 1.
+  A fix probe (fail.fixprobe, written from the rubric before the patterns were read, graded once)
+  failed only on missing concepts; on 2026-10-29 a must_not_include pattern was added so the
+  probe's wrong conclusion is caught directly.

@@ -1,0 +1,6 @@
+{
+  "schema": "ml-ai-skills/skill-reviews",
+  "schema_version": 1,
+  "description": "Per-skill human review records, read by scripts/quality_report.py. Add one record per review: {skill, reviewer, date (YYYY-MM-DD), skill_sha256, scope (full|content|code|references), outcome (approved|changes-requested|rejected), notes (optional)}. skill_sha256 is the SHA-256 of the reviewed SKILL.md with CRLF normalised to LF (the report's skills[].skill_sha256). A skill counts as reviewed only while that hash matches the current SKILL.md and the record has scope full and outcome approved; any edit to the SKILL.md makes the review stale. Only reviews a person actually performed belong here: agent audits (docs/SKILL-AUDIT.md) are not human reviews. Empty because no per-skill human review has been recorded.",
+  "reviews": []
+}

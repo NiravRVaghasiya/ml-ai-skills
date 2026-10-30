@@ -49,7 +49,27 @@ import generate_schema as gs  # noqa: E402
 import build_dependency_graph as bdg  # noqa: E402
 
 SLUG_RE = re.compile(av.SLUG_PATTERN)
-XML_TAG_RE = re.compile(r"</?[A-Za-z][A-Za-z0-9_.:-]*(?:\s[^<>]*)?/?>")
+# Claude's docs say only that `description` "Cannot contain XML tags"; what
+# counts as one is not published (docs/SKILL-SPEC.md, `description-xml-tag`).
+# Read conservatively, as an HTML tokenizer would: `<` followed by a letter
+# (`<tag>`, `<do X>`, `List<int>`), by `/` and a letter (`</x>`), or by `!`/`?`
+# (`<!-- -->`, `<?xml ?>`), up to the next `>` with no `<` in between. `a < b`,
+# `<=`, `->`, `<3`, `</3` and `p<0.05` are not tags; any other `<`/`>` is the
+# `description-angle-bracket` warning instead (Anthropic's upload validator
+# rejects every angle bracket). Stopping at `<` keeps the search linear: with
+# `[^>]*`, text like "<a<a<a..." with no `>` takes quadratic time. The cost is
+# that `<a < b>` is a warning, not an error (the tokenizer would call it a tag).
+XML_TAG_RE = re.compile(r"<(?:/?[^\W\d]|[!?])[^<>]*>")
+ANGLE_BRACKET_RE = re.compile(r"[<>]")
+# Template placeholders: `TODO` in any frontmatter text, or a `todo` token in a
+# slug/tag list item. _TEMPLATE/SKILL.md uses them so an unfilled copy fails.
+PLACEHOLDER_RE = re.compile(r"\bTODO\b")
+PLACEHOLDER_SLUG_RE = re.compile(r"(?:^|-)todo(?:-|$)")
+# capability-near-duplicate: leading tokens too generic to tell two tags apart.
+GENERIC_CAPABILITY_PREFIXES = frozenset({"ml", "ai", "llm", "dl"})
+# Two tokens differing by one edit count as a typo only when both are at least
+# this long; shorter tokens are often distinct terms (`gan`/`gnn`, `lora`/`qlora`).
+NEAR_DUPLICATE_MIN_TOKEN = 5
 # Link destinations in every form CommonMark/HTML renders as a link, so a link
 # that leaves the skill folder can't slip past by switching syntax: inline
 # `[t](url "title")` / `[t](<url>)`, reference definitions `[id]: url`, and raw
@@ -109,7 +129,10 @@ RULES: dict[str, tuple[str, str, str]] = {
                              "(Claude Agent Skills limit); move detail into ## Overview"),
     "description-xml-tag": ("error", "description contains an XML-like tag",
                             "remove `<tag>`-style text from the description (Claude Agent Skills forbids XML "
-                            "tags there); write placeholders as plain words"),
+                            "tags there); write placeholders as plain words, and put spaces around a comparison "
+                            "(`a < b`) or write it out"),
+    "placeholder-text": ("error", "frontmatter still contains a template placeholder (TODO)",
+                         "replace every TODO left from _TEMPLATE/SKILL.md with the skill's real text"),
     "description-not-for": ("error", "description missing 'NOT for ...' clause",
                             "end the description with 'NOT for <adjacent task> (see <sibling-slug>).'"),
     "description-trigger-phrases": ("error", "description has fewer than 3 quoted trigger phrases",
@@ -130,7 +153,12 @@ RULES: dict[str, tuple[str, str, str]] = {
     "too-few-references": ("error", "fewer than 2 references",
                            "add authoritative links as top-level `- [title](url) — reason` bullets"),
     "no-code-blocks": ("error", "workflow skill has zero code blocks", "add runnable fenced code to the Workflow steps"),
-    "unbalanced-fence": ("error", "unbalanced ``` code fence (odd count)", "close every ``` fence"),
+    "unbalanced-fence": ("error", "code fence is never closed",
+                         "close the fence with a line of the same character (``` or ~~~), at least as long as "
+                         "the opening fence"),
+    "setext-heading": ("error", "setext-style heading (text underlined with === or ---)",
+                       "write the heading as `## Heading`, or put a blank line between the text and a `---` "
+                       "rule; the section checks only read `#`-style headings"),
     "broken-link": ("error", "broken internal link", "fix the relative path or remove the link"),
     "link-escapes-skill": ("error", "relative link escapes the skill folder",
                            "link to an absolute https:// URL or a [[slug]] wiki-link instead; `../` paths break "
@@ -153,6 +181,12 @@ RULES: dict[str, tuple[str, str, str]] = {
                              "add the reverse `conflicts` entry to the other skill (contradiction is mutual)"),
     "capability-collision": ("warning", "capability tag shared by multiple skills (routing collision)",
                              "make each skill's capability tag specific enough to tell the skills apart"),
+    "capability-near-duplicate": ("warning", "capability tag nearly identical to another skill's tag",
+                                  "if both skills mean the same capability, use one spelling (and decide which "
+                                  "skill owns it); otherwise make the tags clearly different"),
+    "description-angle-bracket": ("warning", "description contains '<' or '>'",
+                                  "write the comparison out ('less than') if the skill may be uploaded: Anthropic's "
+                                  "skill-creator validator rejects any angle bracket in the description"),
     "version-constraint-format": ("warning", "version_constraints entry not in the documented format",
                                   'use "<dist><specifier>: <API> (<verification>)", e.g. '
                                   '"scikit-learn>=1.4: GridSearchCV(cv=...) (model-knowledge estimate, not '
@@ -312,15 +346,29 @@ def check_frontmatter(skill: sl.Skill, report: Report, today: dt.date | None = N
     desc = fm.get("description")
     if isinstance(desc, str):
         dline = lines.get("description")
-        if XML_TAG_RE.search(desc):
+        tag = XML_TAG_RE.search(desc)
+        if tag:
             report.add(skill.slug, "description-xml-tag", file=f, field="description", line=dline,
-                       value=XML_TAG_RE.search(desc).group(0))
+                       value=tag.group(0)[:80])
+        elif ANGLE_BRACKET_RE.search(desc):
+            m = ANGLE_BRACKET_RE.search(desc)
+            report.add(skill.slug, "description-angle-bracket", file=f, field="description", line=dline,
+                       value=desc[max(0, m.start() - 20):m.end() + 20])
         if "not for" not in desc.lower():
             report.add(skill.slug, "description-not-for", file=f, field="description", line=dline)
         quote_pairs = desc.count('"') // 2
         if quote_pairs < 3:
             report.add(skill.slug, "description-trigger-phrases", file=f, field="description", line=dline,
                        found=quote_pairs)
+
+    for key, value in fm.items():
+        items = value if isinstance(value, list) else [value]
+        hits = [x for x in items if isinstance(x, str) and (
+            PLACEHOLDER_RE.search(x) or (isinstance(value, list) and PLACEHOLDER_SLUG_RE.search(x)))]
+        if hits:
+            report.add(skill.slug, "placeholder-text", file=f, field=key, line=lines.get(key),
+                       value=hits[0][:80], fix=f"replace the TODO placeholder in `{key}` with real text "
+                                               "(it was copied from _TEMPLATE/SKILL.md)")
 
     vcs = fm.get("version_constraints")
     for vc in vcs if isinstance(vcs, list) else []:  # a scalar is already invalid-type; don't walk its chars
@@ -359,11 +407,18 @@ def check_sections(skill: sl.Skill, report: Report) -> None:
     if len(refs) < 2:
         report.add(skill.slug, "too-few-references", file=f, section="References", found=len(refs))
 
+    scan = skill.markdown()
+    offset = skill.body_line_offset()
+    for h in scan.setext:
+        report.add(skill.slug, "setext-heading", file=f, line=offset + h.line + 1, heading=h.text[:80],
+                   level=h.level)
+
     if t == "workflow":
         code_blocks = skill.code_blocks(lang=None)
         if len(code_blocks) == 0:
             report.add(skill.slug, "no-code-blocks", file=f, section="Workflow")
-        step_count = len(re.findall(r"^\d+\.\s+\*\*", skill.body, flags=re.MULTILINE))
+        step_count = sum(1 for line, kind in zip(scan.lines, scan.kinds, strict=True)
+                         if kind == "text" and re.match(r"\d+\.\s+\*\*", line))
         if step_count and len(code_blocks) < step_count:
             report.add(skill.slug, "fewer-code-blocks-than-steps", file=f, section="Workflow",
                        steps=step_count, code_blocks=len(code_blocks))
@@ -371,9 +426,10 @@ def check_sections(skill: sl.Skill, report: Report) -> None:
 
 def check_code_fences(skill: sl.Skill, report: Report) -> None:
     f = skill_file(skill)
-    fence_count = skill.body.count("```")
-    if fence_count % 2 != 0:
-        report.add(skill.slug, "unbalanced-fence", file=f, count=fence_count)
+    offset = skill.body_line_offset()
+    for fence in skill.markdown().fences:
+        if fence.end is None:  # CommonMark would render the rest of the file as code
+            report.add(skill.slug, "unbalanced-fence", file=f, line=offset + fence.line + 1, fence=fence.marker)
 
     for _lang, code in skill.code_blocks(lang="python"):
         error = _python_syntax_error(code)
@@ -505,10 +561,94 @@ def check_relationships(skills: list[sl.Skill], report: Report, known_slugs: set
                            line=by_slug[owner].key_lines.get("capabilities"), value=cap,
                            shared_with=[o for o in owners if o != owner])
 
+    check_capability_near_duplicates(capability_owners, by_slug, report)
+
     for cyc in bdg.find_cycles(skills):
         head = by_slug.get(cyc[0])
         report.add(cyc[0], "requires-cycle", file=f"{cyc[0]}/SKILL.md", field="requires",
                    line=head.key_lines.get("requires") if head else None, cycle=" -> ".join(cyc))
+
+
+def _singular(token: str) -> str:
+    """Crude English singular, enough to pair `embedding`/`embeddings`, `query`/`queries`."""
+    if len(token) > 4 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 3 and token.endswith("s") and not token.endswith(("ss", "us", "is")):
+        return token[:-1]
+    return token
+
+
+def capability_tokens(tag: str) -> tuple[str, ...]:
+    """Normalized tokens of a tag: case-folded, split on `-` `_` `/` `.` and spaces, singularized."""
+    return tuple(_singular(t) for t in re.split(r"[-_/. ]+", tag.lower()) if t)
+
+
+def _one_edit_apart(a: str, b: str) -> bool:
+    """True if a and b differ by exactly one insertion, deletion or substitution."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) > len(b):
+        a, b = b, a
+    i = 0
+    while i < len(a) and a[i] == b[i]:
+        i += 1
+    return a[i + (len(a) == len(b)):] == b[i + 1:]
+
+
+def near_duplicate_reason(a: str, b: str) -> str | None:
+    """Why two different capability tags look like the same capability, or None.
+
+    Deliberately narrow (tags sharing a word, like `class-imbalance-check` and
+    `class-imbalance-handling`, are distinct capabilities, not duplicates):
+    - `separator`: equal once case and separators are ignored (`fine-tune` / `finetune`);
+    - `plural`: equal once each token is singularized (`embedding` / `embeddings`);
+    - `token-order`: the same tokens in another order (`model-evaluation` / `evaluation-model`);
+    - `generic-prefix`: equal after dropping one leading token from GENERIC_CAPABILITY_PREFIXES
+      (`ml-drift-detection` / `drift-detection`; the rest must be at least two tokens);
+    - `typo`: same tokens except one pair one edit apart, both at least
+      NEAR_DUPLICATE_MIN_TOKEN characters long (`hyperparamter` / `hyperparameter`).
+    """
+    if a == b:
+        return None  # identical tags are capability-collision
+    raw_a = re.split(r"[-_/. ]+", a.lower())
+    raw_b = re.split(r"[-_/. ]+", b.lower())
+    if "".join(raw_a) == "".join(raw_b):
+        return "separator"
+    ta, tb = capability_tokens(a), capability_tokens(b)
+    if "".join(ta) == "".join(tb):
+        return "plural"
+    if len(ta) == len(tb) and sorted(ta) == sorted(tb):
+        return "token-order"
+    for x, y in ((ta, tb), (tb, ta)):
+        if len(x) == len(y) + 1 and len(y) >= 2 and x[0] in GENERIC_CAPABILITY_PREFIXES and x[1:] == y:
+            return "generic-prefix"
+    if len(ta) == len(tb):
+        diff = [(x, y) for x, y in zip(ta, tb, strict=True) if x != y]
+        if len(diff) == 1:
+            x, y = diff[0]
+            if min(len(x), len(y)) >= NEAR_DUPLICATE_MIN_TOKEN and _one_edit_apart(x, y):
+                return "typo"
+    return None
+
+
+def check_capability_near_duplicates(capability_owners: dict[str, list[str]], by_slug: dict[str, sl.Skill],
+                                     report: Report) -> None:
+    """Warn on tags of different skills that differ only in spelling (see near_duplicate_reason)."""
+    tags = sorted(capability_owners)
+    for i, a in enumerate(tags):
+        for b in tags[i + 1:]:
+            reason = near_duplicate_reason(a, b)
+            if reason is None:
+                continue
+            for tag, other_tag in ((a, b), (b, a)):
+                others = sorted(set(capability_owners[other_tag]))
+                for owner in sorted(set(capability_owners[tag])):
+                    shared = [o for o in others if o != owner]
+                    if not shared:  # both spellings in one skill: redundant, but not a routing collision
+                        continue
+                    report.add(owner, "capability-near-duplicate", file=f"{owner}/SKILL.md", field="capabilities",
+                               line=by_slug[owner].key_lines.get("capabilities"), value=tag, near=other_tag,
+                               reason=reason, shared_with=shared)
 
 
 _SKILL_CACHE: dict[tuple[str, str], sl.Skill] = {}

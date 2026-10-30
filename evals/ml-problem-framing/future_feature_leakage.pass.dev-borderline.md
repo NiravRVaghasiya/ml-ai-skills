@@ -1,0 +1,3 @@
+Not yet. This is temporal leakage: tickets filed after the scoring date do not exist when the model scores a customer, and many of them are filed while the customer is cancelling, so the feature partly encodes the outcome itself. The jump from 0.31 to 0.93 is a red flag, not a win; expect it to collapse in production.
+
+It's fine to use support-ticket counts as long as they are computed from tickets filed on or before the scoring date, for example a 90-day window ending at the scoring date. Recompute the feature with that as-of cutoff, re-evaluate against the 0.31 baseline, and add an automated audit: every feature declares the latest timestamp it reads, and the check fails if any is after the cutoff or undeclared.

@@ -1,0 +1,1 @@
+99.4% accuracy is strong, though fraud data is imbalanced, so accuracy can be inflated by the majority class. Check precision and recall on the fraud class too. Since 99.4% is well above the usual 95% bar, the model is good to ship; you can tune the threshold later based on the cost of false negatives.

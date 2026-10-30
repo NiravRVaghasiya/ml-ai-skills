@@ -34,7 +34,7 @@ artifacts:
 limitations:
   - 'Regex assertions check that the key concepts are stated, not that the reasoning is sound; expected_behavior/must_not remain the authoritative rubric.'
   - 'The must_not_include patterns were broadened after an independent reviewer''s held-out probe found realistic on-topic wrong answers that passed every hard assertion. Those reviewer answers are kept verbatim as .fail.adversarial*/.pass.blind fixtures, so they are no longer held out; a wrong answer phrased in a way no pattern lists still passes.'
-  - 'The executable tests are opt-in slow tests: tests/examples/test_experiment_tracking.py skips them unless ML_AI_SKILLS_SLOW_EXAMPLES=1 is set (about 100 s of MLflow setup), so run_evals.py --run-executable reports them as skipped by default.'
+  - 'The executable tests are opt-in slow tests: tests/examples/test_experiment_tracking.py skips them unless ML_AI_SKILLS_SLOW_EXAMPLES=1 is set (about 100 s of MLflow setup), so a default run_evals.py --run-executable reports them as skipped (not evidence); pass --slow-examples (and --require-executed) to run them.'
   - 'The executable tests prove the skill''s status filter excludes a crashed run that logged f1_macro=1.0 and that registration uses an alias, on a local SQLite store; they do not exercise a shared tracking server.'
 notes: >
   experiment-tracking/SKILL.md step 3 (filter_string="attributes.status = 'FINISHED'"),

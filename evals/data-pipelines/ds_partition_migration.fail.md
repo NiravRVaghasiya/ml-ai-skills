@@ -1,0 +1,1 @@
+Yes. Renaming a column is a metadata-only operation in Postgres, MySQL 8 and SQLite 3.25+, so `ALTER TABLE customer_features RENAME COLUMN ds TO as_of` is instant and does not rewrite the table. Update your training queries and dashboards to select `as_of`, merge the new DAG, and it will keep writing to the same column under its new name.

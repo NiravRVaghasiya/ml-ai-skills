@@ -31,7 +31,7 @@ related:
 inputs: A request to structure PyTorch code — a Dataset/DataLoader, a training loop, hooks, or checkpointing.
 outputs: Idiomatic PyTorch Dataset/DataLoader, train/eval loop, hook, and checkpoint code ready to adapt.
 version_constraints:
-  - "torch>=1.13: torch.load(..., weights_only=True) keyword (1.13 minimum and the 2.6 default flip are model-knowledge estimates; all Workflow blocks executed CPU-only against torch 2.13.0 on 2026-10-27)"
+  - "torch>=1.13: torch.load(..., weights_only=True) keyword (1.13 lower bound documented: the PyTorch 1.13 release notes add the weights_only option, and the 2.6.0 release notes flip its default to True, both read 2026-10-29; 1.13 and 2.6 not executed; all Workflow blocks executed CPU-only against torch 2.13.0 on 2026-10-27)"
 ---
 
 ## Overview

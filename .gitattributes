@@ -1,4 +1,45 @@
-# Normalize line endings: generated artifacts (plugins/, INDEX.md, docs/SKILL-GRAPH.md)
-# are compared byte-for-byte, so a CRLF checkout on Windows must not leak into commits.
+# Line endings: every text file is stored and checked out with LF on every platform,
+# whatever core.autocrlf says. Generated artifacts (plugins/, INDEX.md, docs/SKILL-GRAPH.md,
+# the README stats block) are compared byte for byte, the release archive is built from the
+# checked-out bytes, and scripts/build_release.py refuses a text file with CRLF.
+# tests/test_release_gitattributes.py checks these rules with `git check-attr` and a fresh
+# `core.autocrlf=true` clone.
 * text=auto eol=lf
+
+# Text types named explicitly, so they stay LF even if git's auto-detection guessed "binary".
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.sha256 text eol=lf
+VERSION text eol=lf
+LICENSE text eol=lf
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.shellcheckrc text eol=lf
+bin/* text eol=lf
+
+# Binary: never converted, never diffed or merged as text.
 *.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.tgz binary
+*.tar binary
+*.zip binary
+*.whl binary
+*.pt binary
+*.pth binary
+*.pkl binary
+*.npy binary
+*.npz binary
+*.parquet binary
