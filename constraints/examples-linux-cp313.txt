@@ -54,7 +54,7 @@ flatbuffers==25.12.19
 fonttools==4.68.0
 formulaic==1.2.2
 frozenlist==1.8.0
-fsspec==2026.7.0
+fsspec==2026.9.0
 gitdb==4.0.12
 GitPython==3.2.1
 google-auth==2.62.0
