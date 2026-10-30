@@ -59,7 +59,7 @@ gitdb==4.0.12
 GitPython==3.2.1
 google-auth==2.62.0
 graphene==3.4.3
-graphql-core==3.2.13
+graphql-core==3.3.1
 graphql-relay==3.2.0
 gunicorn==26.2.0
 h11==0.16.0
