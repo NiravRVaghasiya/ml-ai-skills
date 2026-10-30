@@ -193,7 +193,7 @@ statsmodels==0.15.0
 stringzilla==5.3.2
 sympy==1.14.0
 tenacity==9.2.1
-thinc==8.3.14
+thinc==10.0.0
 threadpoolctl==3.7.0
 tifffile==2026.10.15
 tokenizers==0.23.3
