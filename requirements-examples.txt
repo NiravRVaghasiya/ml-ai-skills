@@ -73,7 +73,7 @@ pendulum==3.3.0
 # fsspec: tests/examples/test_data_pipelines_object_store.py imports it directly
 # (@harness.requires). It also arrives transitively (torch declares an fsspec requirement); pinned here
 # at the version constraints/examples-linux-cp313.txt already locks, so the lock is unchanged.
-fsspec==2026.7.0
+fsspec==2026.9.0
 
 # --- deep learning / computer vision (heavy) -----------------------------------------
 torch==2.14.1+cpu
