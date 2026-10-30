@@ -213,7 +213,7 @@ tzdata==2026.6
 ujson==6.0.0
 urllib3==2.8.0
 uuid6==2025.0.1
-uuid_utils==0.19.0
+uuid_utils==1.2.0
 uvicorn==0.54.0
 uvloop==0.23.0
 wasabi==1.1.3
