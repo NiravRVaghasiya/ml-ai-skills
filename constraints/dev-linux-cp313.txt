@@ -7,7 +7,7 @@ boolean.py==5.0
 CacheControl==0.14.4
 certifi==2026.10.23
 charset-normalizer==3.5.2
-coverage==7.17.0
+coverage==7.17.2
 cyclonedx-python-lib==11.12.0
 defusedxml==0.7.1
 filelock==4.2.4
@@ -33,7 +33,7 @@ referencing==0.37.0
 requests==2.34.2
 rich==15.0.0
 rpds-py==2026.9.1
-ruff==0.17.2
+ruff==0.17.4
 shellcheck_py==0.11.0.1
 sortedcontainers==2.4.0
 tomli==2.5.0
